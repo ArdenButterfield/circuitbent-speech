@@ -15,10 +15,19 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("name")
     {
         CHECK_THAT (testPlugin.getName().toStdString(),
-            Catch::Matchers::Equals ("Pamplejuce Demo"));
+            Catch::Matchers::Equals ("Homer"));
     }
 }
 
+#include <espeak-ng/speak_lib.h>
+
+TEST_CASE("Basics of espeak", "[espeak]")
+{
+    const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
+    espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_RETRIEVAL;
+    int buflength = 500, options = 0;
+    espeak_Initialize(output, buflength, path, options);
+}
 
 #ifdef PAMPLEJUCE_IPP
     #include <ipp.h>
