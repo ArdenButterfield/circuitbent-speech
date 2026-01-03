@@ -2,6 +2,7 @@
 #include <PluginProcessor.h>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+#include <vector>
 
 TEST_CASE ("one is equal to one", "[dummy]")
 {
@@ -20,10 +21,17 @@ TEST_CASE ("Plugin instance", "[instance]")
 }
 
 #include <espeak-ng/speak_lib.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 
 int testSynthCallback(short *wav, int numsamples, espeak_EVENT *events)
 {
+    auto samples = static_cast<std::vector<float>*>(events->user_data);
+    for (int i = 0; i < numsamples; i++)
+    {
+        samples->push_back (wav[i] / 32768.0f);
+    }
     std::cout << "callback " << numsamples << std::endl;
+
     if (wav == nullptr)
     {
         return 1;
@@ -39,19 +47,45 @@ TEST_CASE ("Basics of espeak", "[espeak]")
     auto fs = espeak_Initialize (output, buflength, path, options); // 22050 is default
     REQUIRE (fs > 0);
 
-    char text[] = { "Hello world!" };
+    char text[] = { "This is a test of the Homer speech synthesizer. 1 2 3..." };
     char voicename[] = { "English (America)" }; // Set voice by its name
+
+    std::vector<float> samples;
+    samples.clear();
 
     auto voiceResult = espeak_SetVoiceByName(voicename);
     REQUIRE (voiceResult == EE_OK);
 
     espeak_SetSynthCallback(testSynthCallback);
 
-    void* user_data = nullptr;
+    void* user_data = &samples;
     unsigned int *identifier = nullptr;
     auto synthError = espeak_Synth(text, buflength, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
 
     REQUIRE (synthError == EE_OK);
+
+    juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 1000);
+    std::cout << "writing samples\n";
+    REQUIRE(samples.size() > 0);
+
+    juce::AudioBuffer<float> buffer;
+    buffer.setSize (1, samples.size());
+
+    for (int i = 0; i < samples.size(); i++)
+    {
+        buffer.setSample (0, i, samples[i]);
+    }
+
+    juce::WavAudioFormat format;
+    std::unique_ptr<juce::AudioFormatWriter> writer;
+    writer.reset (format.createWriterFor (new juce::FileOutputStream (juce::File(juce::File::getCurrentWorkingDirectory().getChildFile ("testHelloWorld.wav"))),
+                                          fs,
+                                          buffer.getNumChannels(),
+                                          24,
+                                          {},
+                                          0));
+    REQUIRE (writer != nullptr);
+    writer->writeFromAudioSampleBuffer (buffer, 0, buffer.getNumSamples());
 }
 
 #ifdef PAMPLEJUCE_IPP
