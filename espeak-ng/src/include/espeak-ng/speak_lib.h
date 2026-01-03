@@ -120,6 +120,15 @@ typedef struct epc
     klatt_frame_t kt_frame;
     klatt_global_t kt_globals;
 
+    // mbrola.h
+    int mbrola_delay;
+    char mbrola_name[20];
+
+    // numbers.c
+    int n_digit_lookup;
+    char *digit_lookup;
+    int speak_missing_thousands;
+    int number_control;
 
 
 } EspeakProcessorContext;

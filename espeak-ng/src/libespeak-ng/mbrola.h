@@ -41,9 +41,6 @@ typedef struct {
         int control;
 } MBROLA_TAB;
 
-extern int mbrola_delay;
-extern char mbrola_name[20];
-
 espeak_ng_STATUS LoadMbrolaTable(const char *mbrola_voice,
 		const char *phtrans, 
 		int *srate);

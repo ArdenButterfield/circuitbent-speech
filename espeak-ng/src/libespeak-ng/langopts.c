@@ -43,7 +43,7 @@ static int CheckTranslator(Translator *tr, const MNEM_TAB *keyword_tab, int key)
 static int LookupTune(const char *name);
 
 void LoadLanguageOptions(Translator *translator, int key, char *keyValue ) {
-if (CheckTranslator(translator, langopts_tab, key) != 0) {
+        if (CheckTranslator(translator, langopts_tab, key) != 0) {
 				return;
 			}
 
