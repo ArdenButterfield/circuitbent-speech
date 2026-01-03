@@ -134,6 +134,7 @@ typedef struct {
 #define F6     6
 #define F_NP   9  // nasal pole formant
 
+typedef struct epc EspeakProcessorContext;
 
 typedef struct {
 	int F0hz10; /* Voicing fund freq in Hz                          */
@@ -175,10 +176,10 @@ typedef struct {
 	double bp_inc;
 }  klatt_peaks_t;
 
-void KlattInit(void);
+void KlattInit(EspeakProcessorContext* epContext);
 void KlattFini(void);
-void KlattReset(int control);
-int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA *wdata, voice_t *wvoice);
+void KlattReset(EspeakProcessorContext* epContext, int control);
+int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA *wdata, voice_t *wvoice);
 
 #ifdef __cplusplus
 }

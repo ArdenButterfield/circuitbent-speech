@@ -28,7 +28,7 @@ extern "C"
 {
 #endif
 
-void CalcPitches(Translator *tr, int clause_type);
+void CalcPitches(EspeakProcessorContext* epContext, Translator *tr, int clause_type);
 
 #ifdef __cplusplus
 }

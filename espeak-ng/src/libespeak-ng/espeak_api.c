@@ -154,7 +154,7 @@ ESPEAK_API espeak_ERROR espeak_Terminate(EspeakProcessorContext* epContext)
 ESPEAK_API void espeak_CompileDictionary(EspeakProcessorContext* epContext, const char *path, FILE *log, int flags)
 {
 	espeak_ng_ERROR_CONTEXT context = NULL;
-	espeak_ng_STATUS result = espeak_ng_CompileDictionary(path, dictionary_name, log, flags, &context);
+	espeak_ng_STATUS result = espeak_ng_CompileDictionary(path, epContext->dictionary_name, log, flags, &context);
 	if (result != ENS_OK) {
 		espeak_ng_PrintStatusCodeMessage(result, stderr, context);
 		espeak_ng_ClearErrorContext(&context);

@@ -52,8 +52,6 @@ typedef struct {
 	unsigned char pitch2;
 } SYLLABLE;
 
-static int tone_pitch_env; // used to return pitch envelope
-
 /* Pitch data for tone types */
 /*****************************/
 
@@ -292,14 +290,7 @@ static const TONE_NUCLEUS tone_nucleus_table[N_TONE_NUCLEUS_TABLE] = {
 #define PRIMARY_STRESSED 6
 #define PRIMARY_LAST     7
 
-static int number_pre;
-static int number_tail;
-static int last_primary;
-static int tone_posn;
-static int tone_posn2;
-static int no_tonic;
-
-static void count_pitch_vowels(SYLLABLE *syllable_tab, int start, int end, int clause_end)
+static void count_pitch_vowels(EspeakProcessorContext* epContext, SYLLABLE *syllable_tab, int start, int end, int clause_end)
 {
 	int ix;
 	int stress;
@@ -307,9 +298,9 @@ static void count_pitch_vowels(SYLLABLE *syllable_tab, int start, int end, int c
 	int max_stress_posn = 0;  // last syllable ot the highest stress
 	int max_stress_posn2 = 0; // penuntimate syllable of the highest stress
 
-	number_pre = -1; // number of vowels before 1st primary stress
-	number_tail = 0; // number between tonic syllable and next primary
-	last_primary = -1;
+	epContext->number_pre = -1; // number of vowels before 1st primary stress
+	epContext->number_tail = 0; // number between tonic syllable and next primary
+	epContext->last_primary = -1;
 
 	for (ix = start; ix < end; ix++) {
 		stress = syllable_tab[ix].stress; // marked stress level
@@ -323,28 +314,28 @@ static void count_pitch_vowels(SYLLABLE *syllable_tab, int start, int end, int c
 			max_stress = stress;
 		}
 		if (stress >= PRIMARY) {
-			if (number_pre < 0)
-				number_pre = ix - start;
+			if (epContext->number_pre < 0)
+				epContext->number_pre = ix - start;
 
-			last_primary = ix;
+			epContext->last_primary = ix;
 		}
 	}
 
-	if (number_pre < 0)
-		number_pre = end;
+	if (epContext->number_pre < 0)
+		epContext->number_pre = end;
 
-	number_tail = end - max_stress_posn - 1;
-	tone_posn = max_stress_posn;
-	tone_posn2 = max_stress_posn2;
+	epContext->number_tail = end - max_stress_posn - 1;
+	epContext->tone_posn = max_stress_posn;
+	epContext->tone_posn2 = max_stress_posn2;
 
-	if (no_tonic)
-		tone_posn = tone_posn2 = end; // next position after the end of the truncated clause
-	else if (last_primary >= 0) {
+	if (epContext->no_tonic)
+		epContext->tone_posn = epContext->tone_posn2 = end; // next position after the end of the truncated clause
+	else if (epContext->last_primary >= 0) {
 		if (end == clause_end)
-			syllable_tab[last_primary].stress = PRIMARY_LAST;
+			syllable_tab[epContext->last_primary].stress = PRIMARY_LAST;
 	} else {
 		// no primary stress. Use the highest stress
-		syllable_tab[tone_posn].stress = PRIMARY_LAST;
+		syllable_tab[epContext->tone_posn].stress = PRIMARY_LAST;
 	}
 }
 
@@ -659,7 +650,7 @@ static void SetPitchGradient(SYLLABLE *syllable_tab, int start_ix, int end_ix, i
 }
 
 // Calculate pitch values for the vowels in this tone group
-static int calc_pitches2(SYLLABLE *syllable_tab, int start, int end,  int tune_number)
+static int calc_pitches2(EspeakProcessorContext* epContext, SYLLABLE *syllable_tab, int start, int end,  int tune_number)
 {
 	int ix;
 	TUNE *tune;
@@ -670,43 +661,43 @@ static int calc_pitches2(SYLLABLE *syllable_tab, int start, int end,  int tune_n
 
 	// vowels before the first primary stress
 
-	SetPitchGradient(syllable_tab, ix, ix+number_pre, tune->prehead_start, tune->prehead_end);
-	ix += number_pre;
+	SetPitchGradient(syllable_tab, ix, ix+epContext->number_pre, tune->prehead_start, tune->prehead_end);
+	ix += epContext->number_pre;
 
 	// body of tonic segment
 
 	if (option_tone_flags & OPTION_EMPHASIZE_PENULTIMATE)
-		tone_posn = tone_posn2; // put tone on the penultimate stressed word
-	ix = SetHeadIntonation(syllable_tab, tune, ix, tone_posn);
+		epContext->tone_posn = epContext->tone_posn2; // put tone on the penultimate stressed word
+	ix = SetHeadIntonation(syllable_tab, tune, ix, epContext->tone_posn);
 
-	if (no_tonic)
+	if (epContext->no_tonic)
 		return 0;
 
 	// tonic syllable
 
-	if (number_tail == 0) {
-		tone_pitch_env = tune->nucleus0_env;
+	if (epContext->number_tail == 0) {
+		epContext->tone_pitch_env = tune->nucleus0_env;
 		drop = tune->nucleus0_max - tune->nucleus0_min;
 		set_pitch(&syllable_tab[ix++], tune->nucleus0_min, drop);
 	} else {
-		tone_pitch_env = tune->nucleus1_env;
+		epContext->tone_pitch_env = tune->nucleus1_env;
 		drop = tune->nucleus1_max - tune->nucleus1_min;
 		set_pitch(&syllable_tab[ix++], tune->nucleus1_min, drop);
 	}
 
-	syllable_tab[tone_posn].env = tone_pitch_env;
-	if (syllable_tab[tone_posn].stress == PRIMARY)
-		syllable_tab[tone_posn].stress = PRIMARY_STRESSED;
+	syllable_tab[epContext->tone_posn].env = epContext->tone_pitch_env;
+	if (syllable_tab[epContext->tone_posn].stress == PRIMARY)
+		syllable_tab[epContext->tone_posn].stress = PRIMARY_STRESSED;
 
 	// tail, after the tonic syllable
 
 	SetPitchGradient(syllable_tab, ix, end, tune->tail_start, tune->tail_end);
 
-	return tone_pitch_env;
+	return epContext->tone_pitch_env;
 }
 
 // Calculate pitch values for the vowels in this tone group
-static int calc_pitches(SYLLABLE *syllable_tab, int control, int start, int end,  int tune_number)
+static int calc_pitches(EspeakProcessorContext* epContext, SYLLABLE *syllable_tab, int control, int start, int end,  int tune_number)
 {
 	int ix;
 	const TONE_HEAD *th;
@@ -715,7 +706,7 @@ static int calc_pitches(SYLLABLE *syllable_tab, int control, int start, int end,
 	bool continuing = false;
 
 	if (control == 0)
-		return calc_pitches2(syllable_tab, start, end, tune_number);
+		return calc_pitches2(epContext, syllable_tab, start, end, tune_number);
 
 	if (start > 0)
 		continuing = true;
@@ -726,16 +717,16 @@ static int calc_pitches(SYLLABLE *syllable_tab, int control, int start, int end,
 
 	// vowels before the first primary stress
 
-	SetPitchGradient(syllable_tab, ix, ix+number_pre, th->pre_start, th->pre_end);
-	ix += number_pre;
+	SetPitchGradient(syllable_tab, ix, ix+epContext->number_pre, th->pre_start, th->pre_end);
+	ix += epContext->number_pre;
 
 	// body of tonic segment
 
 	if (option_tone_flags & OPTION_EMPHASIZE_PENULTIMATE)
-		tone_posn = tone_posn2; // put tone on the penultimate stressed word
-	ix = calc_pitch_segment(syllable_tab, ix, tone_posn, th, tn, PRIMARY, continuing);
+		epContext->tone_posn = epContext->tone_posn2; // put tone on the penultimate stressed word
+	ix = calc_pitch_segment(syllable_tab, ix, epContext->tone_posn, th, tn, PRIMARY, continuing);
 
-	if (no_tonic)
+	if (epContext->no_tonic)
 		return 0;
 
 	// tonic syllable
@@ -743,25 +734,25 @@ static int calc_pitches(SYLLABLE *syllable_tab, int control, int start, int end,
 	if (tn->flags & T_EMPH)
 		syllable_tab[ix].flags |= SYL_EMPHASIS;
 
-	if (number_tail == 0) {
-		tone_pitch_env = tn->pitch_env0;
+	if (epContext->number_tail == 0) {
+		epContext->tone_pitch_env = tn->pitch_env0;
 		drop = tn->tonic_max0 - tn->tonic_min0;
 		set_pitch(&syllable_tab[ix++], tn->tonic_min0, drop);
 	} else {
-		tone_pitch_env = tn->pitch_env1;
+		epContext->tone_pitch_env = tn->pitch_env1;
 		drop = tn->tonic_max1 - tn->tonic_min1;
 		set_pitch(&syllable_tab[ix++], tn->tonic_min1, drop);
 	}
 
-	syllable_tab[tone_posn].env = tone_pitch_env;
-	if (syllable_tab[tone_posn].stress == PRIMARY)
-		syllable_tab[tone_posn].stress = PRIMARY_STRESSED;
+	syllable_tab[epContext->tone_posn].env = epContext->tone_pitch_env;
+	if (syllable_tab[epContext->tone_posn].stress == PRIMARY)
+		syllable_tab[epContext->tone_posn].stress = PRIMARY_STRESSED;
 
 	// tail, after the tonic syllable
 
 	SetPitchGradient(syllable_tab, ix, end, tn->tail_start, tn->tail_end);
 
-	return tone_pitch_env;
+	return epContext->tone_pitch_env;
 }
 
 static void CalcPitches_Tone(Translator *tr)
@@ -911,7 +902,7 @@ static void CalcPitches_Tone(Translator *tr)
 	}
 }
 
-void CalcPitches(Translator *tr, int clause_type)
+void CalcPitches(EspeakProcessorContext* epContext, Translator *tr, int clause_type)
 {
 	// clause_type: 0=. 1=, 2=?, 3=! 4=none
 
@@ -972,9 +963,9 @@ void CalcPitches(Translator *tr, int clause_type)
 	}
 
 	if (clause_type == 4)
-		no_tonic = 1; // incomplete clause, used for abbreviations such as Mr. Dr. Mrs.
+		epContext->no_tonic = 1; // incomplete clause, used for abbreviations such as Mr. Dr. Mrs.
 	else
-		no_tonic = 0;
+		epContext->no_tonic = 0;
 
 	st_start = 0;
 	count_primary = 0;
@@ -1026,31 +1017,31 @@ void CalcPitches(Translator *tr, int clause_type)
 				}
 			}
 
-			count_pitch_vowels(syllable_tab, st_start, ix, n_st);
+			count_pitch_vowels(epContext, syllable_tab, st_start, ix, n_st);
 			if ((ix < n_st) || (clause_type == 0)) {
-				calc_pitches(syllable_tab, option, st_start, ix, group_tone); // split into > 1 tone groups
+				calc_pitches(epContext, syllable_tab, option, st_start, ix, group_tone); // split into > 1 tone groups
 
 				if ((clause_type == 1) || (clause_type == 2))
 					group_tone = tr->langopts.tunes[1]; // , or ?  remainder has comma-tone
 				else
 					group_tone = tr->langopts.tunes[0]; // . or !  remainder has statement tone
 			} else
-				calc_pitches(syllable_tab, option, st_start, ix, group_tone);
+				calc_pitches(epContext, syllable_tab, option, st_start, ix, group_tone);
 
 			st_start = ix;
 		}
 		if ((st_start < st_ix) && (syl->flags & SYL_END_CLAUSE)) {
 			// end of clause after this syllable, indicated by a phonPAUSE_CLAUSE phoneme
 			st_clause_end = st_ix+1;
-			count_pitch_vowels(syllable_tab, st_start, st_clause_end, st_clause_end);
-			calc_pitches(syllable_tab, option, st_start, st_clause_end, group_tone_comma);
+			count_pitch_vowels(epContext, syllable_tab, st_start, st_clause_end, st_clause_end);
+			calc_pitches(epContext, syllable_tab, option, st_start, st_clause_end, group_tone_comma);
 			st_start = st_clause_end;
 		}
 	}
 
 	if (st_start < st_ix) {
-		count_pitch_vowels(syllable_tab, st_start, st_ix, n_st);
-		calc_pitches(syllable_tab, option, st_start, st_ix, group_tone);
+		count_pitch_vowels(epContext, syllable_tab, st_start, st_ix, n_st);
+		calc_pitches(epContext, syllable_tab, option, st_start, st_ix, group_tone);
 	}
 
 	// unpack pitch data

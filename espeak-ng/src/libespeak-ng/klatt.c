@@ -42,29 +42,21 @@
 #include "sPlayer.h"
 #endif
 
-extern unsigned char *out_ptr;
-extern unsigned char *out_end;
-static int nsamples;
-static int sample_count;
-
 #define getrandom(min, max) espeak_rand((min), (max))
 
 // function prototypes for functions private to this file
 
-static void flutter(klatt_frame_ptr);
-static double sampled_source(int);
-static double impulsive_source(void);
-static double natural_source(void);
-static void pitch_synch_par_reset(klatt_frame_ptr);
-static double gen_noise(double);
+static void flutter(EspeakProcessorContext* epContext, klatt_frame_ptr);
+static double sampled_source(EspeakProcessorContext* epContext, int);
+static double impulsive_source(EspeakProcessorContext* epContext);
+static double natural_source(EspeakProcessorContext* epContext);
+static void pitch_synch_par_reset(EspeakProcessorContext* epContext, klatt_frame_ptr);
+static double gen_noise(EspeakProcessorContext* epContext, double);
 static double DBtoLIN(long);
-static void frame_init(klatt_frame_ptr);
-static void setabc(long, long, resonator_ptr);
-static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *v, int control);
-static void setzeroabc(long, long, resonator_ptr);
-
-static klatt_frame_t kt_frame;
-static klatt_global_t kt_globals;
+static void frame_init(EspeakProcessorContext* epContext, klatt_frame_ptr);
+static void setabc(EspeakProcessorContext* epContext, long, long, resonator_ptr);
+static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_t *fr1, frame_t *fr2, voice_t *v, int control);
+static void setzeroabc(EspeakProcessorContext* epContext, long, long, resonator_ptr);
 
 #define NUMBER_OF_SAMPLES 100
 
@@ -162,14 +154,14 @@ static double antiresonator(resonator_ptr r, double input)
    slowly varying sine waves.
  */
 
-static void flutter(klatt_frame_ptr frame)
+static void flutter(EspeakProcessorContext* epContext, klatt_frame_ptr frame)
 {
 	static int time_count;
 	double delta_f0;
 	double fla, flb, flc, fld, fle;
 
-	fla = (double)kt_globals.f0_flutter / 50;
-	flb = (double)kt_globals.original_f0 / 100;
+	fla = (double)epContext->kt_globals.f0_flutter / 50;
+	flb = (double)epContext->kt_globals.original_f0 / 100;
 	flc = sin(M_PI*12.7*time_count); // because we are calling flutter() more frequently, every 2.9mS
 	fld = sin(M_PI*7.1*time_count);
 	fle = sin(M_PI*4.7*time_count);
@@ -185,7 +177,7 @@ static void flutter(klatt_frame_ptr frame)
    voice.
  */
 
-static double sampled_source(int source_num)
+static double sampled_source(EspeakProcessorContext* epContext, int source_num)
 {
 	int itemp;
 	double ftemp;
@@ -198,28 +190,28 @@ static double sampled_source(int source_num)
 
 	if (source_num == 0) {
 		samples = natural_samples;
-		kt_globals.num_samples = 100;
+		epContext->kt_globals.num_samples = 100;
 	} else {
 		samples = natural_samples2;
-		kt_globals.num_samples = 256;
+		epContext->kt_globals.num_samples = 256;
 	}
 
-	if (kt_globals.T0 != 0) {
-		ftemp = (double)kt_globals.nper;
-		ftemp = ftemp / kt_globals.T0;
-		ftemp = ftemp * kt_globals.num_samples;
+	if (epContext->kt_globals.T0 != 0) {
+		ftemp = (double)epContext->kt_globals.nper;
+		ftemp = ftemp / epContext->kt_globals.T0;
+		ftemp = ftemp * epContext->kt_globals.num_samples;
 		itemp = (int)ftemp;
 
 		temp_diff = ftemp - (double)itemp;
 
-		current_value = samples[(itemp) % kt_globals.num_samples];
-		next_value = samples[(itemp+1) % kt_globals.num_samples];
+		current_value = samples[(itemp) % epContext->kt_globals.num_samples];
+		next_value = samples[(itemp+1) % epContext->kt_globals.num_samples];
 
 		diff_value = (double)next_value - (double)current_value;
 		diff_value = diff_value * temp_diff;
 
-		result = samples[(itemp) % kt_globals.num_samples] + diff_value;
-		result = result * kt_globals.sample_factor;
+		result = samples[(itemp) % epContext->kt_globals.num_samples] + diff_value;
+		result = result * epContext->kt_globals.sample_factor;
 	} else
 		result = 0;
 	return result;
@@ -231,7 +223,7 @@ static double sampled_source(int source_num)
    Converts synthesis parameters to a waveform.
  */
 
-static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
+static int parwave(EspeakProcessorContext* epContext, klatt_frame_ptr frame, WGEN_DATA *wdata)
 {
 	double temp;
 	int value;
@@ -250,61 +242,61 @@ static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
 	static double sourc;
 	int ix;
 
-	flutter(frame); // add f0 flutter
+	flutter(epContext, frame); // add f0 flutter
 
 	// MAIN LOOP, for each output sample of current frame:
 
-	for (kt_globals.ns = 0; kt_globals.ns < kt_globals.nspfr; kt_globals.ns++) {
+	for (epContext->kt_globals.ns = 0; epContext->kt_globals.ns < epContext->kt_globals.nspfr; epContext->kt_globals.ns++) {
 		// Get low-passed random number for aspiration and frication noise
-		noise = gen_noise(noise);
+		noise = gen_noise(epContext, noise);
 
 		// Amplitude modulate noise (reduce noise amplitude during
 		// second half of glottal period) if voicing simultaneously present.
 
-		if (kt_globals.nper > kt_globals.nmod)
+		if (epContext->kt_globals.nper > epContext->kt_globals.nmod)
 			noise *= (double)0.5;
 
 		// Compute frication noise
-		frics = kt_globals.amp_frica * noise;
+		frics = epContext->kt_globals.amp_frica * noise;
 
 		// Compute voicing waveform. Run glottal source simulation at 4
 		// times normal sample rate to minimize quantization noise in
 		// period of female voice.
 
 		for (n4 = 0; n4 < 4; n4++) {
-			switch (kt_globals.glsource)
+			switch (epContext->kt_globals.glsource)
 			{
 			case IMPULSIVE:
-				voice = impulsive_source();
+				voice = impulsive_source(epContext);
 				break;
 			case NATURAL:
-				voice = natural_source();
+				voice = natural_source(epContext);
 				break;
 			case SAMPLED:
-				voice = sampled_source(0);
+				voice = sampled_source(epContext, 0);
 				break;
 			case SAMPLED2:
-				voice = sampled_source(1);
+				voice = sampled_source(epContext, 1);
 				break;
 			}
 
 			// Reset period when counter 'nper' reaches T0
-			if (kt_globals.nper >= kt_globals.T0) {
-				kt_globals.nper = 0;
-				pitch_synch_par_reset(frame);
+			if (epContext->kt_globals.nper >= epContext->kt_globals.T0) {
+				epContext->kt_globals.nper = 0;
+				pitch_synch_par_reset(epContext, frame);
 			}
 
 			// Low-pass filter voicing waveform before downsampling from 4*samrate
 			// to samrate samples/sec.  Resonator f=.09*samrate, bw=.06*samrate
 
-			voice = resonator(&(kt_globals.rsn[RLP]), voice);
+			voice = resonator(&(epContext->kt_globals.rsn[RLP]), voice);
 
 			// Increment counter that keeps track of 4*samrate samples per sec
-			kt_globals.nper++;
+			epContext->kt_globals.nper++;
 		}
 
-		if(kt_globals.glsource==5) {
-			double v=(kt_globals.nper/(double)kt_globals.T0);
+		if(epContext->kt_globals.glsource==5) {
+			double v=(epContext->kt_globals.nper/(double)epContext->kt_globals.T0);
 			v=(v*2)-1;
 			voice=v*6000;
 		}
@@ -312,22 +304,22 @@ static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
 		// Tilt spectrum of voicing source down by soft low-pass filtering, amount
 		// of tilt determined by TLTdb
 
-		voice = (voice * kt_globals.onemd) + (vlast * kt_globals.decay);
+		voice = (voice * epContext->kt_globals.onemd) + (vlast * epContext->kt_globals.decay);
 		vlast = voice;
 
 		// Add breathiness during glottal open phase. Amount of breathiness
 		// determined by parameter Aturb Use nrand rather than noise because
 		// noise is low-passed.
 
-		if (kt_globals.nper < kt_globals.nopen)
-			voice += kt_globals.amp_breth * kt_globals.nrand;
+		if (epContext->kt_globals.nper < epContext->kt_globals.nopen)
+			voice += epContext->kt_globals.amp_breth * epContext->kt_globals.nrand;
 
 		// Set amplitude of voicing
-		glotout = kt_globals.amp_voice * voice;
-		par_glotout = kt_globals.par_amp_voice * voice;
+		glotout = epContext->kt_globals.amp_voice * voice;
+		par_glotout = epContext->kt_globals.par_amp_voice * voice;
 
 		// Compute aspiration amplitude and add to voicing source
-		aspiration = kt_globals.amp_aspir * noise;
+		aspiration = epContext->kt_globals.amp_aspir * noise;
 		glotout += aspiration;
 
 		par_glotout += aspiration;
@@ -336,17 +328,17 @@ static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
 		// Nasal antiresonator, then formants FNP, F5, F4, F3, F2, F1
 
 		out = 0;
-		if (kt_globals.synthesis_model != ALL_PARALLEL) {
-			casc_next_in = antiresonator(&(kt_globals.rsn[Rnz]), glotout);
-			casc_next_in = resonator(&(kt_globals.rsn[Rnpc]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R8c]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R7c]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R6c]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R5c]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R4c]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R3c]), casc_next_in);
-			casc_next_in = resonator(&(kt_globals.rsn[R2c]), casc_next_in);
-			out = resonator(&(kt_globals.rsn[R1c]), casc_next_in);
+		if (epContext->kt_globals.synthesis_model != ALL_PARALLEL) {
+			casc_next_in = antiresonator(&(epContext->kt_globals.rsn[Rnz]), glotout);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[Rnpc]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R8c]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R7c]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R6c]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R5c]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R4c]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R3c]), casc_next_in);
+			casc_next_in = resonator(&(epContext->kt_globals.rsn[R2c]), casc_next_in);
+			out = resonator(&(epContext->kt_globals.rsn[R1c]), casc_next_in);
 		}
 
 		// Excite parallel F1 and FNP by voicing waveform
@@ -357,21 +349,21 @@ static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
 		// parallel resonators is frication plus first difference of
 		// voicing waveform.
 
-		out += resonator(&(kt_globals.rsn[R1p]), sourc);
-		out += resonator(&(kt_globals.rsn[Rnpp]), sourc);
+		out += resonator(&(epContext->kt_globals.rsn[R1p]), sourc);
+		out += resonator(&(epContext->kt_globals.rsn[Rnpp]), sourc);
 
 		sourc = frics + par_glotout - glotlast;
 		glotlast = par_glotout;
 
 		for (ix = R2p; ix <= R6p; ix++)
-			out = resonator(&(kt_globals.rsn[ix]), sourc) - out;
+			out = resonator(&(epContext->kt_globals.rsn[ix]), sourc) - out;
 
-		outbypas = kt_globals.amp_bypas * sourc;
+		outbypas = epContext->kt_globals.amp_bypas * sourc;
 
 		out = outbypas - out;
 
-		out = resonator(&(kt_globals.rsn[Rout]), out);
-		temp = (int)(out * wdata->amplitude * kt_globals.amp_gain0); // Convert back to integer
+		out = resonator(&(epContext->kt_globals.rsn[Rout]), out);
+		temp = (int)(out * wdata->amplitude * epContext->kt_globals.amp_gain0); // Convert back to integer
 
 		// mix with a recorded WAV if required for this phoneme
 		signed char c;
@@ -395,17 +387,17 @@ static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
 				wdata->mix_wavefile_offset -= (wdata->mix_wavefile_max*3)/4;
 		}
 
-		if (kt_globals.fadein < 64) {
-			temp = (temp * kt_globals.fadein) / 64;
-			++kt_globals.fadein;
+		if (epContext->kt_globals.fadein < 64) {
+			temp = (temp * epContext->kt_globals.fadein) / 64;
+			++epContext->kt_globals.fadein;
 		}
 
 		// if fadeout is set, fade to zero over 64 samples, to avoid clicks at end of synthesis
-		if (kt_globals.fadeout > 0) {
-			kt_globals.fadeout--;
-			temp = (temp * kt_globals.fadeout) / 64;
-			if (kt_globals.fadeout == 0)
-				kt_globals.fadein = 0;
+		if (epContext->kt_globals.fadeout > 0) {
+			epContext->kt_globals.fadeout--;
+			temp = (temp * epContext->kt_globals.fadeout) / 64;
+			if (epContext->kt_globals.fadeout == 0)
+				epContext->kt_globals.fadein = 0;
 		}
 
 		value = (int)temp + ((echo_buf[echo_tail++]*echo_amp) >> 8);
@@ -425,14 +417,14 @@ static int parwave(klatt_frame_ptr frame, WGEN_DATA *wdata)
 		if (echo_head >= N_ECHO_BUF)
 			echo_head = 0;
 
-		sample_count++;
+		epContext->sample_count++;
 		if (out_ptr + 2 > out_end)
 			return 1;
 	}
 	return 0;
 }
 
-void KlattReset(int control)
+void KlattReset(EspeakProcessorContext* epContext, int control)
 {
 	int r_ix;
 
@@ -442,28 +434,28 @@ void KlattReset(int control)
 
 	if (control == 2) {
 		// Full reset
-		kt_globals.FLPhz = (950 * kt_globals.samrate) / 10000;
-		kt_globals.BLPhz = (630 * kt_globals.samrate) / 10000;
-		kt_globals.minus_pi_t = -M_PI / kt_globals.samrate;
-		kt_globals.two_pi_t = -2.0 * kt_globals.minus_pi_t;
-		setabc(kt_globals.FLPhz, kt_globals.BLPhz, &(kt_globals.rsn[RLP]));
+		epContext->kt_globals.FLPhz = (950 * epContext->kt_globals.samrate) / 10000;
+		epContext->kt_globals.BLPhz = (630 * epContext->kt_globals.samrate) / 10000;
+		epContext->kt_globals.minus_pi_t = -M_PI / epContext->kt_globals.samrate;
+		epContext->kt_globals.two_pi_t = -2.0 * epContext->kt_globals.minus_pi_t;
+		setabc(epContext, epContext->kt_globals.FLPhz, epContext->kt_globals.BLPhz, &(epContext->kt_globals.rsn[RLP]));
 	}
 
 	if (control > 0) {
-		kt_globals.nper = 0;
-		kt_globals.T0 = 0;
-		kt_globals.nopen = 0;
-		kt_globals.nmod = 0;
+		epContext->kt_globals.nper = 0;
+		epContext->kt_globals.T0 = 0;
+		epContext->kt_globals.nopen = 0;
+		epContext->kt_globals.nmod = 0;
 
 		for (r_ix = RGL; r_ix < N_RSN; r_ix++) {
-			kt_globals.rsn[r_ix].p1 = 0;
-			kt_globals.rsn[r_ix].p2 = 0;
+			epContext->kt_globals.rsn[r_ix].p1 = 0;
+			epContext->kt_globals.rsn[r_ix].p2 = 0;
 		}
 	}
 
 	for (r_ix = 0; r_ix <= R6p; r_ix++) {
-		kt_globals.rsn[r_ix].p1 = 0;
-		kt_globals.rsn[r_ix].p2 = 0;
+		epContext->kt_globals.rsn[r_ix].p1 = 0;
+		epContext->kt_globals.rsn[r_ix].p2 = 0;
 	}
 }
 
@@ -480,23 +472,23 @@ void KlattFini(void)
    Use parameters from the input frame to set up resonator coefficients.
  */
 
-static void frame_init(klatt_frame_ptr frame)
+static void frame_init(EspeakProcessorContext* epContext, klatt_frame_ptr frame)
 {
 	double amp_par[7];
 	static const double amp_par_factor[7] = { 0.6, 0.4, 0.15, 0.06, 0.04, 0.022, 0.03 };
 	long Gain0_tmp;
 	int ix;
 
-	kt_globals.original_f0 = frame->F0hz10 / 10;
+	epContext->kt_globals.original_f0 = frame->F0hz10 / 10;
 
 	frame->AVdb_tmp  = frame->AVdb - 7;
 	if (frame->AVdb_tmp < 0)
 		frame->AVdb_tmp = 0;
 
-	kt_globals.amp_aspir = DBtoLIN(frame->ASP) * 0.05;
-	kt_globals.amp_frica = DBtoLIN(frame->AF) * 0.25;
-	kt_globals.par_amp_voice = DBtoLIN(frame->AVpdb);
-	kt_globals.amp_bypas = DBtoLIN(frame->AB) * 0.05;
+	epContext->kt_globals.amp_aspir = DBtoLIN(frame->ASP) * 0.05;
+	epContext->kt_globals.amp_frica = DBtoLIN(frame->AF) * 0.25;
+	epContext->kt_globals.par_amp_voice = DBtoLIN(frame->AVpdb);
+	epContext->kt_globals.amp_bypas = DBtoLIN(frame->AB) * 0.05;
 
 	for (ix = 0; ix <= 6; ix++) {
 		// parallel amplitudes F1 to F6, and parallel nasal pole
@@ -506,39 +498,39 @@ static void frame_init(klatt_frame_ptr frame)
 	Gain0_tmp = frame->Gain0 - 3;
 	if (Gain0_tmp <= 0)
 		Gain0_tmp = 57;
-	kt_globals.amp_gain0 = DBtoLIN(Gain0_tmp) / kt_globals.scale_wav;
+	epContext->kt_globals.amp_gain0 = DBtoLIN(Gain0_tmp) / epContext->kt_globals.scale_wav;
 
 	// Set coefficients of variable cascade resonators
 	for (ix = 1; ix <= 9; ix++) {
 		// formants 1 to 8, plus nasal pole
-		setabc(frame->Fhz[ix], frame->Bhz[ix], &(kt_globals.rsn[ix]));
+		setabc(epContext, frame->Fhz[ix], frame->Bhz[ix], &(epContext->kt_globals.rsn[ix]));
 
 		if (ix <= 5) {
-			setabc(frame->Fhz_next[ix], frame->Bhz_next[ix], &(kt_globals.rsn_next[ix]));
+			setabc(epContext, frame->Fhz_next[ix], frame->Bhz_next[ix], &(epContext->kt_globals.rsn_next[ix]));
 
-			kt_globals.rsn[ix].a_inc = (kt_globals.rsn_next[ix].a - kt_globals.rsn[ix].a) / 64.0;
-			kt_globals.rsn[ix].b_inc = (kt_globals.rsn_next[ix].b - kt_globals.rsn[ix].b) / 64.0;
-			kt_globals.rsn[ix].c_inc = (kt_globals.rsn_next[ix].c - kt_globals.rsn[ix].c) / 64.0;
+			epContext->kt_globals.rsn[ix].a_inc = (epContext->kt_globals.rsn_next[ix].a - epContext->kt_globals.rsn[ix].a) / 64.0;
+			epContext->kt_globals.rsn[ix].b_inc = (epContext->kt_globals.rsn_next[ix].b - epContext->kt_globals.rsn[ix].b) / 64.0;
+			epContext->kt_globals.rsn[ix].c_inc = (epContext->kt_globals.rsn_next[ix].c - epContext->kt_globals.rsn[ix].c) / 64.0;
 		}
 	}
 
 	// nasal zero anti-resonator
-	setzeroabc(frame->Fhz[F_NZ], frame->Bhz[F_NZ], &(kt_globals.rsn[Rnz]));
-	setzeroabc(frame->Fhz_next[F_NZ], frame->Bhz_next[F_NZ], &(kt_globals.rsn_next[Rnz]));
-	kt_globals.rsn[F_NZ].a_inc = (kt_globals.rsn_next[F_NZ].a - kt_globals.rsn[F_NZ].a) / 64.0;
-	kt_globals.rsn[F_NZ].b_inc = (kt_globals.rsn_next[F_NZ].b - kt_globals.rsn[F_NZ].b) / 64.0;
-	kt_globals.rsn[F_NZ].c_inc = (kt_globals.rsn_next[F_NZ].c - kt_globals.rsn[F_NZ].c) / 64.0;
+	setzeroabc(epContext, frame->Fhz[F_NZ], frame->Bhz[F_NZ], &(epContext->kt_globals.rsn[Rnz]));
+	setzeroabc(epContext, frame->Fhz_next[F_NZ], frame->Bhz_next[F_NZ], &(epContext->kt_globals.rsn_next[Rnz]));
+	epContext->kt_globals.rsn[F_NZ].a_inc = (epContext->kt_globals.rsn_next[F_NZ].a - epContext->kt_globals.rsn[F_NZ].a) / 64.0;
+	epContext->kt_globals.rsn[F_NZ].b_inc = (epContext->kt_globals.rsn_next[F_NZ].b - epContext->kt_globals.rsn[F_NZ].b) / 64.0;
+	epContext->kt_globals.rsn[F_NZ].c_inc = (epContext->kt_globals.rsn_next[F_NZ].c - epContext->kt_globals.rsn[F_NZ].c) / 64.0;
 
 	// Set coefficients of parallel resonators, and amplitude of outputs
 
 	for (ix = 0; ix <= 6; ix++) {
-		setabc(frame->Fhz[ix], frame->Bphz[ix], &(kt_globals.rsn[Rparallel+ix]));
-		kt_globals.rsn[Rparallel+ix].a *= amp_par[ix];
+		setabc(epContext, frame->Fhz[ix], frame->Bphz[ix], &(epContext->kt_globals.rsn[Rparallel+ix]));
+		epContext->kt_globals.rsn[Rparallel+ix].a *= amp_par[ix];
 	}
 
 	// output low-pass filter
 
-	setabc((long)0.0, (long)(kt_globals.samrate/2), &(kt_globals.rsn[Rout]));
+	setabc(epContext, (long)0.0, (long)(epContext->kt_globals.samrate/2), &(epContext->kt_globals.rsn[Rout]));
 }
 
 /*
@@ -550,17 +542,17 @@ static void frame_init(klatt_frame_ptr frame)
    to Kopen.
  */
 
-static double impulsive_source(void)
+static double impulsive_source(EspeakProcessorContext* epContext)
 {
 	static const double doublet[] = { 0.0, 13000000.0, -13000000.0 };
 	static double vwave;
 
-	if (kt_globals.nper < 3)
-		vwave = doublet[kt_globals.nper];
+	if (epContext->kt_globals.nper < 3)
+		vwave = doublet[epContext->kt_globals.nper];
 	else
 		vwave = 0.0;
 
-	return resonator(&(kt_globals.rsn[RGL]), vwave);
+	return resonator(&(epContext->kt_globals.rsn[RGL]), vwave);
 }
 
 /*
@@ -570,14 +562,14 @@ static double impulsive_source(void)
    spectral zero around 800 Hz, magic constants a,b reset pitch synchronously.
  */
 
-static double natural_source(void)
+static double natural_source(EspeakProcessorContext* epContext)
 {
 	double lgtemp;
 	static double vwave;
 
-	if (kt_globals.nper < kt_globals.nopen) {
-		kt_globals.pulse_shape_a -= kt_globals.pulse_shape_b;
-		vwave += kt_globals.pulse_shape_a;
+	if (epContext->kt_globals.nper < epContext->kt_globals.nopen) {
+		epContext->kt_globals.pulse_shape_a -= epContext->kt_globals.pulse_shape_b;
+		vwave += epContext->kt_globals.pulse_shape_a;
 		lgtemp = vwave * 0.028;
 
 		return lgtemp;
@@ -618,7 +610,7 @@ static double natural_source(void)
    B0[nopen - 40] = 1920000 / (nopen * nopen)
  */
 
-static void pitch_synch_par_reset(klatt_frame_ptr frame)
+static void pitch_synch_par_reset(EspeakProcessorContext* epContext, klatt_frame_ptr frame)
 {
 	long temp;
 	double temp1;
@@ -643,55 +635,55 @@ static void pitch_synch_par_reset(klatt_frame_ptr frame)
 	if (frame->F0hz10 > 0) {
 		// T0 is 4* the number of samples in one pitch period
 
-		kt_globals.T0 = (40 * kt_globals.samrate) / frame->F0hz10;
+		epContext->kt_globals.T0 = (40 * epContext->kt_globals.samrate) / frame->F0hz10;
 
-		kt_globals.amp_voice = DBtoLIN(frame->AVdb_tmp);
+		epContext->kt_globals.amp_voice = DBtoLIN(frame->AVdb_tmp);
 
 		// Duration of period before amplitude modulation
 
-		kt_globals.nmod = kt_globals.T0;
+		epContext->kt_globals.nmod = epContext->kt_globals.T0;
 		if (frame->AVdb_tmp > 0)
-			kt_globals.nmod >>= 1;
+			epContext->kt_globals.nmod >>= 1;
 
 		// Breathiness of voicing waveform
 
-		kt_globals.amp_breth = DBtoLIN(frame->Aturb) * 0.1;
+		epContext->kt_globals.amp_breth = DBtoLIN(frame->Aturb) * 0.1;
 
 		// Set open phase of glottal period where  40 <= open phase <= 263
 
-		kt_globals.nopen = 4 * frame->Kopen;
+		epContext->kt_globals.nopen = 4 * frame->Kopen;
 
-		if ((kt_globals.glsource == IMPULSIVE) && (kt_globals.nopen > 263))
-			kt_globals.nopen = 263;
+		if ((epContext->kt_globals.glsource == IMPULSIVE) && (epContext->kt_globals.nopen > 263))
+			epContext->kt_globals.nopen = 263;
 
-		if (kt_globals.nopen >= (kt_globals.T0-1))
-			kt_globals.nopen = kt_globals.T0 - 2;
+		if (epContext->kt_globals.nopen >= (epContext->kt_globals.T0-1))
+			epContext->kt_globals.nopen = epContext->kt_globals.T0 - 2;
 
-		if (kt_globals.nopen < 40) {
+		if (epContext->kt_globals.nopen < 40) {
 			// F0 max = 1000 Hz
-			kt_globals.nopen = 40;
+			epContext->kt_globals.nopen = 40;
 		}
 
 		// Reset a & b, which determine shape of "natural" glottal waveform
 
-		kt_globals.pulse_shape_b = B0[kt_globals.nopen-40];
-		kt_globals.pulse_shape_a = (kt_globals.pulse_shape_b * kt_globals.nopen) * 0.333;
+		epContext->kt_globals.pulse_shape_b = B0[epContext->kt_globals.nopen-40];
+		epContext->kt_globals.pulse_shape_a = (epContext->kt_globals.pulse_shape_b * epContext->kt_globals.nopen) * 0.333;
 
 		// Reset width of "impulsive" glottal pulse
 
-		temp = kt_globals.samrate / kt_globals.nopen;
+		temp = epContext->kt_globals.samrate / epContext->kt_globals.nopen;
 
-		setabc((long)0, temp, &(kt_globals.rsn[RGL]));
+		setabc(epContext, (long)0, temp, &(epContext->kt_globals.rsn[RGL]));
 
 		// Make gain at F1 about constant
 
-		temp1 = kt_globals.nopen *.00833;
-		kt_globals.rsn[RGL].a *= temp1 * temp1;
+		temp1 = epContext->kt_globals.nopen *.00833;
+		epContext->kt_globals.rsn[RGL].a *= temp1 * temp1;
 
 		// Truncate skewness so as not to exceed duration of closed phase
 		// of glottal period.
 
-		temp = kt_globals.T0 - kt_globals.nopen;
+		temp = epContext->kt_globals.T0 - epContext->kt_globals.nopen;
 		if (frame->Kskew > temp)
 			frame->Kskew = temp;
 		if (skew >= 0)
@@ -700,28 +692,28 @@ static void pitch_synch_par_reset(klatt_frame_ptr frame)
 			skew = -frame->Kskew;
 
 		// Add skewness to closed portion of voicing period
-		kt_globals.T0 = kt_globals.T0 + skew;
+		epContext->kt_globals.T0 = epContext->kt_globals.T0 + skew;
 		skew = -skew;
 	} else {
-		kt_globals.T0 = 4; // Default for f0 undefined
-		kt_globals.amp_voice = 0.0;
-		kt_globals.nmod = kt_globals.T0;
-		kt_globals.amp_breth = 0.0;
-		kt_globals.pulse_shape_a = 0.0;
-		kt_globals.pulse_shape_b = 0.0;
+		epContext->kt_globals.T0 = 4; // Default for f0 undefined
+		epContext->kt_globals.amp_voice = 0.0;
+		epContext->kt_globals.nmod = epContext->kt_globals.T0;
+		epContext->kt_globals.amp_breth = 0.0;
+		epContext->kt_globals.pulse_shape_a = 0.0;
+		epContext->kt_globals.pulse_shape_b = 0.0;
 	}
 
 	// Reset these pars pitch synchronously or at update rate if f0=0
 
-	if ((kt_globals.T0 != 4) || (kt_globals.ns == 0)) {
+	if ((epContext->kt_globals.T0 != 4) || (epContext->kt_globals.ns == 0)) {
 		// Set one-pole low-pass filter that tilts glottal source
 
-		kt_globals.decay = (0.033 * frame->TLTdb);
+		epContext->kt_globals.decay = (0.033 * frame->TLTdb);
 
-		if (kt_globals.decay > 0.0)
-			kt_globals.onemd = 1.0 - kt_globals.decay;
+		if (epContext->kt_globals.decay > 0.0)
+			epContext->kt_globals.onemd = 1.0 - epContext->kt_globals.decay;
 		else
-			kt_globals.onemd = 1.0;
+			epContext->kt_globals.onemd = 1.0;
 	}
 }
 
@@ -732,20 +724,20 @@ static void pitch_synch_par_reset(klatt_frame_ptr frame)
    equation constants.
  */
 
-static void setabc(long int f, long int bw, resonator_ptr rp)
+static void setabc(EspeakProcessorContext* epContext, long int f, long int bw, resonator_ptr rp)
 {
 	double r;
 	double arg;
 
 	// Let r  =  exp(-pi bw t)
-	arg = kt_globals.minus_pi_t * bw;
+	arg = epContext->kt_globals.minus_pi_t * bw;
 	r = exp(arg);
 
 	// Let c  =  -r**2
 	rp->c = -(r * r);
 
 	// Let b = r * 2*cos(2 pi f t)
-	arg = kt_globals.two_pi_t * f;
+	arg = epContext->kt_globals.two_pi_t * f;
 	rp->b = r * cos(arg) * 2.0;
 
 	// Let a = 1.0 - b - c
@@ -759,7 +751,7 @@ static void setabc(long int f, long int bw, resonator_ptr rp)
    equation constants.
  */
 
-static void setzeroabc(long int f, long int bw, resonator_ptr rp)
+static void setzeroabc(EspeakProcessorContext* epContext, long int f, long int bw, resonator_ptr rp)
 {
 	double r;
 	double arg;
@@ -768,14 +760,14 @@ static void setzeroabc(long int f, long int bw, resonator_ptr rp)
 
 	// First compute ordinary resonator coefficients
 	// Let r  =  exp(-pi bw t)
-	arg = kt_globals.minus_pi_t * bw;
+	arg = epContext->kt_globals.minus_pi_t * bw;
 	r = exp(arg);
 
 	// Let c  =  -r**2
 	rp->c = -(r * r);
 
 	// Let b = r * 2*cos(2 pi f t)
-	arg = kt_globals.two_pi_t * f;
+	arg = epContext->kt_globals.two_pi_t * f;
 	rp->b = r * cos(arg) * 2.;
 
 	// Let a = 1.0 - b - c
@@ -802,15 +794,15 @@ static void setzeroabc(long int f, long int bw, resonator_ptr rp)
    the origin in the z-plane, i.e. output = input + (0.75 * lastoutput)
  */
 
-static double gen_noise(double noise)
+static double gen_noise(EspeakProcessorContext* epContext, double noise)
 {
 	long temp;
 	static double nlast;
 
 	temp = (long)getrandom(-8191, 8191);
-	kt_globals.nrand = (long)temp;
+	epContext->kt_globals.nrand = (long)temp;
 
-	noise = kt_globals.nrand + (0.75 * nlast);
+	noise = epContext->kt_globals.nrand + (0.75 * nlast);
 	nlast = noise;
 
 	return noise;
@@ -860,7 +852,7 @@ static int klattp[N_KLATTP];
 static double klattp1[N_KLATTP];
 static double klattp_inc[N_KLATTP];
 
-int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA *wdata, voice_t *wvoice)
+int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA *wdata, voice_t *wvoice)
 {
 #if USE_SPEECHPLAYER
 	if(wvoice->klattv[0] == 6)
@@ -868,7 +860,7 @@ int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA 
 #endif
 
 	if (resume == 0)
-		SetSynth_Klatt(length, fr1, fr2, wvoice, 1);
+		SetSynth_Klatt(epContext, length, fr1, fr2, wvoice, 1);
 
 	int pk;
 	int x;
@@ -876,31 +868,31 @@ int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA 
 	int fade;
 
 	if (resume == 0)
-		sample_count = 0;
+		epContext->sample_count = 0;
 
-	while (sample_count < nsamples) {
-		kt_frame.F0hz10 = (wdata->pitch * 10) / 4096;
+	while (epContext->sample_count < epContext->nsamples) {
+		epContext->kt_frame.F0hz10 = (wdata->pitch * 10) / 4096;
 
 		// formants F6,F7,F8 are fixed values for cascade resonators, set in KlattInit()
 		// but F6 is used for parallel resonator
 		// F0 is used for the nasal zero
 		for (ix = 0; ix < 6; ix++) {
-			kt_frame.Fhz[ix] = peaks[ix].freq;
+			epContext->kt_frame.Fhz[ix] = peaks[ix].freq;
 			if (ix < 4)
-				kt_frame.Bhz[ix] = peaks[ix].bw;
+				epContext->kt_frame.Bhz[ix] = peaks[ix].bw;
 		}
 		for (ix = 1; ix < 7; ix++)
-			kt_frame.Ap[ix] = peaks[ix].ap;
+			epContext->kt_frame.Ap[ix] = peaks[ix].ap;
 
-		kt_frame.AVdb = klattp[KLATT_AV];
-		kt_frame.AVpdb = klattp[KLATT_AVp];
-		kt_frame.AF = klattp[KLATT_Fric];
-		kt_frame.AB = klattp[KLATT_FricBP];
-		kt_frame.ASP = klattp[KLATT_Aspr];
-		kt_frame.Aturb = klattp[KLATT_Turb];
-		kt_frame.Kskew = klattp[KLATT_Skew];
-		kt_frame.TLTdb = klattp[KLATT_Tilt];
-		kt_frame.Kopen = klattp[KLATT_Kopen];
+		epContext->kt_frame.AVdb = klattp[KLATT_AV];
+		epContext->kt_frame.AVpdb = klattp[KLATT_AVp];
+		epContext->kt_frame.AF = klattp[KLATT_Fric];
+		epContext->kt_frame.AB = klattp[KLATT_FricBP];
+		epContext->kt_frame.ASP = klattp[KLATT_Aspr];
+		epContext->kt_frame.Aturb = klattp[KLATT_Turb];
+		epContext->kt_frame.Kskew = klattp[KLATT_Skew];
+		epContext->kt_frame.TLTdb = klattp[KLATT_Tilt];
+		epContext->kt_frame.Kopen = klattp[KLATT_Kopen];
 
 		// advance formants
 		for (pk = 0; pk < N_PEAKS; pk++) {
@@ -921,9 +913,9 @@ int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA 
 		}
 
 		for (ix = 0; ix <= 6; ix++) {
-			kt_frame.Fhz_next[ix] = peaks[ix].freq;
+			epContext->kt_frame.Fhz_next[ix] = peaks[ix].freq;
 			if (ix < 4)
-				kt_frame.Bhz_next[ix] = peaks[ix].bw;
+				epContext->kt_frame.Bhz_next[ix] = peaks[ix].bw;
 		}
 
 		// advance the pitch
@@ -932,13 +924,13 @@ int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA 
 		x = wdata->pitch_env[ix] * wdata->pitch_range;
 		wdata->pitch = (x>>8) + wdata->pitch_base;
 
-		kt_globals.nspfr = (nsamples - sample_count);
-		if (kt_globals.nspfr > STEPSIZE)
-			kt_globals.nspfr = STEPSIZE;
+		epContext->kt_globals.nspfr = (epContext->nsamples - epContext->sample_count);
+		if (epContext->kt_globals.nspfr > STEPSIZE)
+			epContext->kt_globals.nspfr = STEPSIZE;
 
-		frame_init(&kt_frame); // get parameters for next frame of speech
+		frame_init(epContext, &epContext->kt_frame); // get parameters for next frame of speech
 
-		if (parwave(&kt_frame, wdata) == 1)
+		if (parwave(epContext, &epContext->kt_frame, wdata) == 1)
 			return 1; // output buffer is full
 	}
 
@@ -946,18 +938,18 @@ int Wavegen_Klatt(int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA 
 		fade = 64; // not followed by formant synthesis
 
 		// fade out to avoid a click
-		kt_globals.fadeout = fade;
+		epContext->kt_globals.fadeout = fade;
 		end_wave = 0;
-		sample_count -= fade;
-		kt_globals.nspfr = fade;
-		if (parwave(&kt_frame, wdata) == 1)
+		epContext->sample_count -= fade;
+		epContext->kt_globals.nspfr = fade;
+		if (parwave(epContext, &epContext->kt_frame, wdata) == 1)
 			return 1; // output buffer is full
 	}
 
 	return 0;
 }
 
-static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *wvoice, int control)
+static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_t *fr1, frame_t *fr2, voice_t *wvoice, int control)
 {
 	int ix;
 	double next;
@@ -968,10 +960,10 @@ static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *wvoi
 
 	if (wvoice != NULL) {
 		if ((wvoice->klattv[0] > 0) && (wvoice->klattv[0] <= 5 )) {
-			kt_globals.glsource = wvoice->klattv[0];
-			kt_globals.scale_wav = scale_wav_tab[kt_globals.glsource];
+			epContext->kt_globals.glsource = wvoice->klattv[0];
+			epContext->kt_globals.scale_wav = scale_wav_tab[epContext->kt_globals.glsource];
 		}
-		kt_globals.f0_flutter = wvoice->flutter/32;
+		epContext->kt_globals.f0_flutter = wvoice->flutter/32;
 	}
 
 	end_wave = 0;
@@ -1005,7 +997,7 @@ static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *wvoi
 			if (prev_fr.ffreq[ix] != fr1->ffreq[ix]) {
 				// Discontinuity in formants.
 				// end_wave was set in SetSynth_Klatt() to fade out the previous frame
-				KlattReset(0);
+				KlattReset(epContext, 0);
 				break;
 			}
 		}
@@ -1022,7 +1014,7 @@ static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *wvoi
 		}
 	}
 
-	nsamples = length;
+	epContext->nsamples = length;
 
 	for (ix = 1; ix < 6; ix++) {
 		peaks[ix].freq1 = (fr1->ffreq[ix] * wvoice->freq[ix] / 256.0) + wvoice->freqadd[ix];
@@ -1042,12 +1034,12 @@ static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *wvoi
 	// nasal zero frequency
 	peaks[0].freq1 = fr1->klattp[KLATT_FNZ] * 2;
 	if (peaks[0].freq1 == 0)
-		peaks[0].freq1 = kt_frame.Fhz[F_NP]; // if no nasal zero, set it to same freq as nasal pole
+		peaks[0].freq1 = epContext->kt_frame.Fhz[F_NP]; // if no nasal zero, set it to same freq as nasal pole
 
 	peaks[0].freq = (int)peaks[0].freq1;
 	next = fr2->klattp[KLATT_FNZ] * 2;
 	if (next == 0)
-		next = kt_frame.Fhz[F_NP];
+		next = epContext->kt_frame.Fhz[F_NP];
 
 	peaks[0].freq_inc = ((next - peaks[0].freq1) * STEPSIZE) / length;
 
@@ -1071,7 +1063,7 @@ static void SetSynth_Klatt(int length, frame_t *fr1, frame_t *fr2, voice_t *wvoi
 	}
 }
 
-void KlattInit(void)
+void KlattInit(EspeakProcessorContext* epContext)
 {
 
 	static const short formant_hz[10] = { 280, 688, 1064, 2806, 3260, 3700, 6500, 7000, 8000, 280 };
@@ -1085,40 +1077,40 @@ void KlattInit(void)
 	KlattInitSP();
 #endif
 
-	sample_count = 0;
+	epContext->sample_count = 0;
 
-	kt_globals.synthesis_model = CASCADE_PARALLEL;
-	kt_globals.samrate = 22050;
+	epContext->kt_globals.synthesis_model = CASCADE_PARALLEL;
+	epContext->kt_globals.samrate = 22050;
 
-	kt_globals.glsource = IMPULSIVE;
-	kt_globals.scale_wav = scale_wav_tab[kt_globals.glsource];
-	kt_globals.natural_samples = natural_samples;
-	kt_globals.num_samples = NUMBER_OF_SAMPLES;
-	kt_globals.sample_factor = 3.0;
-	kt_globals.nspfr = (kt_globals.samrate * 10) / 1000;
-	kt_globals.outsl = 0;
-	kt_globals.f0_flutter = 20;
+	epContext->kt_globals.glsource = IMPULSIVE;
+	epContext->kt_globals.scale_wav = scale_wav_tab[epContext->kt_globals.glsource];
+	epContext->kt_globals.natural_samples = natural_samples;
+	epContext->kt_globals.num_samples = NUMBER_OF_SAMPLES;
+	epContext->kt_globals.sample_factor = 3.0;
+	epContext->kt_globals.nspfr = (epContext->kt_globals.samrate * 10) / 1000;
+	epContext->kt_globals.outsl = 0;
+	epContext->kt_globals.f0_flutter = 20;
 
-	KlattReset(2);
+	KlattReset(epContext, 2);
 
 	// set default values for frame parameters
 	for (ix = 0; ix <= 9; ix++) {
-		kt_frame.Fhz[ix] = formant_hz[ix];
-		kt_frame.Bhz[ix] = bandwidth[ix];
-		kt_frame.Ap[ix] = parallel_amp[ix];
-		kt_frame.Bphz[ix] = parallel_bw[ix];
+		epContext->kt_frame.Fhz[ix] = formant_hz[ix];
+		epContext->kt_frame.Bhz[ix] = bandwidth[ix];
+		epContext->kt_frame.Ap[ix] = parallel_amp[ix];
+		epContext->kt_frame.Bphz[ix] = parallel_bw[ix];
 	}
-	kt_frame.Bhz_next[F_NZ] = bandwidth[F_NZ];
+	epContext->kt_frame.Bhz_next[F_NZ] = bandwidth[F_NZ];
 
-	kt_frame.F0hz10 = 1000;
-	kt_frame.AVdb = 59;
-	kt_frame.ASP = 0;
-	kt_frame.Kopen = 40;
-	kt_frame.Aturb = 0;
-	kt_frame.TLTdb = 0;
-	kt_frame.AF = 50;
-	kt_frame.Kskew = 0;
-	kt_frame.AB = 0;
-	kt_frame.AVpdb = 0;
-	kt_frame.Gain0 = 62;
+	epContext->kt_frame.F0hz10 = 1000;
+	epContext->kt_frame.AVdb = 59;
+	epContext->kt_frame.ASP = 0;
+	epContext->kt_frame.Kopen = 40;
+	epContext->kt_frame.Aturb = 0;
+	epContext->kt_frame.TLTdb = 0;
+	epContext->kt_frame.AF = 50;
+	epContext->kt_frame.Kskew = 0;
+	epContext->kt_frame.AB = 0;
+	epContext->kt_frame.AVpdb = 0;
+	epContext->kt_frame.Gain0 = 62;
 }

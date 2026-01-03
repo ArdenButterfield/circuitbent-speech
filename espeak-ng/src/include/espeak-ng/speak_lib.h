@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include <stddef.h>
 
+#include "klatt.h"
+
 #if defined(_WIN32) || defined(_WIN64)
 #ifdef LIBESPEAK_NG_EXPORT
 #define ESPEAK_API __declspec(dllexport)
@@ -89,13 +91,35 @@ typedef struct
     int dummy;
 } EspeakBends;
 
-typedef struct
+typedef struct epc
 {
     EspeakBends bends;
 
     // dictionary.c
     int dictionary_skipwords;
     char dictionary_name[40];
+
+    // TODO: come back to event.c questions on thread library
+
+    // intonation.c
+    int tone_pitch_env; // used to return pitch envelope
+
+    int number_pre;
+    int number_tail;
+    int last_primary;
+    int tone_posn;
+    int tone_posn2;
+    int no_tonic;
+
+    // klatt.c
+    unsigned char *out_ptr;
+    unsigned char *out_end;
+    int nsamples;
+    int sample_count;
+
+    klatt_frame_t kt_frame;
+    klatt_global_t kt_globals;
+
 
 
 } EspeakProcessorContext;
