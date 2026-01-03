@@ -1373,7 +1373,7 @@ void FreeVoiceList(void)
 
 #pragma GCC visibility push(default)
 
-ESPEAK_API const espeak_VOICE **espeak_ListVoices(espeak_VOICE *voice_spec)
+ESPEAK_API const espeak_VOICE **espeak_ListVoices(EspeakProcessorContext* epContext, espeak_VOICE *voice_spec)
 {
 	char path_voices[sizeof(path_home)+12];
 
@@ -1418,7 +1418,7 @@ ESPEAK_API const espeak_VOICE **espeak_ListVoices(espeak_VOICE *voice_spec)
 	return (const espeak_VOICE **)voices;
 }
 
-ESPEAK_API espeak_VOICE *espeak_GetCurrentVoice(void)
+ESPEAK_API espeak_VOICE *espeak_GetCurrentVoice(EspeakProcessorContext* epContext)
 {
 	return &current_voice_selected;
 }

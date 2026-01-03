@@ -48,7 +48,7 @@ static espeak_ERROR status_to_espeak_error(espeak_ng_STATUS status)
 
 #pragma GCC visibility push(default)
 
-ESPEAK_API int espeak_Initialize(espeak_AUDIO_OUTPUT output_type, int buf_length, const char *path, int options)
+ESPEAK_API int espeak_Initialize(EspeakProcessorContext* epContext, espeak_AUDIO_OUTPUT output_type, int buf_length, const char *path, int options)
 {
 	espeak_ng_InitializePath(path);
 	espeak_ng_ERROR_CONTEXT context = NULL;
@@ -90,7 +90,8 @@ ESPEAK_API espeak_ERROR espeak_Synth(const void *text, size_t size,
 	return status_to_espeak_error(espeak_ng_Synthesize(text, size, position, position_type, end_position, flags, unique_identifier, user_data));
 }
 
-ESPEAK_API espeak_ERROR espeak_Synth_Mark(const void *text, size_t size,
+ESPEAK_API espeak_ERROR espeak_Synth_Mark(EspeakProcessorContext* epContext,
+                                            const void *text, size_t size,
                                           const char *index_mark,
                                           unsigned int end_position,
                                           unsigned int flags,
@@ -100,57 +101,57 @@ ESPEAK_API espeak_ERROR espeak_Synth_Mark(const void *text, size_t size,
 	return status_to_espeak_error(espeak_ng_SynthesizeMark(text, size, index_mark, end_position, flags, unique_identifier, user_data));
 }
 
-ESPEAK_API espeak_ERROR espeak_Key(const char *key_name)
+ESPEAK_API espeak_ERROR espeak_Key(EspeakProcessorContext* epContext, const char *key_name)
 {
 	return status_to_espeak_error(espeak_ng_SpeakKeyName(key_name));
 }
 
-ESPEAK_API espeak_ERROR espeak_Char(wchar_t character)
+ESPEAK_API espeak_ERROR espeak_Char(EspeakProcessorContext* epContext, wchar_t character)
 {
 	return status_to_espeak_error(espeak_ng_SpeakCharacter(character));
 }
 
-ESPEAK_API espeak_ERROR espeak_SetParameter(espeak_PARAMETER parameter, int value, int relative)
+ESPEAK_API espeak_ERROR espeak_SetParameter(EspeakProcessorContext* epContext, espeak_PARAMETER parameter, int value, int relative)
 {
 	return status_to_espeak_error(espeak_ng_SetParameter(parameter, value, relative));
 }
 
-ESPEAK_API espeak_ERROR espeak_SetPunctuationList(const wchar_t *punctlist)
+ESPEAK_API espeak_ERROR espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist)
 {
 	return status_to_espeak_error(espeak_ng_SetPunctuationList(punctlist));
 }
 
-ESPEAK_API espeak_ERROR espeak_SetVoiceByName(const char *name)
+ESPEAK_API espeak_ERROR espeak_SetVoiceByName(EspeakProcessorContext* epContext, const char *name)
 {
 	return status_to_espeak_error(espeak_ng_SetVoiceByName(name));
 }
 
-ESPEAK_API espeak_ERROR espeak_SetVoiceByFile(const char *filename)
+ESPEAK_API espeak_ERROR espeak_SetVoiceByFile(EspeakProcessorContext* epContext, const char *filename)
 {
 	return status_to_espeak_error(espeak_ng_SetVoiceByFile(filename));
 }
 
-ESPEAK_API espeak_ERROR espeak_SetVoiceByProperties(espeak_VOICE *voice_selector)
+ESPEAK_API espeak_ERROR espeak_SetVoiceByProperties(EspeakProcessorContext* epContext, espeak_VOICE *voice_selector)
 {
 	return status_to_espeak_error(espeak_ng_SetVoiceByProperties(voice_selector));
 }
 
-ESPEAK_API espeak_ERROR espeak_Cancel(void)
+ESPEAK_API espeak_ERROR espeak_Cancel(EspeakProcessorContext* epContext)
 {
 	return status_to_espeak_error(espeak_ng_Cancel());
 }
 
-ESPEAK_API espeak_ERROR espeak_Synchronize(void)
+ESPEAK_API espeak_ERROR espeak_Synchronize(EspeakProcessorContext* epContext)
 {
 	return status_to_espeak_error(espeak_ng_Synchronize());
 }
 
-ESPEAK_API espeak_ERROR espeak_Terminate(void)
+ESPEAK_API espeak_ERROR espeak_Terminate(EspeakProcessorContext* epContext)
 {
 	return status_to_espeak_error(espeak_ng_Terminate());
 }
 
-ESPEAK_API void espeak_CompileDictionary(const char *path, FILE *log, int flags)
+ESPEAK_API void espeak_CompileDictionary(EspeakProcessorContext* epContext, const char *path, FILE *log, int flags)
 {
 	espeak_ng_ERROR_CONTEXT context = NULL;
 	espeak_ng_STATUS result = espeak_ng_CompileDictionary(path, dictionary_name, log, flags, &context);

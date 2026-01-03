@@ -43,8 +43,8 @@
 #include "synthesize.h"                    // for STRESS_IS_PRIMARY, phoneme...
 #include "translate.h"                     // for Translator, utf8_in, LANGU...
 
-static int LookupFlags(Translator *tr, const char *word, unsigned int flags_out[2]);
-static void DollarRule(char *word[], char *word_start, int consumed, int group_length, char word_buf[N_WORD_BYTES], Translator *tr, int command, int *failed, int *add_points);
+static int LookupFlags(EspeakProcessorContext* epContext, Translator *tr, const char *word, unsigned int flags_out[2]);
+static void DollarRule(EspeakProcessorContext* epContext, char *word[], char *word_start, int consumed, int group_length, char word_buf[N_WORD_BYTES], Translator *tr, int command, int *failed, int *add_points);
 
 typedef struct {
 	int points;
@@ -54,8 +54,8 @@ typedef struct {
 } MatchRecord;
 
 
-int dictionary_skipwords;
-char dictionary_name[40];
+// int dictionary_skipwords;
+// char dictionary_name[40];
 
 // accented characters which indicate (in some languages) the start of a separate syllable
 static const unsigned short diereses_list[7] = { 0xe4, 0xeb, 0xef, 0xf6, 0xfc, 0xff, 0 };
@@ -111,7 +111,7 @@ static int Reverse4Bytes(int word)
 #endif
 }
 
-static void InitGroups(Translator *tr)
+static void InitGroups(EspeakProcessorContext* epContext, Translator *tr)
 {
 	// Called after dictionary 1 is loaded, to set up table of entry points for translation rule chains
 	// for single-letters and two-letter combinations
@@ -137,7 +137,7 @@ static void InitGroups(Translator *tr)
 	// a RULE_GROUP_END.
 	if (*p != RULE_GROUP_END) while (*p != 0) {
 		if (*p != RULE_GROUP_START) {
-			fprintf(stderr, "Bad rules data in '%s_dict' at 0x%x (%c)\n", dictionary_name, (unsigned int)(p - tr->data_dictrules), *p);
+			fprintf(stderr, "Bad rules data in '%s_dict' at 0x%x (%c)\n", epContext->dictionary_name, (unsigned int)(p - tr->data_dictrules), *p);
 			break;
 		}
 		p++;
@@ -193,7 +193,7 @@ static void InitGroups(Translator *tr)
 	}
 }
 
-int LoadDictionary(Translator *tr, const char *name, int no_error)
+int LoadDictionary(EspeakProcessorContext* epContext, Translator *tr, const char *name, int no_error)
 {
 	int hash;
 	char *p;
@@ -203,8 +203,8 @@ int LoadDictionary(Translator *tr, const char *name, int no_error)
 	int size;
 	char fname[sizeof(path_home)+20];
 
-	if (dictionary_name != name)
-		strncpy(dictionary_name, name, 40); // currently loaded dictionary name
+	if (epContext->dictionary_name != name)
+		strncpy(epContext->dictionary_name, name, 40); // currently loaded dictionary name
 	if (tr->dictionary_name != name)
 		strncpy(tr->dictionary_name, name, 40);
 
@@ -251,7 +251,7 @@ int LoadDictionary(Translator *tr, const char *name, int no_error)
 	tr->data_dictrules = &(tr->data_dictlist[length]);
 
 	// set up indices into data_dictrules
-	InitGroups(tr);
+	InitGroups(epContext, tr);
 
 	// set up hash table for data_dictlist
 	p = &(tr->data_dictlist[8]);
@@ -1485,7 +1485,7 @@ void AppendPhonemes(Translator *tr, char *string, int size, const char *ph)
 		strcat(string, ph);
 }
 
-static void MatchRule(Translator *tr, char *word[], char *word_start, int group_length, char *rule, MatchRecord *match_out, int word_flags, int dict_flags)
+static void MatchRule(EspeakProcessorContext* epContext, Translator *tr, char *word[], char *word_start, int group_length, char *rule, MatchRecord *match_out, int word_flags, int dict_flags)
 {
 	/* Checks a specified word against dictionary rules.
 	    Returns with phoneme code string, or NULL if no match found.
@@ -1739,7 +1739,7 @@ static void MatchRule(Translator *tr, char *word[], char *word_start, int group_
 						else
 							failed = 1;
 					} else if (((command & 0xf0) == 0x20) || (command == DOLLAR_LIST)) {
-						DollarRule(word, word_start, consumed, group_length, word_buf, tr, command, &failed, &add_points);
+						DollarRule(epContext, word, word_start, consumed, group_length, word_buf, tr, command, &failed, &add_points);
 					}
 
 					break;
@@ -1928,7 +1928,7 @@ static void MatchRule(Translator *tr, char *word[], char *word_start, int group_
 					pre_ptr++;
 					command = *rule++;
 					if ((command == DOLLAR_LIST) || ((command & 0xf0) == 0x20)) {
-						DollarRule(word, word_start, consumed, group_length, word_buf, tr, command, &failed, &add_points);
+						DollarRule(epContext, word, word_start, consumed, group_length, word_buf, tr, command, &failed, &add_points);
 					}
 					break;
 				case RULE_SYLLABLE:
@@ -2081,7 +2081,7 @@ static void MatchRule(Translator *tr, char *word[], char *word_start, int group_
 	memcpy(match_out, &best, sizeof(MatchRecord));
 }
 
-int TranslateRules(Translator *tr, char *p_start, char *phonemes, int ph_size, char *end_phonemes, int word_flags, unsigned int *dict_flags)
+int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_start, char *phonemes, int ph_size, char *end_phonemes, int word_flags, unsigned int *dict_flags)
 {
 	/* Translate a word bounded by space characters
 	   Append the result to 'phonemes' and any standard prefix/suffix in 'end_phonemes' */
@@ -2154,7 +2154,7 @@ int TranslateRules(Translator *tr, char *p_start, char *phonemes, int ph_size, c
 			string[0] = '_';
 			memcpy(&string[1], p, wc_bytes);
 			string[1+wc_bytes] = 0;
-			Lookup(tr, string, buf);
+			Lookup(epContext, tr, string, buf);
 			if (++digit_count >= 2) {
 				strcat(buf, str_pause);
 				digit_count = 0;
@@ -2168,7 +2168,7 @@ int TranslateRules(Translator *tr, char *p_start, char *phonemes, int ph_size, c
 
 			if (((ix = wc - tr->letter_bits_offset) >= 0) && (ix < 128)) {
 				if (tr->groups3[ix] != NULL) {
-					MatchRule(tr, &p, p_start, wc_bytes, tr->groups3[ix], &match1, word_flags, dict_flags0);
+					MatchRule(epContext, tr, &p, p_start, wc_bytes, tr->groups3[ix], &match1, word_flags, dict_flags0);
 					found = 1;
 				}
 			}
@@ -2184,12 +2184,12 @@ int TranslateRules(Translator *tr, char *p_start, char *phonemes, int ph_size, c
 						found = 1;
 
 						p2 = p;
-						MatchRule(tr, &p2, p_start, 2, tr->groups2[g], &match2, word_flags, dict_flags0);
+						MatchRule(epContext, tr, &p2, p_start, 2, tr->groups2[g], &match2, word_flags, dict_flags0);
 						if (match2.points > 0)
 							match2.points += 35; // to acount for 2 letters matching
 
 						// now see whether single letter chain gives a better match ?
-						MatchRule(tr, &p, p_start, 1, tr->groups1[c], &match1, word_flags, dict_flags0);
+						MatchRule(epContext, tr, &p, p_start, 1, tr->groups1[c], &match1, word_flags, dict_flags0);
 
 						if (match2.points >= match1.points) {
 							// use match from the 2-letter group
@@ -2203,10 +2203,10 @@ int TranslateRules(Translator *tr, char *p_start, char *phonemes, int ph_size, c
 			if (!found) {
 				// alphabetic, single letter chain
 				if (tr->groups1[c] != NULL)
-					MatchRule(tr, &p, p_start, 1, tr->groups1[c], &match1, word_flags, dict_flags0);
+					MatchRule(epContext, tr, &p, p_start, 1, tr->groups1[c], &match1, word_flags, dict_flags0);
 				else {
 					// no group for this letter, use default group
-					MatchRule(tr, &p, p_start, 0, tr->groups1[0], &match1, word_flags, dict_flags0);
+					MatchRule(epContext, tr, &p, p_start, 0, tr->groups1[0], &match1, word_flags, dict_flags0);
 
 					if ((match1.points == 0) && ((option_sayas & 0x10) == 0)) {
 						n = utf8_in(&letter, p-1)-1;
@@ -2431,7 +2431,7 @@ int TransposeAlphabet(Translator *tr, char *text)
 
     end_flags:  indicates whether this is a retranslation after removing a suffix
  */
-static const char *LookupDict2(Translator *tr, const char *word, const char *word2,
+static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr, const char *word, const char *word2,
                                char *phonetic, unsigned int *flags, int end_flags, WORD_TAB *wtab)
 {
 	char *p;
@@ -2547,7 +2547,7 @@ static const char *LookupDict2(Translator *tr, const char *word, const char *wor
 				}
 
 				dictionary_flags |= FLAG_SKIPWORDS;
-				dictionary_skipwords = skipwords;
+				epContext->dictionary_skipwords = skipwords;
 				p = next;
 				word_end = word2 + n_chars;
 			} else if (flag > 64) {
@@ -2702,7 +2702,7 @@ static const char *LookupDict2(Translator *tr, const char *word, const char *wor
 }
 
 
-    static int utf8_nbytes(const char *buf)
+static int utf8_nbytes(const char *buf)
 {
 	// Returns the number of bytes for the first UTF-8 character in buf
 
@@ -2721,7 +2721,7 @@ static const char *LookupDict2(Translator *tr, const char *word, const char *wor
 
    end_flags:  indicates if a suffix has been removed
  */
-int LookupDictList(Translator *tr, char **wordptr, char *ph_out, unsigned int *flags, int end_flags, WORD_TAB *wtab)
+int LookupDictList(EspeakProcessorContext* epContext, Translator *tr, char **wordptr, char *ph_out, unsigned int *flags, int end_flags, WORD_TAB *wtab)
 {
 	int length;
 	const char *found;
@@ -2759,11 +2759,11 @@ int LookupDictList(Translator *tr, char **wordptr, char *ph_out, unsigned int *f
 		if (length + nbytes + 1 <= sizeof(word)) {
 			memcpy(&word[length], word2, nbytes);
 			word[length+nbytes] = 0;
-			found =  LookupDict2(tr, word, word2, ph_out, flags, end_flags, wtab);
+			found =  LookupDict2(epContext, tr, word, word2, ph_out, flags, end_flags, wtab);
 			if (found) {
 				// set the skip words flag
 				flags[0] |= FLAG_SKIPWORDS;
-				dictionary_skipwords = length;
+				epContext->dictionary_skipwords = length;
 				return 1;
 			}
 		}
@@ -2780,7 +2780,7 @@ int LookupDictList(Translator *tr, char **wordptr, char *ph_out, unsigned int *f
 	}
 	word[length] = 0;
 
-	found = LookupDict2(tr, word, word1, ph_out, flags, end_flags, wtab);
+	found = LookupDict2(epContext, tr, word, word1, ph_out, flags, end_flags, wtab);
 
 	if (flags[0] & FLAG_MAX3) {
 		if (strcmp(ph_out, tr->phonemes_repeat) == 0) {
@@ -2811,11 +2811,11 @@ int LookupDictList(Translator *tr, char **wordptr, char *ph_out, unsigned int *f
 		if ((end_flags & FLAG_SUFX_E_ADDED) && (word[length-1] == 'e')) {
 			// try removing an 'e' which has been added by RemoveEnding
 			word[length-1] = 0;
-			found = LookupDict2(tr, word, word1, ph_out, flags, end_flags, wtab);
+			found = LookupDict2(epContext, tr, word, word1, ph_out, flags, end_flags, wtab);
 		} else if ((end_flags & SUFX_D) && (word[length-1] == word[length-2])) {
 			// try removing a double letter
 			word[length-1] = 0;
-			found = LookupDict2(tr, word, word1, ph_out, flags, end_flags, wtab);
+			found = LookupDict2(epContext, tr, word, word1, ph_out, flags, end_flags, wtab);
 		}
 	}
 
@@ -2857,7 +2857,7 @@ int LookupDictList(Translator *tr, char **wordptr, char *ph_out, unsigned int *f
 
 extern char word_phonemes[N_WORD_PHONEMES]; // a word translated into phoneme codes
 
-int Lookup(Translator *tr, const char *word, char *ph_out)
+int Lookup(EspeakProcessorContext* epContext, Translator *tr, const char *word, char *ph_out)
 {
 	// Look up in *_list, returns dictionary flags[0] and phonemes
 
@@ -2867,7 +2867,7 @@ int Lookup(Translator *tr, const char *word, char *ph_out)
 
 	flags[0] = 0;
 	flags[1] = FLAG_LOOKUP_SYMBOL;
-	if ((flags0 = LookupDictList(tr, &word1, ph_out, flags, FLAG_ALLOW_TEXTMODE, NULL)) != 0)
+	if ((flags0 = LookupDictList(epContext, tr, &word1, ph_out, flags, FLAG_ALLOW_TEXTMODE, NULL)) != 0)
 		flags0 = flags[0];
 
 	if (flags[0] & FLAG_TEXTMODE) {
@@ -2889,14 +2889,14 @@ int Lookup(Translator *tr, const char *word, char *ph_out)
 	return flags0;
 }
 
-static int LookupFlags(Translator *tr, const char *word, unsigned int flags_out[2])
+static int LookupFlags(EspeakProcessorContext* epContext, Translator *tr, const char *word, unsigned int flags_out[2])
 {
 	char buf[100];
 	static unsigned int flags[2];
 	char *word1 = (char *)word;
 
 	flags[0] = flags[1] = 0;
-	LookupDictList(tr, &word1, buf, flags, 0, NULL);
+	LookupDictList(epContext, tr, &word1, buf, flags, 0, NULL);
 	flags_out[0] = flags[0];
 	flags_out[1] = flags[1];
 	return flags[0];
@@ -3028,7 +3028,7 @@ int RemoveEnding(Translator *tr, char *word, int end_type, char *word_copy)
 	return end_flags;
 }
 
-static void DollarRule(char *word[], char *word_start, int consumed, int group_length, char word_buf[N_WORD_BYTES], Translator *tr, int command, int *failed, int *add_points) {
+static void DollarRule(EspeakProcessorContext* epContext, char *word[], char *word_start, int consumed, int group_length, char word_buf[N_WORD_BYTES], Translator *tr, int command, int *failed, int *add_points) {
 	// $list or $p_alt
 	// make a copy of the word up to the post-match characters
 	int ix = *word - word_start + consumed + group_length + 1;
@@ -3042,7 +3042,7 @@ static void DollarRule(char *word[], char *word_start, int consumed, int group_l
 	word_buf[ix] = ' ';
 	word_buf[ix+1] = 0;
 	unsigned int flags[2];
-	LookupFlags(tr, &word_buf[1], flags);
+	LookupFlags(epContext, tr, &word_buf[1], flags);
 
 	if ((command == DOLLAR_LIST) && (flags[0] & FLAG_FOUND) && !(flags[1] & FLAG_ONLY))
 		*add_points = 23;

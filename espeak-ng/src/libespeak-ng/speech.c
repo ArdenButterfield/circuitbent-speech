@@ -644,7 +644,7 @@ void sync_espeak_SetPunctuationList(const wchar_t *punctlist)
 
 #pragma GCC visibility push(default)
 
-ESPEAK_API void espeak_SetSynthCallback(t_espeak_callback *SynthCallback)
+ESPEAK_API void espeak_SetSynthCallback(EspeakProcessorContext* epContext, t_espeak_callback *SynthCallback)
 {
 	synth_callback = SynthCallback;
 #if USE_ASYNC
@@ -785,7 +785,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakCharacter(wchar_t character)
 #endif
 }
 
-ESPEAK_API int espeak_GetParameter(espeak_PARAMETER parameter, int current)
+ESPEAK_API int espeak_GetParameter(EspeakProcessorContext* epContext, espeak_PARAMETER parameter, int current)
 {
 	// current: 0=default value, 1=current value
 	if (current)
@@ -831,7 +831,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPunctuationList(const wchar_t *punct
 #endif
 }
 
-ESPEAK_API void espeak_SetPhonemeTrace(int phonememode, FILE *stream)
+ESPEAK_API void espeak_SetPhonemeTrace(EspeakProcessorContext* epContext, int phonememode, FILE *stream)
 {
 	/* phonememode:  Controls the output of phoneme symbols for the text
 	      bits 0-2:
@@ -852,7 +852,7 @@ ESPEAK_API void espeak_SetPhonemeTrace(int phonememode, FILE *stream)
 		f_trans = stderr;
 }
 
-ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(const void** textptr, int textmode, int phonememode, int* terminator)
+ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(EspeakProcessorContext* epContext, const void** textptr, int textmode, int phonememode, int* terminator)
 {
 	/* phoneme_mode
 	    bit 1:   0=eSpeak's ascii phoneme names, 1= International Phonetic Alphabet (as UTF-8 characters).
@@ -872,7 +872,7 @@ ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(const void** textptr,
 	return GetTranslatedPhonemeString(phonememode);
 }
 
-ESPEAK_API const char *espeak_TextToPhonemes(const void **textptr, int textmode, int phonememode)
+ESPEAK_API const char *espeak_TextToPhonemes(EspeakProcessorContext* epContext, const void **textptr, int textmode, int phonememode)
 {
 	return espeak_TextToPhonemesWithTerminator(textptr, textmode, phonememode, NULL);
 }
@@ -896,7 +896,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Cancel(void)
 	return ENS_OK;
 }
 
-ESPEAK_API int espeak_IsPlaying(void)
+ESPEAK_API int espeak_IsPlaying(EspeakProcessorContext* epContext)
 {
 #if USE_ASYNC
 	return fifo_is_busy();
@@ -956,7 +956,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Terminate(void)
 }
 
 static const char version_string[] = PACKAGE_VERSION;
-ESPEAK_API const char *espeak_Info(const char **ptr)
+ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char **ptr)
 {
 	if (ptr != NULL)
 		*ptr = path_home;

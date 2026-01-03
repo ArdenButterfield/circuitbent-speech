@@ -44,19 +44,22 @@ TEST_CASE ("Basics of espeak", "[espeak]")
     const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_RETRIEVAL;
     int buflength = 500, options = 0;
-    auto fs = espeak_Initialize (output, buflength, path, options); // 22050 is default
+
+    EspeakProcessorContext epContext;
+
+    auto fs = espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
     REQUIRE (fs > 0);
 
-    char text[] = { "This is a test of the Homer speech synthesizer. 1 2 3..." };
+    char text[] = { "I'm just here to make a friend, okay!!! Name's Sea Man got a (voice) in the mix. When it comes to making friends, I got crazy magic tricks" };
     char voicename[] = { "English (America)" }; // Set voice by its name
 
     std::vector<float> samples;
     samples.clear();
 
-    auto voiceResult = espeak_SetVoiceByName(voicename);
+    auto voiceResult = espeak_SetVoiceByName(&epContext, voicename);
     REQUIRE (voiceResult == EE_OK);
 
-    espeak_SetSynthCallback(testSynthCallback);
+    espeak_SetSynthCallback(&epContext, testSynthCallback);
 
     void* user_data = &samples;
     unsigned int *identifier = nullptr;

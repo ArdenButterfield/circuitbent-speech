@@ -1600,7 +1600,7 @@ int SpeakNextClause(int control)
 }
 
 #pragma GCC visibility push(default)
-ESPEAK_API void espeak_SetPhonemeCallback(int (*PhonemeCallback)(const char *))
+ESPEAK_API void espeak_SetPhonemeCallback(EspeakProcessorContext* epContext, int (*PhonemeCallback)(const char *))
 {
 	phoneme_callback = PhonemeCallback;
 }

@@ -645,9 +645,8 @@ extern wchar_t option_punctlist[N_PUNCTLIST];  // which punctuation characters t
 extern Translator *translator;
 extern Translator *translator2;
 extern Translator *translator3;
-extern char dictionary_name[40];
+
 extern espeak_ng_TEXT_DECODER *p_decoder;
-extern int dictionary_skipwords;
 
 #define LEADING_2_BITS 0xC0 // 0b11000000
 #define UTF8_TAIL_BITS 0x80 // 0b10000000
