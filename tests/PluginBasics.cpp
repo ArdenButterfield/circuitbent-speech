@@ -21,12 +21,37 @@ TEST_CASE ("Plugin instance", "[instance]")
 
 #include <espeak-ng/speak_lib.h>
 
-TEST_CASE("Basics of espeak", "[espeak]")
+int testSynthCallback(short *wav, int numsamples, espeak_EVENT *events)
+{
+    std::cout << "callback " << numsamples << std::endl;
+    if (wav == nullptr)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+TEST_CASE ("Basics of espeak", "[espeak]")
 {
     const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_RETRIEVAL;
     int buflength = 500, options = 0;
-    espeak_Initialize(output, buflength, path, options);
+    auto fs = espeak_Initialize (output, buflength, path, options); // 22050 is default
+    REQUIRE (fs > 0);
+
+    char text[] = { "Hello world!" };
+    char voicename[] = { "English (America)" }; // Set voice by its name
+
+    auto voiceResult = espeak_SetVoiceByName(voicename);
+    REQUIRE (voiceResult == EE_OK);
+
+    espeak_SetSynthCallback(testSynthCallback);
+
+    void* user_data = nullptr;
+    unsigned int *identifier = nullptr;
+    auto synthError = espeak_Synth(text, buflength, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
+
+    REQUIRE (synthError == EE_OK);
 }
 
 #ifdef PAMPLEJUCE_IPP
