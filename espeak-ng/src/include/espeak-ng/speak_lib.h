@@ -745,6 +745,8 @@ typedef struct {
     int parameter[N_SPEECH_PARAM];
 } PARAM_STACK;
 
+typedef struct Translator Translator;
+
 struct epc
 {
     EspeakBends bends;
@@ -893,7 +895,66 @@ struct epc
     int syllable_end;
     int syllable_centre;
 
-    static voice_t *new_voice;// = NULL;
+    voice_t *new_voice;// = NULL;
+
+    // translate.c
+    Translator *translator;// = NULL; // the main translator
+    Translator *translator2;// = NULL; // secondary translator for certain words
+    char translator2_language[20];// = { 0 };
+    Translator *translator3;// = NULL; // tertiary translator for certain words
+    char translator3_language[20];// = { 0 };
+
+    FILE *f_trans;// = NULL; // phoneme output text
+    int option_tone_flags;// = 0; // bit 8=emphasize allcaps, bit 9=emphasize penultimate stress
+    int option_phonemes;// = 0;
+    int option_phoneme_events;// = 0;
+    int option_endpause;// = 0; // suppress pause after end of text
+    int option_capitals;// = 0;
+    int option_punctuation;// = 0;
+    int option_sayas;// = 0;
+    static int option_sayas2;// = 0; // used in translate_clause()
+    static int option_emphasis;// = 0; // 0=normal, 1=normal, 2=weak, 3=moderate, 4=strong
+    int option_ssml;// = 0;
+    int option_phoneme_input;// = 0; // allow [[phonemes]] in input
+    int option_wordgap;// = 0;
+
+    static int count_sayas_digits;
+    int skip_sentences;
+    int skip_words;
+    int skip_characters;
+    char skip_marker[N_MARKER_LENGTH];
+    bool skipping_text; // waiting until word count, sentence count, or named marker is reached
+    int end_character_position;
+    int count_sentences;
+    static int count_words;
+    int clause_start_char;
+    int clause_start_word;
+    static bool new_sentence;
+    int word_emphasis; // = 0; // set if emphasis level 3 or 4
+    int embedded_flag; // = 0; // there are embedded commands to be applied to the next phoneme, used in TranslateWord2()
+
+    int max_clause_pause; // = 0;
+    bool any_stressed_words;
+    int pre_pause;
+    static ALPHABET *current_alphabet;
+
+    char word_phonemes[N_WORD_PHONEMES]; // a word translated into phoneme codes
+
+    wchar_t option_punctlist[N_PUNCTLIST_TRANS]; // = { 0 };
+
+    // these are overridden by defaults set in the "speak" file
+    int option_linelength;// = 0;
+
+    #define N_EMBEDDED_LIST  250
+    int embedded_ix;
+    int embedded_read;
+    unsigned int embedded_list[N_EMBEDDED_LIST];
+
+    // the source text of a single clause (UTF8 bytes)
+    char source[N_TR_SOURCE+40]; // extra space for embedded command & voice change info at end
+
+    int n_replace_phonemes;
+    REPLACE_PHONEMES replace_phonemes[N_REPLACE_PHONEMES];
 
 };
 
@@ -929,4 +990,30 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->n_phoneme_list = 0;
     epContext->fmt_amplitude = 0;
     epContext->new_voice = NULL;
+
+    epContext->option_linelength = 0;
+    epContext->option_punctuation = {0};
+    epContext->max_clause_pause = 0;
+    epContext->embedded_flag = 0;
+    epContext->word_emphasis = 0;
+
+    epContext->translator= NULL; // the main translator
+    epContext->translator2= NULL; // secondary translator for certain words
+    epContext->translator2_language= { 0 };
+    epContext->translator3 = NULL; // tertiary translator for certain words
+    epContext->translator3_language = { 0 };
+    epContext->f_trans = NULL; // phoneme output text
+    epContext->option_tone_flags = 0; // bit 8=emphasize allcaps, bit 9=emphasize penultimate stress
+    epContext->option_phonemes = 0;
+    epContext->option_phoneme_events = 0;
+    epContext->option_endpause = 0; // suppress pause after end of text
+    epContext->option_capitals = 0;
+    epContext->option_punctuation = 0;
+    epContext->option_sayas = 0;
+    epContext->option_sayas2 = 0; // used in translate_clause()
+    epContext->option_emphasis = 0; // 0=normal, 1=normal, 2=weak, 3=moderate, 4=strong
+    epContext->option_ssml = 0;
+    epContext->option_phoneme_input = 0; // allow [[phonemes]] in input
+    epContext->option_wordgap = 0;
+
 }

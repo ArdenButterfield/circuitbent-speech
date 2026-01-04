@@ -208,7 +208,7 @@ static const unsigned short chars_ignore_zwnj_hyphen[] = {
 static const unsigned char utf8_ordinal[] = { 0xc2, 0xba, 0 }; // masculine ordinal character, UTF-8
 static const unsigned char utf8_null[] = { 0 }; // null string, UTF-8
 
-static Translator *NewTranslator(void)
+static Translator *NewTranslator(EspeakProcessorContext* epContext)
 {
 	Translator *tr;
 	int ix;
@@ -246,7 +246,7 @@ static Translator *NewTranslator(void)
 		return NULL;
 
 	tr->encoding = ESPEAKNG_ENCODING_ISO_8859_1;
-	dictionary_name[0] = 0;
+	epContext->dictionary_name[0] = 0;
 	tr->dictionary_name[0] = 0;
 	tr->phonemes_repeat[0] = 0;
 	tr->dict_condition = 0;
@@ -465,7 +465,7 @@ static void SetupTranslator(Translator *tr, const short *lengths, const unsigned
 		memcpy(tr->stress_amps, amps, sizeof(tr->stress_amps));
 }
 
-Translator *SelectTranslator(const char *name)
+Translator *SelectTranslator(EspeakProcessorContext* epContext, const char *name)
 {
 	int name2 = 0;
 	Translator *tr;
@@ -483,7 +483,7 @@ Translator *SelectTranslator(const char *name)
 	static const short stress_lengths_ta2[8] = { 230, 230,  240, 240,  0, 0,  260, 260 };
 	static const unsigned char stress_amps_ta[8] = { 18, 18, 18, 18, 20, 20, 22, 22 };
 
-	tr = NewTranslator();
+	tr = NewTranslator(epContext);
 	strcpy(tr->dictionary_name, name);
 
 	// convert name string into a word of up to 4 characters, for the switch()

@@ -46,68 +46,8 @@
 #include "translateword.h"
 
 static int CalcWordLength(int source_index, int charix_top, short int *charix, WORD_TAB *words, int word_count);
-static void CombineFlag(Translator *tr, WORD_TAB *wtab, char *word, int *flags, unsigned char *p, char *word_phonemes);
+static void CombineFlag(EspeakProcessorContext* epContext, Translator *tr, WORD_TAB *wtab, char *word, int *flags, unsigned char *p, char *word_phonemes);
 static void SwitchLanguage(char *word, char *word_phonemes);
-
-Translator *translator = NULL; // the main translator
-Translator *translator2 = NULL; // secondary translator for certain words
-static char translator2_language[20] = { 0 };
-Translator *translator3 = NULL; // tertiary translator for certain words
-static char translator3_language[20] = { 0 };
-
-FILE *f_trans = NULL; // phoneme output text
-int option_tone_flags = 0; // bit 8=emphasize allcaps, bit 9=emphasize penultimate stress
-int option_phonemes = 0;
-int option_phoneme_events = 0;
-int option_endpause = 0; // suppress pause after end of text
-int option_capitals = 0;
-int option_punctuation = 0;
-int option_sayas = 0;
-static int option_sayas2 = 0; // used in translate_clause()
-static int option_emphasis = 0; // 0=normal, 1=normal, 2=weak, 3=moderate, 4=strong
-int option_ssml = 0;
-int option_phoneme_input = 0; // allow [[phonemes]] in input
-int option_wordgap = 0;
-
-static int count_sayas_digits;
-int skip_sentences;
-int skip_words;
-int skip_characters;
-char skip_marker[N_MARKER_LENGTH];
-bool skipping_text; // waiting until word count, sentence count, or named marker is reached
-int end_character_position;
-int count_sentences;
-static int count_words;
-int clause_start_char;
-int clause_start_word;
-static bool new_sentence;
-static int word_emphasis = 0; // set if emphasis level 3 or 4
-static int embedded_flag = 0; // there are embedded commands to be applied to the next phoneme, used in TranslateWord2()
-
-static int max_clause_pause = 0;
-static bool any_stressed_words;
-int pre_pause;
-static ALPHABET *current_alphabet;
-
-char word_phonemes[N_WORD_PHONEMES]; // a word translated into phoneme codes
-int n_ph_list2;
-PHONEME_LIST2 ph_list2[N_PHONEME_LIST]; // first stage of text->phonemes
-
-wchar_t option_punctlist[N_PUNCTLIST] = { 0 };
-
-// these are overridden by defaults set in the "speak" file
-int option_linelength = 0;
-
-#define N_EMBEDDED_LIST  250
-static int embedded_ix;
-static int embedded_read;
-unsigned int embedded_list[N_EMBEDDED_LIST];
-
-// the source text of a single clause (UTF8 bytes)
-static char source[N_TR_SOURCE+40]; // extra space for embedded command & voice change info at end
-
-int n_replace_phonemes;
-REPLACE_PHONEMES replace_phonemes[N_REPLACE_PHONEMES];
 
 // other characters which break a word, but don't produce a pause
 static const unsigned short breaks[] = { '_', 0 };
@@ -141,13 +81,13 @@ char *strchr_w(const char *s, int c)
 	return strchr((char *)s, c); // (char *) is needed for Borland compiler
 }
 
-int TranslateWord(Translator *tr, char *word_start, WORD_TAB *wtab, char *word_out)
+int TranslateWord(EspeakProcessorContext* epContext, Translator *tr, char *word_start, WORD_TAB *wtab, char *word_out)
 {
 	char words_phonemes[N_WORD_PHONEMES]; // a word translated into phoneme codes
 	char *phonemes = words_phonemes;
 
 
-	int flags = TranslateWord3(tr, word_start, wtab, word_out, &any_stressed_words, current_alphabet, word_phonemes, sizeof(word_phonemes));
+	int flags = TranslateWord3(tr, word_start, wtab, word_out, &epContext->any_stressed_words, epContext->current_alphabet, epContext->word_phonemes, sizeof(epContext->word_phonemes));
 	if (flags & FLAG_TEXTMODE && word_out) {
 		// Ensure that start of word rules match with the replaced text,
 		// so that emoji and other characters are pronounced correctly.
@@ -172,26 +112,26 @@ int TranslateWord(Translator *tr, char *word_start, WORD_TAB *wtab, char *word_o
 			// dictionary_skipwords is a global variable and TranslateWord3 will reset it to 0 at the beginning.
 			// However, dictionary_skipwords value is still needed outside this scope.
 			// So we backup and restore it at the end of this scope.
-			int skipwords = dictionary_skipwords;
-			TranslateWord3(tr, word_out, wtab, NULL, &any_stressed_words, current_alphabet, word_phonemes, sizeof(word_phonemes));
+			int skipwords = epContext->dictionary_skipwords;
+			TranslateWord3(tr, word_out, wtab, NULL, &epContext->any_stressed_words, epContext->current_alphabet, epContext->word_phonemes, sizeof(epContext->word_phonemes));
 
 			int n;
 			if (first_word) {
-				n = snprintf(phonemes, available, "%s", word_phonemes);
+				n = snprintf(phonemes, available, "%s", epContext->word_phonemes);
 				first_word = false;
 			} else {
-				n = snprintf(phonemes, available, "%c%s", phonEND_WORD, word_phonemes);
+				n = snprintf(phonemes, available, "%c%s", phonEND_WORD, epContext->word_phonemes);
 			}
 
 			available -= n;
 			phonemes += n;
 
 			// skip to the next word in a multi-word replacement. Always skip at least one word.
-			for (dictionary_skipwords++; dictionary_skipwords > 0; dictionary_skipwords--) {
+			for (epContext->dictionary_skipwords++; epContext->dictionary_skipwords > 0; epContext->dictionary_skipwords--) {
 				while (!isspace(*word_out)) ++word_out;
 				while (isspace(*word_out))  ++word_out;
 			}
-			dictionary_skipwords = skipwords;
+			epContext->dictionary_skipwords = skipwords;
 		}
 
 		// If the list file contains a text replacement to another
@@ -204,20 +144,20 @@ int TranslateWord(Translator *tr, char *word_start, WORD_TAB *wtab, char *word_o
 		// no phonemes have been written in this loop and the phonemes
 		// have been calculated, so don't override them.
 		if (phonemes != words_phonemes) {
-			snprintf(word_phonemes, sizeof(word_phonemes), "%s", words_phonemes);
+			snprintf(epContext->word_phonemes, sizeof(epContext->word_phonemes), "%s", words_phonemes);
 		}
 	}
 	return flags;
 }
 
-static void SetPlist2(PHONEME_LIST2 *p, unsigned char phcode)
+static void SetPlist2(EspeakProcessorContext* epContext, PHONEME_LIST2 *p, unsigned char phcode)
 {
 	p->phcode = phcode;
 	p->stresslevel = 0;
 	p->tone_ph = 0;
-	p->synthflags = embedded_flag;
+	p->synthflags = epContext->embedded_flag;
 	p->sourceix = 0;
-	embedded_flag = 0;
+	epContext->embedded_flag = 0;
 }
 
 static int CountSyllables(unsigned char *phonemes)
@@ -231,36 +171,36 @@ static int CountSyllables(unsigned char *phonemes)
 	return count;
 }
 
-static void Word_EmbeddedCmd(void)
+static void Word_EmbeddedCmd(EspeakProcessorContext* epContext)
 {
 	// Process embedded commands for emphasis, sayas, and break
 	int embedded_cmd;
 	do {
-		embedded_cmd = embedded_list[embedded_read++];
+		embedded_cmd = embedded_list[epContext->embedded_read++];
 		int value = embedded_cmd >> 8;
 
 		switch (embedded_cmd & 0x1f)
 		{
 		case EMBED_Y:
-			option_sayas = value;
+			epContext->option_sayas = value;
 			break;
 
 		case EMBED_F:
-			option_emphasis = value;
+			epContext->option_emphasis = value;
 			break;
 
 		case EMBED_B:
 			// break command
 			if (value == 0)
-				pre_pause = 0; // break=none
+				epContext->pre_pause = 0; // break=none
 			else
-				pre_pause += value;
+				epContext->pre_pause += value;
 			break;
 		}
-	} while (((embedded_cmd & 0x80) == 0) && (embedded_read < embedded_ix));
+	} while (((embedded_cmd & 0x80) == 0) && (epContext->embedded_read < epContext->embedded_ix));
 }
 
-static int SetAlternateTranslator(const char *new_language, Translator **translator, char translator_language[20])
+static int SetAlternateTranslator(EspeakProcessorContext* epContext, const char *new_language, Translator **translator, char translator_language[20])
 {
 	// Set alternate translator to a second language
 	int new_phoneme_tab;
@@ -273,10 +213,10 @@ static int SetAlternateTranslator(const char *new_language, Translator **transla
 		}
 
 		if (*translator == NULL) {
-			*translator = SelectTranslator(new_language);
+			*translator = SelectTranslator(epContext, new_language);
 			strcpy(translator_language, new_language);
 
-			if (LoadDictionary(*translator, (*translator)->dictionary_name, 0) != 0) {
+			if (LoadDictionary(epContext, *translator, (*translator)->dictionary_name, 0) != 0) {
 				SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
 				new_phoneme_tab = -1;
 				translator_language[0] = 0;
@@ -289,17 +229,17 @@ static int SetAlternateTranslator(const char *new_language, Translator **transla
 	return new_phoneme_tab;
 }
 
-int SetTranslator2(const char *new_language)
+int SetTranslator2(EspeakProcessorContext* epContext, const char *new_language)
 {
-	return SetAlternateTranslator(new_language, &translator2, translator2_language);
+	return SetAlternateTranslator(epContext, new_language, &epContext->translator2, epContext->translator2_language);
 }
 
-int SetTranslator3(const char *new_language)
+int SetTranslator3(EspeakProcessorContext* epContext, const char *new_language)
 {
-	return SetAlternateTranslator(new_language, &translator3, translator3_language);
+	return SetAlternateTranslator(epContext, new_language, &epContext->translator3, epContext->translator3_language);
 }
 
-static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pause)
+static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, char *word, WORD_TAB *wtab, int pre_pause)
 {
 	int flags = 0;
 	int stress;
@@ -332,29 +272,29 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	word_flags = wtab[0].flags;
 	if (word_flags & FLAG_EMBEDDED) {
 		wtab[0].flags &= ~FLAG_EMBEDDED; // clear it in case we call TranslateWord2() again for the same word
-		embedded_flag = SFLAG_EMBEDDED;
+		epContext->embedded_flag = SFLAG_EMBEDDED;
 
-		Word_EmbeddedCmd();
+		Word_EmbeddedCmd(epContext);
 	}
 
-	if (n_ph_list2 >= N_PHONEME_LIST-2) {
+	if (epContext->n_ph_list2 >= N_PHONEME_LIST-2) {
 		// No room, can't translate anything
 		return 0;
 	}
 
 	if ((word[0] == 0) || (word_flags & FLAG_DELETE_WORD)) {
 		// nothing to translate.  Add a dummy phoneme to carry any embedded commands
-		if (embedded_flag) {
-			SetPlist2(&ph_list2[n_ph_list2], phonEND_WORD);
-			ph_list2[n_ph_list2].wordstress = 0;
-			n_ph_list2++;
-			embedded_flag = 0;
+		if (epContext->embedded_flag) {
+			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonEND_WORD);
+			epContext->ph_list2[epContext->n_ph_list2].wordstress = 0;
+			epContext->n_ph_list2++;
+			epContext->embedded_flag = 0;
 		}
-		word_phonemes[0] = 0;
+		epContext->word_phonemes[0] = 0;
 		return 0;
 	}
 
-	if (n_ph_list2 >= N_PHONEME_LIST-7-2) {
+	if (epContext->n_ph_list2 >= N_PHONEME_LIST-7-2) {
 		// We may require up to 7 phonemes, plus the 2 phonemes from the caller, can't translate safely
 		return 0;
 	}
@@ -363,7 +303,7 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	if (tr->prepause_timeout > 0)
 		tr->prepause_timeout--;
 
-	if ((option_sayas & 0xf0) == 0x10) {
+	if ((epContext->option_sayas & 0xf0) == 0x10) {
 		if (!(word_flags & FLAG_FIRST_WORD)) {
 			// SAYAS_CHARS, SAYAS_GLYPHS, or SAYAS_SINGLECHARS.  Pause between each word.
 			pre_pause += 4;
@@ -371,25 +311,25 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	}
 
 	if (word_flags & FLAG_FIRST_UPPER) {
-		if ((option_capitals > 2) && (embedded_ix < N_EMBEDDED_LIST-6)) {
+		if ((epContext->option_capitals > 2) && (epContext->embedded_ix < N_EMBEDDED_LIST-6)) {
 			// indicate capital letter by raising pitch
-			if (embedded_flag)
-				embedded_list[embedded_ix-1] &= ~0x80; // already embedded command before this word, remove terminator
-			if ((pitch_raised = option_capitals) == 3)
+			if (epContext->embedded_flag)
+				embedded_list[epContext->embedded_ix-1] &= ~0x80; // already embedded command before this word, remove terminator
+			if ((pitch_raised = epContext->option_capitals) == 3)
 				pitch_raised = 20; // default pitch raise for capitals
-			embedded_list[embedded_ix++] = EMBED_P+0x40+0x80 + (pitch_raised << 8); // raise pitch
-			embedded_flag = SFLAG_EMBEDDED;
+			embedded_list[epContext->embedded_ix++] = EMBED_P+0x40+0x80 + (pitch_raised << 8); // raise pitch
+			epContext->embedded_flag = SFLAG_EMBEDDED;
 		}
 	}
 
-	p = (unsigned char *)word_phonemes;
+	p = (unsigned char *)epContext->word_phonemes;
 	if (word_flags & FLAG_PHONEMES) {
 		// The input is in phoneme mnemonics, not language text
 
 		if (memcmp(word, "_^_", 3) == 0) {
-			SwitchLanguage(word, word_phonemes);
+			SwitchLanguage(word, epContext->word_phonemes);
 		} else {
-			EncodePhonemes(word, word_phonemes, &bad_phoneme);
+			EncodePhonemes(word, epContext->word_phonemes, &bad_phoneme);
 		}
 
 		flags = FLAG_FOUND;
@@ -401,7 +341,7 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 		word_copy_len = ix;
 
 		word_replaced[2] = 0;
-		flags = TranslateWord(translator, word, wtab, &word_replaced[2]);
+		flags = TranslateWord(epContext, epContext->translator, word, wtab, &word_replaced[2]);
 
 		if (flags & FLAG_SPELLWORD) {
 			// re-translate the word as individual letters, separated by spaces
@@ -410,12 +350,12 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 		}
 
 		if ((flags & FLAG_COMBINE) && !(wtab[1].flags & FLAG_PHONEMES)) {
-			CombineFlag(tr, wtab, word, &flags, p, word_phonemes);
+			CombineFlag(epContext, tr, wtab, word, &flags, p, epContext->word_phonemes);
 		}
 
 		if (p[0] == phonSWITCH) {
 			int switch_attempt;
-			strcpy(old_dictionary_name, dictionary_name);
+			strcpy(old_dictionary_name, epContext->dictionary_name);
 			for (switch_attempt = 0; switch_attempt < 2; switch_attempt++) {
 				// this word uses a different language
 				memcpy(word, word_copy, word_copy_len);
@@ -425,17 +365,17 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 				if (new_language[0] == 0)
 					new_language = ESPEAKNG_DEFAULT_VOICE;
 
-				switch_phonemes = SetTranslator2(new_language);
+				switch_phonemes = SetTranslator2(epContext, new_language);
 
 				if (switch_phonemes >= 0) {
-					// re-translate the word using the new translator
+					// re-translate the word using the new epContext->translator
 					wtab[0].flags |= FLAG_TRANSLATOR2;
 					if (word_replaced[2] != 0) {
 						word_replaced[0] = 0; // byte before the start of the word
 						word_replaced[1] = ' ';
-						flags = TranslateWord(translator2, &word_replaced[1], wtab, NULL);
+						flags = TranslateWord(epContext, epContext->translator2, &word_replaced[1], wtab, NULL);
 					} else
-						flags = TranslateWord(translator2, word, wtab, &word_replaced[2]);
+						flags = TranslateWord(epContext, epContext->translator2, word, wtab, &word_replaced[2]);
 				}
 
 				if (p[0] != phonSWITCH)
@@ -453,7 +393,7 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 			}
 
 			if (switch_phonemes == -1) {
-				strcpy(dictionary_name, old_dictionary_name);
+				strcpy(epContext->dictionary_name, old_dictionary_name);
 				SelectPhonemeTable(voice->phoneme_tab_ix);
 
 				// leave switch_phonemes set, but use the original phoneme table number.
@@ -474,7 +414,7 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 			}
 		}
 
-		if ((option_emphasis >= 3) && (pre_pause < 1))
+		if ((epContext->option_emphasis >= 3) && (pre_pause < 1))
 			pre_pause = 1;
 	}
 
@@ -490,31 +430,31 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	// Each iteration may require up to 1 phoneme
 	// and after this loop we may require up to 7 phonemes
 	// and our caller requires 2 phonemes
-	while ((pre_pause > 0) && (n_ph_list2 < N_PHONEME_LIST-7-2)) {
+	while ((pre_pause > 0) && (epContext->n_ph_list2 < N_PHONEME_LIST-7-2)) {
 		// add pause phonemes here. Either because of punctuation (brackets or quotes) in the
 		// text, or because the word is marked in the dictionary lookup as a conjunction
 		if (pre_pause > 1) {
-			SetPlist2(&ph_list2[n_ph_list2++], phonPAUSE);
+			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE);
 			pre_pause -= 2;
 		} else {
-			SetPlist2(&ph_list2[n_ph_list2++], phonPAUSE_NOLINK);
+			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_NOLINK);
 			pre_pause--;
 		}
 		tr->end_stressed_vowel = 0; // forget about the previous word
 		tr->prev_dict_flags[0] = 0;
 		tr->prev_dict_flags[1] = 0;
 	}
-	plist2 = &ph_list2[n_ph_list2];
+	plist2 = &epContext->ph_list2[epContext->n_ph_list2];
 	// From here we may require up to 4+1+3 phonemes
 
 	// This may require up to 4 phonemes
-	if ((option_capitals == 1) && (word_flags & FLAG_FIRST_UPPER)) {
-		SetPlist2(&ph_list2[n_ph_list2++], phonPAUSE_SHORT);
-		SetPlist2(&ph_list2[n_ph_list2++], phonCAPITAL);
+	if ((epContext->option_capitals == 1) && (word_flags & FLAG_FIRST_UPPER)) {
+		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_SHORT);
+		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonCAPITAL);
 		if ((word_flags & FLAG_ALL_UPPER) && IsAlpha(word[1])) {
 			// word > 1 letter and all capitals
-			SetPlist2(&ph_list2[n_ph_list2++], phonPAUSE_SHORT);
-			SetPlist2(&ph_list2[n_ph_list2++], phonCAPITAL);
+			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_SHORT);
+			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonCAPITAL);
 		}
 	}
 
@@ -522,18 +462,18 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	if (switch_phonemes >= 0) {
 		if ((p[0] == phonPAUSE) && (p[1] == phonSWITCH)) {
 			// the new word starts with a phoneme table switch, so there's no need to switch before it.
-			if (ph_list2[n_ph_list2-1].phcode == phonSWITCH) {
+			if (epContext->ph_list2[epContext->n_ph_list2-1].phcode == phonSWITCH) {
 				// previous phoneme is also a phonSWITCH, delete it
-				n_ph_list2--;
+				epContext->n_ph_list2--;
 			}
 		} else {
 			// this word uses a different phoneme table
-			if (ph_list2[n_ph_list2-1].phcode == phonSWITCH) {
+			if (epContext->ph_list2[epContext->n_ph_list2-1].phcode == phonSWITCH) {
 				// previous phoneme is also a phonSWITCH, just change its phoneme table number
-				n_ph_list2--;
+				epContext->n_ph_list2--;
 			} else
-				SetPlist2(&ph_list2[n_ph_list2], phonSWITCH);
-			ph_list2[n_ph_list2++].tone_ph = switch_phonemes; // temporary phoneme table number
+				SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
+			epContext->ph_list2[epContext->n_ph_list2++].tone_ph = switch_phonemes; // temporary phoneme table number
 		}
 	}
 
@@ -541,7 +481,7 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	if ((word_flags & FLAG_HYPHEN) && (phoneme_tab[*p]->type == phPAUSE))
 		p++;
 
-	if ((p[0] == 0) && (embedded_flag)) {
+	if ((p[0] == 0) && (epContext->embedded_flag)) {
 		// no phonemes.  Insert a very short pause to carry an embedded command
 		p[0] = phonPAUSE_VSHORT;
 		p[1] = 0;
@@ -550,11 +490,11 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 	// Each iteration may require up to 1 phoneme
 	// and after this loop we may require up to 3 phonemes
 	// and our caller requires 2 phonemes
-	while (((ph_code = *p++) != 0) && (n_ph_list2 < N_PHONEME_LIST-3-2)) {
+	while (((ph_code = *p++) != 0) && (epContext->n_ph_list2 < N_PHONEME_LIST-3-2)) {
 		if (ph_code == 255)
 			continue; // unknown phoneme
 
-		// Add the phonemes to the first stage phoneme list (ph_list2)
+		// Add the phonemes to the first stage phoneme list (epContext->ph_list2)
 		ph = phoneme_tab[ph_code];
 		if (ph == NULL) {
 			printf("Invalid phoneme code %d\n", ph_code);
@@ -562,11 +502,11 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 		}
 
 		if (ph_code == phonSWITCH) {
-			ph_list2[n_ph_list2].phcode = ph_code;
-			ph_list2[n_ph_list2].stresslevel = 0;
-			ph_list2[n_ph_list2].sourceix = 0;
-			ph_list2[n_ph_list2].synthflags = 0;
-			ph_list2[n_ph_list2++].tone_ph = *p;
+			epContext->ph_list2[epContext->n_ph_list2].phcode = ph_code;
+			epContext->ph_list2[epContext->n_ph_list2].stresslevel = 0;
+			epContext->ph_list2[epContext->n_ph_list2].sourceix = 0;
+			epContext->ph_list2[epContext->n_ph_list2].synthflags = 0;
+			epContext->ph_list2[epContext->n_ph_list2++].tone_ph = *p;
 			SelectPhonemeTable(*p);
 			p++;
 		} else if (ph->type == phSTRESS) {
@@ -578,17 +518,17 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 			else {
 				// for tone languages, the tone number for a syllable follows the vowel
 				if (prev_vowel >= 0)
-					ph_list2[prev_vowel].tone_ph = ph_code;
+					epContext->ph_list2[prev_vowel].tone_ph = ph_code;
 				else
 					next_tone = ph_code; // no previous vowel, apply to the next vowel
 			}
 		} else if (ph_code == phonSYLLABIC) {
 			// mark the previous phoneme as a syllabic consonant
-			prev_vowel = n_ph_list2-1;
-			ph_list2[prev_vowel].synthflags |= SFLAG_SYLLABLE;
-			ph_list2[prev_vowel].stresslevel = next_stress;
+			prev_vowel = epContext->n_ph_list2-1;
+			epContext->ph_list2[prev_vowel].synthflags |= SFLAG_SYLLABLE;
+			epContext->ph_list2[prev_vowel].stresslevel = next_stress;
 		} else if (ph_code == phonLENGTHEN)
-			ph_list2[n_ph_list2-1].synthflags |= SFLAG_LENGTHEN;
+			epContext->ph_list2[epContext->n_ph_list2-1].synthflags |= SFLAG_LENGTHEN;
 		else if (ph_code == phonEND_WORD) {
 			// a || symbol in a phoneme string was used to indicate a word boundary
 			// Don't add this phoneme to the list, but make sure the next phoneme has
@@ -598,11 +538,11 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 			// a language specific action
 				flags |= FLAG_DOUBLING;
 		} else {
-			ph_list2[n_ph_list2].phcode = ph_code;
-			ph_list2[n_ph_list2].tone_ph = 0;
-			ph_list2[n_ph_list2].synthflags = embedded_flag | found_dict_flag;
-			embedded_flag = 0;
-			ph_list2[n_ph_list2].sourceix = srcix;
+			epContext->ph_list2[epContext->n_ph_list2].phcode = ph_code;
+			epContext->ph_list2[epContext->n_ph_list2].tone_ph = 0;
+			epContext->ph_list2[epContext->n_ph_list2].synthflags = epContext->embedded_flag | found_dict_flag;
+			epContext->embedded_flag = 0;
+			epContext->ph_list2[epContext->n_ph_list2].sourceix = srcix;
 			srcix = 0;
 
 			if (ph->type == phVOWEL) {
@@ -610,31 +550,31 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 				next_stress = 1; // default is 'unstressed'
 
 				if (stress >= 4)
-					any_stressed_words = true;
+					epContext->any_stressed_words = true;
 
-				if ((prev_vowel >= 0) && (n_ph_list2-1) != prev_vowel)
-					ph_list2[n_ph_list2-1].stresslevel = stress; // set stress for previous consonant
+				if ((prev_vowel >= 0) && (epContext->n_ph_list2-1) != prev_vowel)
+					epContext->ph_list2[epContext->n_ph_list2-1].stresslevel = stress; // set stress for previous consonant
 
-				ph_list2[n_ph_list2].synthflags |= SFLAG_SYLLABLE;
-				prev_vowel = n_ph_list2;
+				epContext->ph_list2[epContext->n_ph_list2].synthflags |= SFLAG_SYLLABLE;
+				prev_vowel = epContext->n_ph_list2;
 
 				if (stress > max_stress) {
 					max_stress = stress;
-					max_stress_ix = n_ph_list2;
+					max_stress_ix = epContext->n_ph_list2;
 				}
 				if (next_tone != 0) {
-					ph_list2[n_ph_list2].tone_ph = next_tone;
+					epContext->ph_list2[epContext->n_ph_list2].tone_ph = next_tone;
 					next_tone = 0;
 				}
 			} else {
 				if (first_phoneme && tr->prev_dict_flags[0] & FLAG_DOUBLING) {
 						// double the initial consonant if the previous word is marked with a flag
-					ph_list2[n_ph_list2].synthflags |= SFLAG_LENGTHEN;
+					epContext->ph_list2[epContext->n_ph_list2].synthflags |= SFLAG_LENGTHEN;
 				}
 			}
 
-			ph_list2[n_ph_list2].stresslevel = stress;
-			n_ph_list2++;
+			epContext->ph_list2[epContext->n_ph_list2].stresslevel = stress;
+			epContext->n_ph_list2++;
 			first_phoneme = false;
 		}
 	}
@@ -642,43 +582,43 @@ static int TranslateWord2(Translator *tr, char *word, WORD_TAB *wtab, int pre_pa
 
 	// This may require up to 1 phoneme
 	if (word_flags & FLAG_COMMA_AFTER)
-		SetPlist2(&ph_list2[n_ph_list2++], phonPAUSE_CLAUSE);
+		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_CLAUSE);
 
 	// don't set new-word if there is a hyphen before it
 	if ((word_flags & FLAG_HYPHEN) == 0)
 		plist2->sourceix = source_ix;
 
 	tr->end_stressed_vowel = 0;
-	if ((stress >= 4) && (phoneme_tab[ph_list2[n_ph_list2-1].phcode]->type == phVOWEL))
+	if ((stress >= 4) && (phoneme_tab[epContext->ph_list2[epContext->n_ph_list2-1].phcode]->type == phVOWEL))
 		tr->end_stressed_vowel = 1; // word ends with a stressed vowel
 
 	// This may require up to 1 phoneme
 	if (switch_phonemes >= 0) {
 		// this word uses a different phoneme table, now switch back
-		strcpy(dictionary_name, old_dictionary_name);
+		strcpy(epContext->dictionary_name, old_dictionary_name);
 		SelectPhonemeTable(voice->phoneme_tab_ix);
-		SetPlist2(&ph_list2[n_ph_list2], phonSWITCH);
-		ph_list2[n_ph_list2++].tone_ph = voice->phoneme_tab_ix; // original phoneme table number
+		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
+		epContext->ph_list2[epContext->n_ph_list2++].tone_ph = voice->phoneme_tab_ix; // original phoneme table number
 	}
 
 
 	// This may require up to 1 phoneme
 	if (pitch_raised > 0) {
-		embedded_list[embedded_ix++] = EMBED_P+0x60+0x80 + (pitch_raised << 8); // lower pitch
-		SetPlist2(&ph_list2[n_ph_list2], phonPAUSE_SHORT);
-		ph_list2[n_ph_list2++].synthflags = SFLAG_EMBEDDED;
+		embedded_list[epContext->embedded_ix++] = EMBED_P+0x60+0x80 + (pitch_raised << 8); // lower pitch
+		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonPAUSE_SHORT);
+		epContext->ph_list2[epContext->n_ph_list2++].synthflags = SFLAG_EMBEDDED;
 	}
 
 	if (flags & FLAG_STRESS_END2) {
 		// this's word's stress could be increased later
-		ph_list2[max_stress_ix].synthflags |= SFLAG_PROMOTE_STRESS;
+		epContext->ph_list2[max_stress_ix].synthflags |= SFLAG_PROMOTE_STRESS;
 	}
 
 	tr->prev_dict_flags[0] = flags;
 	return flags;
 }
 
-static int EmbeddedCommand(unsigned int *source_index_out)
+static int EmbeddedCommand(EspeakProcessorContext* epContext, unsigned int *source_index_out)
 {
 	// An embedded command to change the pitch, volume, etc.
 	// returns number of commands added to embedded_list
@@ -692,7 +632,7 @@ static int EmbeddedCommand(unsigned int *source_index_out)
 	int cmd;
 	int source_index = *source_index_out;
 
-	c = source[source_index];
+	c = epContext->source[source_index];
 	if (c == '+') {
 		sign = 0x40;
 		source_index++;
@@ -701,14 +641,14 @@ static int EmbeddedCommand(unsigned int *source_index_out)
 		source_index++;
 	}
 
-	if (IsDigit09(source[source_index])) {
-		value = atoi(&source[source_index]);
-		while (IsDigit09(source[source_index]))
+	if (IsDigit09(epContext->source[source_index])) {
+		value = atoi(&epContext->source[source_index]);
+		while (IsDigit09(epContext->source[source_index]))
 			source_index++;
 	}
 
-	c = source[source_index++];
-	if (embedded_ix >= (N_EMBEDDED_LIST - 2))
+	c = epContext->source[source_index++];
+	if (epContext->embedded_ix >= (N_EMBEDDED_LIST - 2))
 		return 0; // list is full
 
 	if ((p = strchr_w(commands, c)) == NULL)
@@ -720,17 +660,17 @@ static int EmbeddedCommand(unsigned int *source_index_out)
 	}
 
 	if (cmd == EMBED_Y) {
-		option_sayas2 = value;
-		count_sayas_digits = 0;
+		epContext->option_sayas2 = value;
+		epContext->count_sayas_digits = 0;
 	}
 	if (cmd == EMBED_F) {
 		if (value >= 3)
-			word_emphasis = FLAG_EMPHASIZED;
+			epContext->word_emphasis = FLAG_EMPHASIZED;
 		else
-			word_emphasis = 0;
+			epContext->word_emphasis = 0;
 	}
 
-	embedded_list[embedded_ix++] = cmd + sign + (value << 8);
+	embedded_list[epContext->embedded_ix++] = cmd + sign + (value << 8);
 	*source_index_out = source_index;
 	return 1;
 }
@@ -781,7 +721,7 @@ static const char *FindReplacementChars(Translator *tr, const char **pfrom, unsi
 }
 
 // handle .replace rule in xx_rules file
-static int SubstituteChar(Translator *tr, unsigned int c, unsigned int next_in, const char *next, int *insert, int *wordflags)
+static int SubstituteChar(EspeakProcessorContext* epContext, Translator *tr, unsigned int c, unsigned int next_in, const char *next, int *insert, int *wordflags)
 {
 	unsigned int new_c, c2 = ' ', c_lower;
 	int upper_case = 0;
@@ -809,7 +749,7 @@ static int SubstituteChar(Translator *tr, unsigned int c, unsigned int next_in, 
 	if (to == NULL)
 		return c; // no substitution
 
-	if (option_phonemes & espeakPHONEMES_TRACE)
+	if (epContext->option_phonemes & espeakPHONEMES_TRACE)
 		fprintf(f_trans, "Replace: %s > %s\n", from, to);
 
 	to += utf8_in((int *)&new_c, to);
@@ -829,7 +769,7 @@ static int SubstituteChar(Translator *tr, unsigned int c, unsigned int next_in, 
 	return new_c;
 }
 
-static int TranslateChar(Translator *tr, char *ptr, int prev_in, unsigned int c, unsigned int next_in, int *insert, int *wordflags)
+static int TranslateChar(EspeakProcessorContext* epContext, Translator *tr, char *ptr, int prev_in, unsigned int c, unsigned int next_in, int *insert, int *wordflags)
 {
 	// To allow language specific examination and replacement of characters
 
@@ -893,7 +833,7 @@ static int TranslateChar(Translator *tr, char *ptr, int prev_in, unsigned int c,
 		break;
 	}
 	// handle .replace rule in xx_rules file
-	return SubstituteChar(tr, c, next_in, ptr, insert, wordflags);
+	return SubstituteChar(epContext, tr, c, next_in, ptr, insert, wordflags);
 }
 
 static const char *const UCase_ga[] = { "bp", "bhf", "dt", "gc", "hA", "mb", "nd", "ng", "ts", "tA", "nA", NULL };
@@ -921,7 +861,7 @@ static int UpperCaseInWord(Translator *tr, char *word, int c)
 
 // Same as TranslateClause except we also get the clause terminator used (full stop, comma, etc.).
 // Used by espeak_TextToPhonemesWithTerminator.
-void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_change, int *terminator_out)
+void TranslateClauseWithTerminator(EspeakProcessorContext* epContext, Translator *tr, int *tone_out, char **voice_change, int *terminator_out)
 {
 	int ix;
 	int c;
@@ -971,19 +911,19 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 
 	MAKE_MEM_UNDEFINED(&voice_change_name, sizeof(voice_change_name));
 
-	embedded_ix = 0;
-	embedded_read = 0;
-	pre_pause = 0;
-	any_stressed_words = false;
+	epContext->embedded_ix = 0;
+	epContext->embedded_read = 0;
+	epContext->pre_pause = 0;
+	epContext->any_stressed_words = false;
 
-	if ((clause_start_char = count_characters) < 0)
-		clause_start_char = 0;
-	clause_start_word = count_words + 1;
+	if ((epContext->clause_start_char = epContext->count_characters) < 0)
+		epContext->clause_start_char = 0;
+	epContext->clause_start_word = epContext->count_words + 1;
 
 	for (ix = 0; ix < N_TR_SOURCE; ix++)
 		charix[ix] = 0;
-	MAKE_MEM_UNDEFINED(&source, sizeof(source));
-	terminator = ReadClause(tr, source, charix, &charix_top, N_TR_SOURCE, &tone, voice_change_name);
+	MAKE_MEM_UNDEFINED(&epContext->source, sizeof(epContext->source));
+	terminator = ReadClause(epContext, tr, epContext->source, charix, &charix_top, N_TR_SOURCE, &tone, voice_change_name);
 
 	if (terminator_out != NULL) {
 		*terminator_out = terminator;
@@ -1004,41 +944,41 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 	if (terminator & CLAUSE_PAUSE_LONG)
 		clause_pause = clause_pause * 32; // pause value is *320mS not *10mS
 
-	for (p = source; *p != 0; p++) {
+	for (p = epContext->source; *p != 0; p++) {
 		if (!isspace2(*p))
 			break;
 	}
 	if (*p == 0) {
 		// No characters except spaces. This is not a sentence.
 		// Don't add this pause, just make up the previous pause to this value;
-		clause_pause -= max_clause_pause;
+		clause_pause -= epContext->max_clause_pause;
 		if (clause_pause < 0)
 			clause_pause = 0;
 
-		if (new_sentence)
+		if (epContext->new_sentence)
 			terminator |= CLAUSE_TYPE_SENTENCE; // carry forward an end-of-sentence indicator
-		max_clause_pause += clause_pause;
+		epContext->max_clause_pause += clause_pause;
 		new_sentence2 = false;
 	} else {
-		max_clause_pause = clause_pause;
-		new_sentence2 = new_sentence;
+		epContext->max_clause_pause = clause_pause;
+		new_sentence2 = epContext->new_sentence;
 	}
 	tr->clause_terminator = terminator;
 
 	if (new_sentence2) {
-		count_sentences++;
-		if (skip_sentences > 0) {
-			skip_sentences--;
-			if (skip_sentences == 0)
-				skipping_text = false;
+		epContext->count_sentences++;
+		if (epContext->skip_sentences > 0) {
+			epContext->skip_sentences--;
+			if (epContext->skip_sentences == 0)
+				epContext->skipping_text = false;
 		}
 	}
 
-	MAKE_MEM_UNDEFINED(&ph_list2, sizeof(ph_list2));
-	memset(&ph_list2[0], 0, sizeof(ph_list2[0]));
-	ph_list2[0].phcode = phonPAUSE_SHORT;
+	MAKE_MEM_UNDEFINED(&epContext->ph_list2, sizeof(epContext->ph_list2));
+	memset(&epContext->ph_list2[0], 0, sizeof(epContext->ph_list2[0]));
+	epContext->ph_list2[0].phcode = phonPAUSE_SHORT;
 
-	n_ph_list2 = 1;
+	epContext->n_ph_list2 = 1;
 	tr->prev_last_stress = 0;
 	tr->prepause_timeout = 0;
 	tr->expect_verb = 0;
@@ -1079,7 +1019,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 			prev_in = prev_in_save;
 			prev_in_save = 0;
 		} else if (source_index > 0)
-			utf8_in2(&prev_in, &source[source_index-1], 1);
+			utf8_in2(&prev_in, &epContext->source[source_index-1], 1);
 
 		unsigned int prev_source_index = source_index;
 
@@ -1087,7 +1027,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 			c = char_inserted;
 			char_inserted = 0;
 		} else {
-			source_index += utf8_in(&cc, &source[source_index]);
+			source_index += utf8_in(&cc, &epContext->source[source_index]);
 			c = cc;
 		}
 
@@ -1098,7 +1038,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 			next_in_nbytes = 0;
 		}
 		else
-			next_in_nbytes = utf8_in(&next_in, &source[source_index]);
+			next_in_nbytes = utf8_in(&next_in, &epContext->source[source_index]);
 
 		if (c == CTRL_EMBEDDED) {
 			// start of embedded command in the text
@@ -1109,18 +1049,18 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 				prev_in_save = c;
 				source_index--;
 			} else {
-				embedded_count += EmbeddedCommand(&source_index);
+				embedded_count += EmbeddedCommand(epContext, &source_index);
 				prev_in_save = prev_in;
 				// replace the embedded command by spaces
-				memset(&source[srcix], ' ', source_index-srcix);
+				memset(&epContext->source[srcix], ' ', source_index-srcix);
 				source_index = srcix;
 				continue;
 			}
 		}
 
-		if ((option_sayas2 == SAYAS_KEY) && (c != ' ')) {
+		if ((epContext->option_sayas2 == SAYAS_KEY) && (c != ' ')) {
 			if ((prev_in == ' ') && (next_in == ' '))
-				option_sayas2 = SAYAS_SINGLE_CHARS; // single character, speak its name
+				epContext->option_sayas2 = SAYAS_SINGLE_CHARS; // single character, speak its name
 			c = towlower2(c, tr);
 		}
 
@@ -1133,23 +1073,23 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 				source_index++;
 				c = ' ';
 			}
-		} else if ((option_sayas2 & 0xf0) == SAYAS_DIGITS) {
+		} else if ((epContext->option_sayas2 & 0xf0) == SAYAS_DIGITS) {
 			if (iswdigit(c)) {
-				count_sayas_digits++;
-				if (count_sayas_digits > (option_sayas2 & 0xf)) {
+				epContext->count_sayas_digits++;
+				if (epContext->count_sayas_digits > (epContext->option_sayas2 & 0xf)) {
 					// break after the specified number of digits
 					c = ' ';
 					space_inserted = true;
-					count_sayas_digits = 0;
+					epContext->count_sayas_digits = 0;
 				}
 			} else {
-				count_sayas_digits = 0;
+				epContext->count_sayas_digits = 0;
 				if (iswdigit(prev_out)) {
 					c = ' ';
 					space_inserted = true;
 				}
 			}
-		} else if ((option_sayas2 & 0x10) == 0) {
+		} else if ((epContext->option_sayas2 & 0x10) == 0) {
 			// speak as words
 
 			if ((c == 0x92) || (c == 0xb4) || (c == 0x2019) || (c == 0x2032))
@@ -1171,7 +1111,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 				word_flags |= FLAG_COMMA_AFTER;
 			}
 			// language specific character translations
-			c = TranslateChar(tr, &source[source_index], prev_in, c, next_in, &char_inserted, &word_flags);
+			c = TranslateChar(epContext, tr, &epContext->source[source_index], prev_in, c, next_in, &char_inserted, &word_flags);
 			if (c == 8)
 				continue; // ignore this character
 
@@ -1207,7 +1147,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 			}
 
 			if (c == '[') {
-				if ((next_in == '\002') || ((next_in == '[') && option_phoneme_input)) {
+				if ((next_in == '\002') || ((next_in == '[') && epContext->option_phoneme_input)) {
 					//  "[\002" is used internally to start phoneme mode
 					phoneme_mode = true;
 					source_index++;
@@ -1279,7 +1219,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 							}
 						} else if ((c != ' ') && iswupper(prev_in) && iswlower(next_in)) {
 							int next2_in;
-							utf8_in(&next2_in, &source[source_index + next_in_nbytes]);
+							utf8_in(&next2_in, &epContext->source[source_index + next_in_nbytes]);
 
 							if ((tr->translator_name == L('n', 'l')) && (letter_count == 2) && (c == 'j') && (prev_in == 'I')) {
 								// Dutch words may capitalise initial IJ, don't split
@@ -1419,17 +1359,17 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 			if ((word_count < N_CLAUSE_WORDS-1) && (ix > words[word_count].start)) {
 				if (embedded_count > 0) {
 					// there are embedded commands before this word
-					embedded_list[embedded_ix-1] |= 0x80; // terminate list of commands for this word
+					embedded_list[epContext->embedded_ix-1] |= 0x80; // terminate list of commands for this word
 					words[word_count].flags |= FLAG_EMBEDDED;
 					embedded_count = 0;
 				}
 				if (alpha_count == 0) {
 					all_upper_case &= ~FLAG_ALL_UPPER;
 				}
-				words[word_count].pre_pause = pre_pause;
-				words[word_count].flags |= (all_upper_case | word_flags | word_emphasis);
+				words[word_count].pre_pause = epContext->pre_pause;
+				words[word_count].flags |= (all_upper_case | word_flags | epContext->word_emphasis);
 
-				if (pre_pause > 0) {
+				if (epContext->pre_pause > 0) {
 					// insert an extra space before the word, to prevent influence from previous word across the pause
 					for (j = ix; j > words[word_count].start; j--)
 						sbuf[j] = sbuf[j-1];
@@ -1446,7 +1386,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 
 				word_flags = next_word_flags;
 				next_word_flags = 0;
-				pre_pause = 0;
+				epContext->pre_pause = 0;
 				all_upper_case = FLAG_ALL_UPPER;
 				alpha_count = 0;
 				syllable_marked = false;
@@ -1461,14 +1401,14 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 			if ((ix < (N_TR_SOURCE - 4)))
 				ix += utf8_out(c, &sbuf[ix]);
 		}
-		if (pre_pause_add > pre_pause)
-			pre_pause = pre_pause_add;
+		if (pre_pause_add > epContext->pre_pause)
+			epContext->pre_pause = pre_pause_add;
 		pre_pause_add = 0;
 	}
 
 	if ((word_count == 0) && (embedded_count > 0)) {
 		// add a null 'word' to carry the embedded command flag
-		embedded_list[embedded_ix-1] |= 0x80;
+		embedded_list[epContext->embedded_ix-1] |= 0x80;
 		words[word_count].flags |= FLAG_EMBEDDED;
 		word_count = 1;
 	}
@@ -1491,7 +1431,7 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 
 	// Each TranslateWord2 may require up to 7 phonemes
 	// and after this loop we require 2 phonemes
-	for (ix = 0; ix < word_count && (n_ph_list2 < N_PHONEME_LIST-7-2); ix++) {
+	for (ix = 0; ix < word_count && (epContext->n_ph_list2 < N_PHONEME_LIST-7-2); ix++) {
 		int nx;
 		int c_temp;
 		char *pn;
@@ -1500,16 +1440,16 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 		WORD_TAB num_wtab[N_CLAUSE_WORDS]; // copy of 'words', when splitting numbers into parts
 
 		// start speaking at a specified word position in the text?
-		count_words++;
-		if (skip_words > 0) {
-			skip_words--;
-			if (skip_words == 0)
-				skipping_text = false;
+		epContext->count_words++;
+		if (epContext->skip_words > 0) {
+			epContext->skip_words--;
+			if (epContext->skip_words == 0)
+				epContext->skipping_text = false;
 		}
-		if (skipping_text)
+		if (epContext->skipping_text)
 			continue;
 
-		current_alphabet = NULL;
+		epContext->current_alphabet = NULL;
 
 		// digits should have been converted to Latin alphabet ('0' to '9')
 		word = pw = &sbuf[words[ix].start];
@@ -1590,19 +1530,19 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 
 			for (pw = &number_buf[3]; pw < pn && nw < N_CLAUSE_WORDS;) {
 				// keep wflags for each part, for FLAG_HYPHEN_AFTER
-				dict_flags = TranslateWord2(tr, pw, &num_wtab[nw++], words[ix].pre_pause);
+				dict_flags = TranslateWord2(epContext, tr, pw, &num_wtab[nw++], words[ix].pre_pause);
 				while (pw < pn && *pw++ != ' ')
 					;
 				words[ix].pre_pause = 0;
 			}
 		} else {
-			pre_pause = 0;
+			epContext->pre_pause = 0;
 
-			dict_flags = TranslateWord2(tr, word, &words[ix], words[ix].pre_pause);
+			dict_flags = TranslateWord2(epContext, tr, word, &words[ix], words[ix].pre_pause);
 
-			if (pre_pause > words[ix+1].pre_pause) {
-				words[ix+1].pre_pause = pre_pause;
-				pre_pause = 0;
+			if (epContext->pre_pause > words[ix+1].pre_pause) {
+				words[ix+1].pre_pause = epContext->pre_pause;
+				epContext->pre_pause = 0;
 			}
 
 			if (dict_flags & FLAG_SPELLWORD) {
@@ -1612,12 +1552,12 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 					memset(number_buf+1, ' ', 9);
 					nx = utf8_in(&c_temp, pw);
 					memcpy(&number_buf[3], pw, nx);
-					TranslateWord2(tr, &number_buf[3], &words[ix], 0);
+					TranslateWord2(epContext, tr, &number_buf[3], &words[ix], 0);
 					pw += nx;
 				}
 			}
 
-			if ((dict_flags & (FLAG_ALLOW_DOT | FLAG_NEEDS_DOT)) && (ix == word_count - 1 - dictionary_skipwords) && (terminator & CLAUSE_DOT_AFTER_LAST_WORD)) {
+			if ((dict_flags & (FLAG_ALLOW_DOT | FLAG_NEEDS_DOT)) && (ix == word_count - 1 - epContext->dictionary_skipwords) && (terminator & CLAUSE_DOT_AFTER_LAST_WORD)) {
 				// probably an abbreviation such as Mr. or B. rather than end of sentence
 				clause_pause = 10;
 				if (tone_out != NULL)
@@ -1627,45 +1567,45 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 
 		if (dict_flags & FLAG_SKIPWORDS) {
 			// dictionary indicates skip next word(s)
-			while (dictionary_skipwords > 0) {
-				words[ix+dictionary_skipwords].flags |= FLAG_DELETE_WORD;
-				dictionary_skipwords--;
+			while (epContext->dictionary_skipwords > 0) {
+				words[ix+epContext->dictionary_skipwords].flags |= FLAG_DELETE_WORD;
+				epContext->dictionary_skipwords--;
 			}
 		}
 	}
 
-	if (embedded_read < embedded_ix) {
+	if (epContext->embedded_read < epContext->embedded_ix) {
 		// any embedded commands not yet processed?
-		Word_EmbeddedCmd();
+		Word_EmbeddedCmd(epContext);
 	}
 
 	for (ix = 0; ix < 2; ix++) {
 		// terminate the clause with 2 PAUSE phonemes
 		PHONEME_LIST2 *p2;
-		p2 = &ph_list2[n_ph_list2 + ix];
+		p2 = &epContext->ph_list2[epContext->n_ph_list2 + ix];
 		p2->phcode = phonPAUSE;
 		p2->stresslevel = 0;
 		p2->sourceix = source_index;
 		p2->synthflags = 0;
 	}
-	n_ph_list2 += 2;
+	epContext->n_ph_list2 += 2;
 
-	if (Eof() && ((word_count == 0) || (option_endpause == 0)))
+	if (Eof(epContext) && ((word_count == 0) || (epContext->option_endpause == 0)))
 		clause_pause = 10;
 
-	MakePhonemeList(tr, clause_pause, new_sentence2);
+	MakePhonemeList(epContext, tr, clause_pause, new_sentence2);
 	phoneme_list[N_PHONEME_LIST].ph = NULL; // recognize end of phoneme_list array, in Generate()
 	phoneme_list[N_PHONEME_LIST].sourceix = 1;
 
 	if (embedded_count) { // ???? is this needed
 		phoneme_list[n_phoneme_list-2].synthflags = SFLAG_EMBEDDED;
-		embedded_list[embedded_ix-1] |= 0x80;
-		embedded_list[embedded_ix] = 0x80;
+		embedded_list[epContext->embedded_ix-1] |= 0x80;
+		embedded_list[epContext->embedded_ix] = 0x80;
 	}
 
-	new_sentence = false;
+	epContext->new_sentence = false;
 	if (terminator & CLAUSE_TYPE_SENTENCE)
-		new_sentence = true; // next clause is a new sentence
+		epContext->new_sentence = true; // next clause is a new sentence
 
 	if (voice_change != NULL) {
 		// return new voice name if an embedded voice change command terminated the clause
@@ -1676,9 +1616,9 @@ void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_c
 	}
 }
 
-void TranslateClause(Translator *tr, int *tone_out, char **voice_change)
+void TranslateClause(EspeakProcessorContext* epContext, Translator *tr, int *tone_out, char **voice_change)
 {
-	TranslateClauseWithTerminator(tr, tone_out, voice_change, NULL);
+	TranslateClauseWithTerminator(epContext, tr, tone_out, voice_change, NULL);
 }
 
 static int CalcWordLength(int source_index, int charix_top, short int *charix, WORD_TAB *words, int word_count) {
@@ -1696,7 +1636,7 @@ static int CalcWordLength(int source_index, int charix_top, short int *charix, W
 	return k;
 	}
 
-static void CombineFlag(Translator *tr, WORD_TAB *wtab, char *word, int *flags, unsigned char *p, char *word_phonemes) {
+static void CombineFlag(EspeakProcessorContext* epContext, Translator *tr, WORD_TAB *wtab, char *word, int *flags, unsigned char *p, char *word_phonemes) {
 	// combine a preposition with the following word
 
 
@@ -1724,7 +1664,7 @@ static void CombineFlag(Translator *tr, WORD_TAB *wtab, char *word, int *flags, 
 		char ph_buf[N_WORD_PHONEMES];
 		strcpy(ph_buf, word_phonemes);
 
-		flags2[0] = TranslateWord(tr, p2+1, wtab+1, NULL);
+		flags2[0] = TranslateWord(epContext, tr, p2+1, wtab+1, NULL);
 		if ((flags2[0] & FLAG_WAS_UNPRONOUNCABLE) || (word_phonemes[0] == phonSWITCH))
 			ok = false;
 
@@ -1745,16 +1685,16 @@ static void CombineFlag(Translator *tr, WORD_TAB *wtab, char *word, int *flags, 
 	if (ok) {
 		*p2 = '-'; // replace next space by hyphen
 		wtab[0].flags &= ~FLAG_ALL_UPPER; // prevent it being considered an abbreviation
-		*flags = TranslateWord(translator, word, wtab, NULL); // translate the combined word
+		*flags = TranslateWord(epContext, epContext->translator, word, wtab, NULL); // translate the combined word
 		if ((sylimit > 0) && (CountSyllables(p) > (sylimit & 0x1f))) {
 			// revert to separate words
 			*p2 = ' ';
-			*flags = TranslateWord(translator, word, wtab, NULL);
+			*flags = TranslateWord(epContext, epContext->translator, word, wtab, NULL);
 		} else {
 			if (*flags == 0)
 				*flags = flags2[0]; // no flags for the combined word, so use flags from the second word eg. lang-hu "nem december 7-e"
 			*flags |= FLAG_SKIPWORDS;
-			dictionary_skipwords = 1;
+			epContext->dictionary_skipwords = 1;
 		}
 	}
 }
@@ -1782,26 +1722,26 @@ static void SwitchLanguage(char *word, char *word_phonemes) {
 	}
 }
 
-void InitText(int control)
+void InitText(EspeakProcessorContext* epContext, int control)
 {
-	count_sentences = 0;
-	count_words = 0;
-	end_character_position = 0;
-	skip_sentences = 0;
-	skip_marker[0] = 0;
-	skip_words = 0;
-	skip_characters = 0;
-	skipping_text = false;
-	new_sentence = true;
+	epContext->count_sentences = 0;
+	epContext->count_words = 0;
+	epContext->end_character_position = 0;
+	epContext->skip_sentences = 0;
+	epContext->skip_marker[0] = 0;
+	epContext->skip_words = 0;
+	epContext->skip_characters = 0;
+	epContext->skipping_text = false;
+	epContext->new_sentence = true;
 
-	option_sayas = 0;
-	option_sayas2 = 0;
-	option_emphasis = 0;
-	word_emphasis = 0;
-	embedded_flag = 0;
+	epContext->option_sayas = 0;
+	epContext->option_sayas2 = 0;
+	epContext->option_emphasis = 0;
+	epContext->word_emphasis = 0;
+	epContext->embedded_flag = 0;
 
-	InitText2();
+	InitText2(epContext);
 
 	if ((control & espeakKEEP_NAMEDATA) == 0)
-		InitNamedata();
+		InitNamedata(epContext);
 }

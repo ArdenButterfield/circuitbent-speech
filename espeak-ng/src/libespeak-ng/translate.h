@@ -40,11 +40,6 @@ extern "C"
 #define CTRL_EMBEDDED    0x01 // control character at the start of an embedded command
 #define REPLACED_E       'E' // 'e' replaced by silent e
 
-#define N_WORD_PHONEMES  200 // max phonemes in a word
-#define N_WORD_BYTES     160 // max bytes for the UTF8 characters in a word
-#define N_PHONEME_BYTES  160 // max bytes for a phoneme
-#define N_CLAUSE_WORDS   300 // max words in a clause
-#define N_TR_SOURCE      800 // the source text of a single clause (UTF8 bytes)
 
 #define N_RULE_GROUP2    120 // max num of two-letter rule chains
 #define N_HASH_DICT     1024
@@ -270,14 +265,6 @@ typedef struct {
 	unsigned short sourceix;
 	unsigned char length;
 } WORD_TAB;
-
-typedef struct {
-	const char *name;
-	int offset;
-	unsigned int range_min, range_max;
-	int language;
-	int flags;
-} ALPHABET;
 
 // alphabet flags
 #define AL_DONT_NAME    0x01 // don't speak the alphabet name
@@ -544,7 +531,7 @@ typedef struct {
 	bool lowercase_sentence;	// when true, a period . causes a sentence stop even if next character is lowercase
 } LANGUAGE_OPTIONS;
 
-typedef struct {
+ struct Translator {
 	LANGUAGE_OPTIONS langopts;
 	int translator_name;
 	int transpose_max;
@@ -611,45 +598,10 @@ typedef struct {
 	int prev_dict_flags[2];     // dictionary flags from previous word
 	int clause_terminator;
 
-} Translator;
+};
 
 #define OPTION_EMPHASIZE_ALLCAPS  0x100
 #define OPTION_EMPHASIZE_PENULTIMATE 0x200
-extern int option_tone_flags;
-extern int option_phonemes;
-extern int option_phoneme_events;
-extern int option_linelength;     // treat lines shorter than this as end-of-clause
-extern int option_capitals;
-extern int option_punctuation;
-extern int option_endpause;
-extern int option_ssml;
-extern int option_phoneme_input;   // allow [[phonemes]] in input text
-extern int option_sayas;
-extern int option_wordgap;
-
-extern int count_characters;
-extern int count_sentences;
-extern int skip_characters;
-extern int skip_words;
-extern int skip_sentences;
-extern bool skipping_text;
-extern int end_character_position;
-extern int clause_start_char;
-extern int clause_start_word;
-extern char *namedata;
-extern int pre_pause;
-
-#define N_MARKER_LENGTH 50   // max.length of a mark name
-extern char skip_marker[N_MARKER_LENGTH];
-
-#define N_PUNCTLIST  60
-extern wchar_t option_punctlist[N_PUNCTLIST];  // which punctuation characters to announce
-
-extern Translator *translator;
-extern Translator *translator2;
-extern Translator *translator3;
-
-extern espeak_ng_TEXT_DECODER *p_decoder;
 
 #define LEADING_2_BITS 0xC0 // 0b11000000
 #define UTF8_TAIL_BITS 0x80 // 0b10000000
@@ -657,21 +609,21 @@ extern espeak_ng_TEXT_DECODER *p_decoder;
 int lookupwchar(const unsigned short *list, int c);
 char *strchr_w(const char *s, int c);
 void InitNamedata(EspeakProcessorContext* epContext);
-void InitText(int flags);
+void InitText(EspeakProcessorContext* epContext, int flags);
 void InitText2(EspeakProcessorContext* epContext);
 const ALPHABET *AlphabetFromChar(int c);
 
-Translator *SelectTranslator(const char *name);
-int SetTranslator2(const char *name);
-int SetTranslator3(const char *name);
+Translator *SelectTranslator(EspeakProcessorContext* epContextconst, char *name);
+int SetTranslator2(EspeakProcessorContext* epContext, const char *name);
+int SetTranslator3(EspeakProcessorContext* epContext, const char *name);
 void DeleteTranslator(Translator *tr);
 void ProcessLanguageOptions(LANGUAGE_OPTIONS *langopts);
 
 void print_dictionary_flags(unsigned int *flags, char *buf, int buf_len);
 
-int TranslateWord(Translator *tr, char *word1, WORD_TAB *wtab, char *word_out);
-void TranslateClause(Translator *tr, int *tone, char **voice_change);
-void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_change, int *terminator_out);
+int TranslateWord(EspeakProcessorContext* epContext, Translator *tr, char *word1, WORD_TAB *wtab, char *word_out);
+void TranslateClause(EspeakProcessorContext* epContext, Translator *tr, int *tone, char **voice_change);
+void TranslateClauseWithTerminator(EspeakProcessorContext* epContext, Translator *tr, int *tone_out, char **voice_change, int *terminator_out);
 
 void SetVoiceStack(EspeakProcessorContext* epContext, espeak_VOICE *v, const char *variant_name);
 

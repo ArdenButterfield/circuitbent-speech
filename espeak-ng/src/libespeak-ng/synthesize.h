@@ -418,20 +418,9 @@ extern const unsigned char env_fall[128];
 #define N_WCMDQ   170
 #define MIN_WCMDQ  25   // need this many free entries before adding new phoneme
 
-extern intptr_t wcmdq[N_WCMDQ][4];
-extern int wcmdq_head;
-extern int wcmdq_tail;
-
 void MarkerEvent(EspeakProcessorContext* epContext, int type, unsigned int char_position, int value, int value2, unsigned char *out_ptr);
 
-extern unsigned char *wavefile_data;
-extern int samplerate;
-
 #define N_ECHO_BUF 5500   // max of 250mS at 22050 Hz
-extern int echo_head;
-extern int echo_tail;
-extern int echo_amp;
-extern short echo_buf[N_ECHO_BUF];
 
 void SynthesizeInit(EspeakProcessorContext* epContext);
 int  Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int *n_ph, bool resume);

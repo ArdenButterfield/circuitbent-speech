@@ -42,6 +42,26 @@ extern "C"
 
 #define N_PEAKS   9
 
+#define N_MARKER_LENGTH 50   // max.length of a mark name
+
+#define N_WORD_PHONEMES  200 // max phonemes in a word
+#define N_WORD_BYTES     160 // max bytes for the UTF8 characters in a word
+#define N_PHONEME_BYTES  160 // max bytes for a phoneme
+#define N_CLAUSE_WORDS   300 // max words in a clause
+#define N_TR_SOURCE      800 // the source text of a single clause (UTF8 bytes)
+
+#define N_PUNCTLIST_TRANS  60
+
+
+typedef struct {
+    const char *name;
+    int offset;
+    unsigned int range_min, range_max;
+    int language;
+    int flags;
+} ALPHABET;
+
+
 typedef struct {
     char v_name[40];
     char language_name[20];
