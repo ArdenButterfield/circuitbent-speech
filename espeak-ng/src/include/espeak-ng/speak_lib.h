@@ -873,6 +873,28 @@ struct epc
 
     int seq_len_adjust;
 
+    // synthesize.c
+    // list of phonemes in a clause
+    int n_phoneme_list;// = 0;
+    PHONEME_LIST phoneme_list[N_PHONEME_LIST+1];
+
+    SPEED_FACTORS speed;
+
+    int last_pitch_cmd;
+    int last_amp_cmd;
+    frame_t  *last_frame;
+    int last_wcmdq;
+    int pitch_length;
+    int amp_length;
+    int modn_flags;
+    int fmt_amplitude;// = 0;
+
+    int syllable_start;
+    int syllable_end;
+    int syllable_centre;
+
+    static voice_t *new_voice;// = NULL;
+
 };
 
 void initEspeakContext(EspeakProcessorContext* epContext)
@@ -903,4 +925,8 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->wavefile_data = NULL;
     epContext->phoneme_tab_data = NULL;
     epContext->phoneme_tab_number = 0;
+
+    epContext->n_phoneme_list = 0;
+    epContext->fmt_amplitude = 0;
+    epContext->new_voice = NULL;
 }
