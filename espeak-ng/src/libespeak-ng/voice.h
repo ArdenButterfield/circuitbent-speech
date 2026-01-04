@@ -31,10 +31,6 @@ extern "C"
 {
 #endif
 
-
-extern voice_t *voice;
-extern int tone_points[12];
-
 typedef enum {
 	V_NAME = 1,
 	V_LANGUAGE,
@@ -140,17 +136,17 @@ static const MNEM_TAB keyword_tab[] = {
 	{ NULL, 0 }
 };
 
-const char *SelectVoice(espeak_VOICE *voice_select, int *found);
-espeak_VOICE *SelectVoiceByName(espeak_VOICE **voices, const char *name);
-voice_t *LoadVoice(const char *voice_name, int control);
-voice_t *LoadVoiceVariant(const char *voice_name, int variant);
+const char *SelectVoice(EspeakProcessorContext* epContext, espeak_VOICE *voice_select, int *found);
+espeak_VOICE *SelectVoiceByName(EspeakProcessorContext* epContext, espeak_VOICE **voices, const char *name);
+voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *voice_name, int control);
+voice_t *LoadVoiceVariant(EspeakProcessorContext* epContext, const char *voice_name, int variant);
 espeak_ng_STATUS DoVoiceChange(voice_t *v);
 void WavegenSetVoice(voice_t *v);
 void ReadNumbers(char *p, int *flags, int maxValue,  const MNEM_TAB *keyword_tab, int key);
 int Read8Numbers(char *data_in, int data[8]);
 void ReadTonePoints(char *string, int *tone_pts);
-void VoiceReset(int control);
-void FreeVoiceList(void);
+void VoiceReset(EspeakProcessorContext* epContext, int control);
+void FreeVoiceList(EspeakProcessorContext* epContext);
 
 #ifdef __cplusplus
 }

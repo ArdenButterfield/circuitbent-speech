@@ -956,6 +956,17 @@ struct epc
     int n_replace_phonemes;
     REPLACE_PHONEMES replace_phonemes[N_REPLACE_PHONEMES];
 
+    // voices.c
+    int tone_points[12]; // = { 600, 170, 1200, 135, 2000, 110, 3000, 110, -1, 0 };
+    int formant_rate[9]; // values adjusted for actual sample rate
+    int n_voices_list;// = 0;
+    espeak_VOICE *voices_list[N_VOICES_LIST];
+
+    espeak_VOICE current_voice_selected;
+
+    voice_t voicedata;
+    voice_t *voice;
+
 };
 
 void initEspeakContext(EspeakProcessorContext* epContext)
@@ -1016,4 +1027,20 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->option_phoneme_input = 0; // allow [[phonemes]] in input
     epContext->option_wordgap = 0;
 
+    epContext->tone_points[0] = 600;
+    epContext->tone_points[1] = 170;
+    epContext->tone_points[2] = 1200;
+    epContext->tone_points[3] = 135;
+    epContext->tone_points[4] = 2000;
+    epContext->tone_points[5] = 110;
+    epContext->tone_points[6] = 3000;
+    epContext->tone_points[7] = 110;
+    epContext->tone_points[8] = -1;
+    epContext->tone_points[9] = 0;
+    epContext->tone_points[10] = 0;
+    epContext->tone_points[11] = 0;
+
+    epContext->n_voices_list = 0;
+
+    epContext->voice = &epContext->voicedata;
 }

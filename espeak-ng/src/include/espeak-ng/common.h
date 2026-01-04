@@ -52,6 +52,8 @@ extern "C"
 
 #define N_PUNCTLIST_TRANS  60
 
+#define N_VOICES_LIST  350
+
 
 typedef struct {
     const char *name;
