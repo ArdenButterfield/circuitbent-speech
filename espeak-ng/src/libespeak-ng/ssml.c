@@ -571,7 +571,7 @@ static void SetProsodyParameter(int param_type, const wchar_t *attr1, PARAM_STAC
 	}
 }
 
-int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, const char *xmlbase, bool *audio_text, char *current_voice_id, espeak_VOICE *base_voice, char *base_voice_variant_name, bool *ignore_text, bool *clear_skipping_text, int *sayas_mode, int *sayas_start, SSML_STACK *ssml_stack, int *n_ssml_stack, int *n_param_stack, int *speech_parameters)
+int ProcessSsmlTag(EspeakProcessorContext* epContext, wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, const char *xmlbase, bool *audio_text, char *current_voice_id, espeak_VOICE *base_voice, char *base_voice_variant_name, bool *ignore_text, bool *clear_skipping_text, int *sayas_mode, int *sayas_start, SSML_STACK *ssml_stack, int *n_ssml_stack, int *n_param_stack, int *speech_parameters)
 {
 	// xml_buf is the tag and attributes with a zero terminator in place of the original '>'
 	// returns a clause terminator value.
@@ -699,7 +699,7 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 	switch (tag_type)
 	{
 	case SSML_STYLE:
-		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *) param_stack);
+		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *) epContext->param_stack);
 		attr1 = GetSsmlAttribute(px, "field");
 		attr2 = GetSsmlAttribute(px, "mode");
 
@@ -711,21 +711,21 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 			value = attrlookup(attr2, mnem_capitals);
 			sp->parameter[espeakCAPITALS] = value;
 		}
-		ProcessParamStack(outbuf, outix, *n_param_stack, param_stack, speech_parameters);
+		ProcessParamStack(outbuf, outix, *n_param_stack, epContext->param_stack, speech_parameters);
 		break;
 	case SSML_PROSODY:
-		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *) param_stack);
+		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *) epContext->param_stack);
 
 		// look for attributes:  rate, volume, pitch, range
 		for (param_type = espeakRATE; param_type <= espeakRANGE; param_type++) {
 			if ((attr1 = GetSsmlAttribute(px, prosody_attr[param_type])) != NULL)
-				SetProsodyParameter(param_type, attr1, sp, param_stack, speech_parameters);
+				SetProsodyParameter(param_type, attr1, sp, epContext->param_stack, speech_parameters);
 		}
 
-		ProcessParamStack(outbuf, outix, *n_param_stack, param_stack, speech_parameters);
+		ProcessParamStack(outbuf, outix, *n_param_stack, epContext->param_stack, speech_parameters);
 		break;
 	case SSML_EMPHASIS:
-		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *) param_stack);
+		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *) epContext->param_stack);
 		value = 3; // default is "moderate"
 		if ((attr1 = GetSsmlAttribute(px, "level")) != NULL)
 			value = attrlookup(attr1, mnem_emphasis);
@@ -741,12 +741,12 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 			sp->parameter[espeakVOLUME] = emphasis_to_volume2[value];
 			sp->parameter[espeakEMPHASIS] = value;
 		}
-		ProcessParamStack(outbuf, outix, *n_param_stack, param_stack, speech_parameters);
+		ProcessParamStack(outbuf, outix, *n_param_stack, epContext->param_stack, speech_parameters);
 		break;
 	case SSML_STYLE + SSML_CLOSE:
 	case SSML_PROSODY + SSML_CLOSE:
 	case SSML_EMPHASIS + SSML_CLOSE:
-		PopParamStack(tag_type, outbuf, outix, n_param_stack, (PARAM_STACK *) param_stack, (int *) speech_parameters);
+		PopParamStack(tag_type, outbuf, outix, n_param_stack, (PARAM_STACK *) epContext->param_stack, (int *) speech_parameters);
 		break;
 	case SSML_PHONEME:
 		attr1 = GetSsmlAttribute(px, "alphabet");
@@ -821,7 +821,7 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 				return CLAUSE_NONE;
 			}
 
-			if ((index = AddNameData(buf, 0)) >= 0) {
+			if ((index = AddNameData(epContext, buf, 0)) >= 0) {
 				sprintf(buf, "%c%dM", CTRL_EMBEDDED, index);
 				strcpy(&outbuf[*outix], buf);
 				*outix += strlen(buf);
@@ -829,7 +829,7 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 		}
 		break;
 	case SSML_AUDIO:
-		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *)param_stack);
+		sp = PushParamStack(tag_type, n_param_stack, (PARAM_STACK *)epContext->param_stack);
 
 		if ((attr1 = GetSsmlAttribute(px, "src")) != NULL) {
 			attrcopy_utf8(buf, attr1, sizeof(buf));
@@ -838,9 +838,9 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 				if ((xmlbase != NULL) && (buf[0] != '/')) {
 					char fname[256];
 					sprintf(fname, "%s/%s", xmlbase, buf);
-					index = LoadSoundFile2(fname);
+					index = LoadSoundFile2(epContext, fname);
 				} else
-					index = LoadSoundFile2(buf);
+					index = LoadSoundFile2(epContext, buf);
 				if (index >= 0) {
 					sprintf(buf, "%c%dI", CTRL_EMBEDDED, index);
 					strcpy(&outbuf[*outix], buf);
@@ -848,7 +848,7 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 					sp->parameter[espeakSILENCE] = 1;
 				}
 			} else {
-				if ((index = AddNameData(buf, 0)) >= 0) {
+				if ((index = AddNameData(epContext, buf, 0)) >= 0) {
 					char *uri;
 					uri = &namedata[index];
 					if (uri_callback(1, uri, xmlbase) == 0) {
@@ -860,15 +860,15 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 				}
 			}
 		}
-		ProcessParamStack(outbuf, outix, *n_param_stack, param_stack, speech_parameters);
+		ProcessParamStack(outbuf, outix, *n_param_stack, epContext->param_stack, speech_parameters);
 
 		if (self_closing)
-			PopParamStack(tag_type, outbuf, outix, n_param_stack, (PARAM_STACK *) param_stack, (int *) speech_parameters);
+			PopParamStack(tag_type, outbuf, outix, n_param_stack, (PARAM_STACK *) epContext->param_stack, (int *) speech_parameters);
 		else
 			*audio_text = true;
 		return CLAUSE_NONE;
 	case SSML_AUDIO + SSML_CLOSE:
-		PopParamStack(tag_type, outbuf, outix, n_param_stack, (PARAM_STACK *) param_stack, (int *) speech_parameters);
+		PopParamStack(tag_type, outbuf, outix, n_param_stack, (PARAM_STACK *) epContext->param_stack, (int *) speech_parameters);
 		*audio_text = false;
 		return CLAUSE_NONE;
 	case SSML_BREAK:
@@ -893,7 +893,7 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 			value2 = value2 * speech_parameters[espeakSSML_BREAK_MUL] / 100;
 
 			int wpm = speech_parameters[espeakRATE];
-			espeak_SetParameter(espeakRATE, wpm, 0);
+			espeak_SetParameter(epContext, espeakRATE, wpm, 0);
 
 			#if USE_LIBSONIC
 			if (wpm >= espeakRATE_MAXIMUM) {
@@ -926,7 +926,7 @@ int ProcessSsmlTag(wchar_t *xml_buf, char *outbuf, int *outix, int n_outbuf, con
 	case SSML_SPEAK:
 		if ((attr1 = GetSsmlAttribute(px, "xml:base")) != NULL) {
 			attrcopy_utf8(buf, attr1, sizeof(buf));
-			if ((index = AddNameData(buf, 0)) >= 0)
+			if ((index = AddNameData(epContext, buf, 0)) >= 0)
 				xmlbase = &namedata[index];
 		}
 		if (GetVoiceAttributes(px, tag_type, ssml_sp, ssml_stack, *n_ssml_stack, current_voice_id, base_voice, base_voice_variant_name) == 0)

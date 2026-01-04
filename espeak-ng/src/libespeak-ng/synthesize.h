@@ -455,8 +455,6 @@ extern const unsigned char *const envelope_data[N_ENVELOPE_DATA];
 extern int formant_rate[];         // max rate of change of each formant
 extern SPEED_FACTORS speed;
 
-extern unsigned char *out_ptr;
-extern unsigned char *out_end;
 extern espeak_EVENT *event_list;
 extern const int version_phdata;
 

@@ -853,6 +853,26 @@ struct epc
 
     char path_home[N_PATH_HOME]; // this is the espeak-ng-data directory
 
+
+    // synthdata.c
+    int n_tunes;// = 0;
+    TUNE *tunes;// = NULL;
+    // copy the current phoneme table into here
+    int n_phoneme_tab;
+    int current_phoneme_table;
+    PHONEME_TAB *phoneme_tab[N_PHONEME_TAB];
+
+    unsigned short *phoneme_index;// = NULL;
+    char *phondata_ptr;// = NULL;
+    unsigned char *wavefile_data;// = NULL;
+    unsigned char *phoneme_tab_data;// = NULL;
+
+    int n_phoneme_tables;
+    PHONEME_TAB_LIST phoneme_tab_list[N_PHONEME_TABS];
+    int phoneme_tab_number;// = 0;
+
+    int seq_len_adjust;
+
 };
 
 void initEspeakContext(EspeakProcessorContext* epContext)
@@ -875,4 +895,12 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->err = 0;
     epContext->synth_callback = NULL;
     epContext->n_soundicon_tab = 0;
+
+    epContext->n_tunes = 0;
+    epContext->tunes = NULL;
+    epContext->phoneme_index = NULL;
+    epContext->phondata_ptr = NULL;
+    epContext->wavefile_data = NULL;
+    epContext->phoneme_tab_data = NULL;
+    epContext->phoneme_tab_number = 0;
 }

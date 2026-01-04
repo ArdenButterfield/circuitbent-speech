@@ -42,26 +42,8 @@
 #include "translate.h"                // for Translator, LANGUAGE_OPTIONS
 #include "voice.h"                    // for ReadTonePoints, tone_points, voice
 
-int n_tunes = 0;
-TUNE *tunes = NULL;
-
 const int version_phdata  = 0x014801;
 
-// copy the current phoneme table into here
-int n_phoneme_tab;
-static int current_phoneme_table;
-PHONEME_TAB *phoneme_tab[N_PHONEME_TAB];
-
-static unsigned short *phoneme_index = NULL;
-static char *phondata_ptr = NULL;
-unsigned char *wavefile_data = NULL;
-static unsigned char *phoneme_tab_data = NULL;
-
-static int n_phoneme_tables;
-PHONEME_TAB_LIST phoneme_tab_list[N_PHONEME_TABS];
-int phoneme_tab_number = 0;
-
-int seq_len_adjust;
 
 static espeak_ng_STATUS ReadPhFile(void **ptr, const char *fname, int *size, espeak_ng_ERROR_CONTEXT *context)
 {
@@ -107,7 +89,7 @@ static espeak_ng_STATUS ReadPhFile(void **ptr, const char *fname, int *size, esp
 	return ENS_OK;
 }
 
-espeak_ng_STATUS LoadPhData(int *srate, espeak_ng_ERROR_CONTEXT *context)
+espeak_ng_STATUS LoadPhData(EspeakProcessorContext* epContext, int *srate, espeak_ng_ERROR_CONTEXT *context)
 {
 	int ix;
 	int version;
@@ -116,16 +98,16 @@ espeak_ng_STATUS LoadPhData(int *srate, espeak_ng_ERROR_CONTEXT *context)
 	unsigned char *p;
 
 	espeak_ng_STATUS status;
-	if ((status = ReadPhFile((void **)&phoneme_tab_data, "phontab", NULL, context)) != ENS_OK)
+	if ((status = ReadPhFile((void **)&epContext->phoneme_tab_data, "phontab", NULL, context)) != ENS_OK)
 		return status;
-	if ((status = ReadPhFile((void **)&phoneme_index, "phonindex", NULL, context)) != ENS_OK)
+	if ((status = ReadPhFile((void **)&epContext->phoneme_index, "phonindex", NULL, context)) != ENS_OK)
 		return status;
-	if ((status = ReadPhFile((void **)&phondata_ptr, "phondata", NULL, context)) != ENS_OK)
+	if ((status = ReadPhFile((void **)&epContext->phondata_ptr, "phondata", NULL, context)) != ENS_OK)
 		return status;
-	if ((status = ReadPhFile((void **)&tunes, "intonations", &length, context)) != ENS_OK)
+	if ((status = ReadPhFile((void **)&epContext->tunes, "intonations", &length, context)) != ENS_OK)
 		return status;
-	wavefile_data = (unsigned char *)phondata_ptr;
-	n_tunes = length / sizeof(TUNE);
+	wavefile_data = (unsigned char *)epContext->phondata_ptr;
+	epContext->n_tunes = length / sizeof(TUNE);
 
 	// read the version number and sample rate from the first 8 bytes of phondata
 	version = 0; // bytes 0-3, version number
@@ -141,11 +123,11 @@ espeak_ng_STATUS LoadPhData(int *srate, espeak_ng_ERROR_CONTEXT *context)
 		return create_version_mismatch_error_context(context, path_home, version, version_phdata);
 
 	// set up phoneme tables
-	p = phoneme_tab_data;
-	n_phoneme_tables = p[0];
+	p = epContext->phoneme_tab_data;
+	epContext->n_phoneme_tables = p[0];
 	p += 4;
 
-	for (ix = 0; ix < n_phoneme_tables; ix++) {
+	for (ix = 0; ix < epContext->n_phoneme_tables; ix++) {
 		int n_phonemes = p[0];
 		phoneme_tab_list[ix].n_phonemes = p[0];
 		phoneme_tab_list[ix].includes = p[1];
@@ -156,7 +138,7 @@ espeak_ng_STATUS LoadPhData(int *srate, espeak_ng_ERROR_CONTEXT *context)
 		p += (n_phonemes * sizeof(PHONEME_TAB));
 	}
 
-	if (phoneme_tab_number >= n_phoneme_tables)
+	if (phoneme_tab_number >= epContext->n_phoneme_tables)
 		phoneme_tab_number = 0;
 
 	if (srate != NULL)
@@ -164,17 +146,17 @@ espeak_ng_STATUS LoadPhData(int *srate, espeak_ng_ERROR_CONTEXT *context)
 	return ENS_OK;
 }
 
-void FreePhData(void)
+void FreePhData(EspeakProcessorContext* epContext)
 {
-	free(phoneme_tab_data);
-	free(phoneme_index);
-	free(phondata_ptr);
-	free(tunes);
-	phoneme_tab_data = NULL;
-	phoneme_index = NULL;
-	phondata_ptr = NULL;
-	tunes = NULL;
-	current_phoneme_table = -1;
+	free(epContext->phoneme_tab_data);
+	free(epContext->phoneme_index);
+	free(epContext->phondata_ptr);
+	free(epContext->tunes);
+	epContext->phoneme_tab_data = NULL;
+	epContext->phoneme_index = NULL;
+	epContext->phondata_ptr = NULL;
+	epContext->tunes = NULL;
+	epContext->current_phoneme_table = -1;
 }
 
 int PhonemeCode(unsigned int mnem)
@@ -206,7 +188,7 @@ int LookupPhonemeString(const char *string)
 	return PhonemeCode(mnem);
 }
 
-frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,  int *n_frames, PHONEME_LIST *plist)
+frameref_t *LookupSpect(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,  int *n_frames, PHONEME_LIST *plist)
 {
 	int ix;
 	int nf;
@@ -221,14 +203,14 @@ frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,
 
 	MAKE_MEM_UNDEFINED(&frames_buf, sizeof(frames_buf));
 
-	seq = (SPECT_SEQ *)(&phondata_ptr[fmt_params->fmt_addr]);
+	seq = (SPECT_SEQ *)(&epContext->phondata_ptr[fmt_params->fmt_addr]);
 	seqk = (SPECT_SEQK *)seq;
 	nf = seq->n_frames;
 
 	if (nf >= N_SEQ_FRAMES)
 		nf = N_SEQ_FRAMES - 1;
 
-	seq_len_adjust = fmt_params->fmt2_lenadj + fmt_params->fmt_length;
+	epContext->seq_len_adjust = fmt_params->fmt2_lenadj + fmt_params->fmt_length;
 	seq_break = 0;
 
 	for (ix = 0; ix < nf; ix++) {
@@ -255,7 +237,7 @@ frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,
 
 	// do we need to modify a frame for blending with a consonant?
 	if ((this_ph->type == phVOWEL) && (fmt_params->fmt2_addr == 0) && (fmt_params->use_vowelin))
-		seq_len_adjust += FormantTransition2(frames, &nf, fmt_params->transition0, fmt_params->transition1, NULL, which);
+		epContext->seq_len_adjust += FormantTransition2(frames, &nf, fmt_params->transition0, fmt_params->transition1, NULL, which);
 
 	length1 = 0;
 	nf1 = nf - 1;
@@ -265,7 +247,7 @@ frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,
 	if (fmt_params->fmt2_addr != 0) {
 		// a secondary reference has been returned, which is not a wavefile
 		// add these spectra to the main sequence
-		seq2 = (SPECT_SEQ *)(&phondata_ptr[fmt_params->fmt2_addr]);
+		seq2 = (SPECT_SEQ *)(&epContext->phondata_ptr[fmt_params->fmt2_addr]);
 		seqk2 = (SPECT_SEQK *)seq2;
 
 		// first frame of the addition just sets the length of the last frame of the main seq
@@ -291,7 +273,7 @@ frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,
 			// adjust the length of the main part to match the standard length specified for the vowel
 			// less the front part of the vowel and any added suffix
 
-			int length_std = fmt_params->std_length + seq_len_adjust - 45;
+			int length_std = fmt_params->std_length + epContext->seq_len_adjust - 45;
 			if (length_std < 10)
 				length_std = 10;
 			if (plist->synthflags & SFLAG_LENGTHEN)
@@ -315,11 +297,11 @@ frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,
 			} else {
 				// not a vowel
 				if (fmt_params->std_length > 0)
-					seq_len_adjust += (fmt_params->std_length - length1);
+					epContext->seq_len_adjust += (fmt_params->std_length - length1);
 			}
 
-			if (seq_len_adjust != 0) {
-				length_factor = ((length1 + seq_len_adjust) * 256)/length1;
+			if (epContext->seq_len_adjust != 0) {
+				length_factor = ((length1 + epContext->seq_len_adjust) * 256)/length1;
 				for (ix = 0; ix < nf1; ix++)
 					frames[ix].length = (frames[ix].length * length_factor)/256;
 			}
@@ -330,13 +312,13 @@ frameref_t *LookupSpect(PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,
 	return frames;
 }
 
-const unsigned char *GetEnvelope(int index)
+const unsigned char *GetEnvelope(EspeakProcessorContext* epContext, int index)
 {
 	if (index == 0) {
 		fprintf(stderr, "espeak: No envelope\n");
 		return envelope_data[0]; // not found, use a default envelope
 	}
-	return (unsigned char *)&phondata_ptr[index];
+	return (unsigned char *)&epContext->phondata_ptr[index];
 }
 
 static void SetUpPhonemeTable(int number)
@@ -362,27 +344,27 @@ static void SetUpPhonemeTable(int number)
 	}
 }
 
-void SelectPhonemeTable(int number)
+void SelectPhonemeTable(EspeakProcessorContext* epContext, int number)
 {
-	if (current_phoneme_table == number) return;
+	if (epContext->current_phoneme_table == number) return;
 	n_phoneme_tab = 0;
 	MAKE_MEM_UNDEFINED(&phoneme_tab, sizeof(phoneme_tab));
 	SetUpPhonemeTable(number); // recursively for included phoneme tables
 	n_phoneme_tab++;
-	current_phoneme_table = number;
+	epContext->current_phoneme_table = number;
 }
 
-int LookupPhonemeTable(const char *name)
+int LookupPhonemeTable(EspeakProcessorContext* epContext, const char *name)
 {
 	int ix;
 
-	for (ix = 0; ix < n_phoneme_tables; ix++) {
+	for (ix = 0; ix < epContext->n_phoneme_tables; ix++) {
 		if (strcmp(name, phoneme_tab_list[ix].name) == 0) {
 			phoneme_tab_number = ix;
 			break;
 		}
 	}
-	if (ix == n_phoneme_tables)
+	if (ix == epContext->n_phoneme_tables)
 		return -1;
 
 	return ix;
@@ -741,7 +723,7 @@ static int NumInstnWords(unsigned short *prog)
 	}
 }
 
-void InterpretPhoneme(Translator *tr, int control, PHONEME_LIST *plist, PHONEME_LIST *plist_start, PHONEME_DATA *phdata, WORD_PH_DATA *worddata)
+void InterpretPhoneme(EspeakProcessorContext* epContext, Translator *tr, int control, PHONEME_LIST *plist, PHONEME_LIST *plist_start, PHONEME_DATA *phdata, WORD_PH_DATA *worddata)
 {
 	// control:
 	// bit 0:  PreVoicing
@@ -777,7 +759,7 @@ void InterpretPhoneme(Translator *tr, int control, PHONEME_LIST *plist, PHONEME_
 
 	end_flag = 0;
 
-	for (prog = &phoneme_index[ph->program]; end_flag != 1; prog++) {
+	for (prog = &epContext->phoneme_index[ph->program]; end_flag != 1; prog++) {
 		unsigned short instn;
 		int instn2;
 
@@ -901,7 +883,7 @@ void InterpretPhoneme(Translator *tr, int control, PHONEME_LIST *plist, PHONEME_
 				// call a procedure or another phoneme
 				if (n_return < N_RETURN) {
 					return_addr[n_return++] = prog;
-					prog = &phoneme_index[data] - 1;
+					prog = &epContext->phoneme_index[data] - 1;
 				}
 				break;
 			case 2:
@@ -978,7 +960,7 @@ void InterpretPhoneme(Translator *tr, int control, PHONEME_LIST *plist, PHONEME_
 	}
 }
 
-void InterpretPhoneme2(int phcode, PHONEME_DATA *phdata)
+void InterpretPhoneme2(EspeakProcessorContext* epContext, int phcode, PHONEME_DATA *phdata)
 {
 	// Examine the program of a single isolated phoneme
 	int ix;
@@ -994,5 +976,5 @@ void InterpretPhoneme2(int phcode, PHONEME_DATA *phdata)
 	plist[1].ph = phoneme_tab[phcode];
 	plist[2].sourceix = 1;
 
-	InterpretPhoneme(NULL, 0, &plist[1], plist, phdata, NULL);
+	InterpretPhoneme(epContext, NULL, 0, &plist[1], plist, phdata, NULL);
 }

@@ -106,9 +106,6 @@ static int hf_factor;
 static double minus_pi_t;
 static double two_pi_t;
 
-unsigned char *out_ptr;
-unsigned char *out_end;
-
 espeak_ng_OUTPUT_HOOKS* output_hooks = NULL;
 static int const_f0 = 0;
 

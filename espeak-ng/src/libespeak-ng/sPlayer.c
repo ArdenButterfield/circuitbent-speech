@@ -2,9 +2,6 @@
 #include <espeak-ng/speak_lib.h>
 #include "sPlayer.h"
 
-extern unsigned char *out_ptr;
-extern unsigned char *out_end;
-
 static speechPlayer_handle_t speechPlayerHandle=NULL;
 static const unsigned int minFadeLength=110;
 
@@ -108,7 +105,7 @@ void KlattResetSP(void) {
 	KlattInitSP();
 }
 
-int Wavegen_KlattSP(WGEN_DATA *wdata, voice_t *wvoice, int length, int resume, frame_t *fr1, frame_t *fr2){
+int Wavegen_KlattSP(EspeakProcessorContext* epContext, WGEN_DATA *wdata, voice_t *wvoice, int length, int resume, frame_t *fr1, frame_t *fr2){
 	if(!resume) {
 		speechPlayer_frame_t spFrame1={0};
 		fillSpeechPlayerFrame(wdata, wvoice, fr1,&spFrame1);
@@ -140,10 +137,10 @@ int Wavegen_KlattSP(WGEN_DATA *wdata, voice_t *wvoice, int length, int resume, f
 			speechPlayer_queueFrame(speechPlayerHandle,&spFrame2,minFadeLength/2,minFadeLength/2,-1,false);
 		}
 	}
-	unsigned int maxLength=(out_end-out_ptr)/sizeof(sample);
-	unsigned int outLength=speechPlayer_synthesize(speechPlayerHandle,maxLength,(sample*)out_ptr);
-	mixWaveFile(wdata, outLength,(sample*)out_ptr);
-	out_ptr=out_ptr+(sizeof(sample)*outLength);
-	if(out_ptr>=out_end) return 1;
+	unsigned int maxLength=(epContext->out_end-epContext->out_ptr)/sizeof(sample);
+	unsigned int outLength=speechPlayer_synthesize(speechPlayerHandle,maxLength,(sample*)epContext->out_ptr);
+	mixWaveFile(wdata, outLength,(sample*)epContext->out_ptr);
+	epContext->out_ptr=epContext->out_ptr+(sizeof(sample)*outLength);
+	if(epContext->out_ptr>=epContext->out_end) return 1;
 	return 0;
 }
