@@ -134,8 +134,6 @@ typedef struct {
 #define F6     6
 #define F_NP   9  // nasal pole formant
 
-typedef struct epc EspeakProcessorContext;
-
 typedef struct {
 	int F0hz10; /* Voicing fund freq in Hz                          */
 	int AVdb;   /* Amp of voicing in dB,            0 to   70       */

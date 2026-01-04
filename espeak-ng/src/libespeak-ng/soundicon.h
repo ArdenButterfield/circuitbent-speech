@@ -26,21 +26,8 @@ extern "C"
 {
 #endif
 
-int LookupSoundicon(int c);
-int LoadSoundFile2(const char *fname);
-
-typedef struct {
-        int name; // used for detecting punctuation
-        int length;
-        char *data;
-        char *filename;
-} SOUND_ICON;
-
-#define N_SOUNDICON_TAB  80   // total entries for dynamic loading of audio files
-
-extern int n_soundicon_tab;
-extern SOUND_ICON soundicon_tab[N_SOUNDICON_TAB];
-
+int LookupSoundicon(EspeakProcessorContext* epContext, int c);
+int LoadSoundFile2(EspeakProcessorContext* epContext, char *fname);
 
 #ifdef __cplusplus
 }

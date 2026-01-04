@@ -63,49 +63,26 @@
 #include "voice.h"                // for FreeVoiceList, VoiceReset, current_...
 #include "wavegen.h"              // for WavegenFill, WavegenInit, WcmdqUsed
 
-static unsigned char *outbuf = NULL;
-static int outbuf_size = 0;
-static unsigned char *out_start;
-
-espeak_EVENT *event_list = NULL;
-static int event_list_ix = 0;
-static int n_event_list;
-static long count_samples;
-#if USE_LIBPCAUDIO
-static struct audio_object *my_audio = NULL;
-#endif
-
-static unsigned int my_unique_identifier = 0;
-static void *my_user_data = NULL;
-static espeak_ng_OUTPUT_MODE my_mode = ENOUTPUT_MODE_SYNCHRONOUS;
-static int out_samplerate = 0;
-static int voice_samplerate = 22050;
 static const int min_buffer_length = 60; // minimum buffer length in ms
-static espeak_ng_STATUS err = ENS_OK;
-
-static t_espeak_callback *synth_callback = NULL;
-
-char path_home[N_PATH_HOME]; // this is the espeak-ng-data directory
-extern int saved_parameters[N_SPEECH_PARAM]; // Parameters saved on synthesis start
 
 void cancel_audio(void)
 {
 #if USE_LIBPCAUDIO
-	if ((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
+	if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
 		audio_object_flush(my_audio);
 	}
 #endif
 }
 
-static int dispatch_audio(short *outbuf, int length, espeak_EVENT *event)
+static int dispatch_audio(EspeakProcessorContext* epContext, short *outbuf, int length, espeak_EVENT *event)
 {
 	int a_wave_can_be_played = 1;
 #if USE_ASYNC
-	if ((my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0)
+	if ((epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0)
 		a_wave_can_be_played = fifo_is_command_enabled();
 #endif
 
-	switch ((int)my_mode)
+	switch ((int)epContext->my_mode)
 	{
 	case ENOUTPUT_MODE_SPEAK_AUDIO:
 	case ENOUTPUT_MODE_SPEAK_AUDIO | ENOUTPUT_MODE_SYNCHRONOUS:
@@ -115,41 +92,41 @@ static int dispatch_audio(short *outbuf, int length, espeak_EVENT *event)
 			event_type = event->type;
 
 		if (event_type == espeakEVENT_SAMPLERATE) {
-			voice_samplerate = event->id.number;
+			epContext->voice_samplerate = event->id.number;
 
-			if (out_samplerate != voice_samplerate) {
+			if (epContext->out_samplerate != epContext->voice_samplerate) {
 #if USE_LIBPCAUDIO
-				if (out_samplerate != 0) {
+				if (epContext->out_samplerate != 0) {
 					// sound was previously open with a different sample rate
 					audio_object_close(my_audio);
-					out_samplerate = 0;
+					epContext->out_samplerate = 0;
 				}
 #endif
 #if USE_LIBPCAUDIO
-				int error = audio_object_open(my_audio, AUDIO_OBJECT_FORMAT_S16LE, voice_samplerate, 1);
+				int error = audio_object_open(my_audio, AUDIO_OBJECT_FORMAT_S16LE, epContext->voice_samplerate, 1);
 				if (error != 0) {
 					fprintf(stderr, "audio reopen error: %s\n", audio_object_strerror(my_audio, error));
-					err = ENS_AUDIO_ERROR;
+					epContext->err = ENS_AUDIO_ERROR;
 					return -1;
 				}
 #endif
-				out_samplerate = voice_samplerate;
+				epContext->out_samplerate = epContext->voice_samplerate;
 #if USE_ASYNC
-				if ((my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0)
+				if ((epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0)
 					event_init();
 #endif
 			}
 		}
 
 #if USE_LIBPCAUDIO
-		if (out_samplerate == 0) {
-			int error = audio_object_open(my_audio, AUDIO_OBJECT_FORMAT_S16LE, voice_samplerate, 1);
+		if (epContext->out_samplerate == 0) {
+			int error = audio_object_open(my_audio, AUDIO_OBJECT_FORMAT_S16LE, epContext->voice_samplerate, 1);
 			if (error != 0) {
 				fprintf(stderr, "audio open error: %s\n", audio_object_strerror(my_audio, error));
-				err = ENS_AUDIO_ERROR;
+				epContext->err = ENS_AUDIO_ERROR;
 				return -1;
 			}
-			out_samplerate = voice_samplerate;
+			epContext->out_samplerate = epContext->voice_samplerate;
 		}
 #endif
 
@@ -170,9 +147,9 @@ static int dispatch_audio(short *outbuf, int length, espeak_EVENT *event)
 			// TBD: the last one has its size=0.
 			if ((event->type == espeakEVENT_WORD) && (event->length == 0))
 				break;
-			if ((my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0) {
-				err = event_declare(event);
-				if (err != ENS_EVENT_BUFFER_FULL)
+			if ((epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0) {
+				epContext->err = event_declare(event);
+				if (epContext->err != ENS_EVENT_BUFFER_FULL)
 					break;
 				usleep(10000);
 				a_wave_can_be_played = fifo_is_command_enabled();
@@ -183,15 +160,15 @@ static int dispatch_audio(short *outbuf, int length, espeak_EVENT *event)
 	}
 		break;
 	case 0:
-		if (synth_callback)
-			synth_callback(outbuf, length, event);
+		if (epContext->synth_callback)
+			epContext->synth_callback(outbuf, length, event);
 		break;
 	}
 
 	return a_wave_can_be_played == 0; // 1 = stop synthesis, -1 = error
 }
 
-static int create_events(short *outbuf, int length, espeak_EVENT *event_list)
+static int create_events(EspeakProcessorContext* epContext, short *outbuf, int length, espeak_EVENT *event_list)
 {
 	int finished;
 	int i = 0;
@@ -204,14 +181,14 @@ static int create_events(short *outbuf, int length, espeak_EVENT *event_list)
 
 	do { // for each event
 		espeak_EVENT *event;
-		if (event_list_ix == 0)
+		if (epContext->event_list_ix == 0)
 			event = NULL;
 		else
 			event = event_list + i;
-		finished = dispatch_audio((short *)outbuf, length, event);
+		finished = dispatch_audio(epContext, (short *)outbuf, length, event);
 		length = 0; // the wave data are played once.
 		i++;
-	} while ((i < event_list_ix) && !finished);
+	} while ((i < epContext->event_list_ix) && !finished);
 	return finished;
 }
 
@@ -230,15 +207,15 @@ int sync_espeak_terminated_msg(uint32_t unique_identifier, void *user_data)
 	event_list[1].unique_identifier = unique_identifier;
 	event_list[1].user_data = user_data;
 
-	if (my_mode == ENOUTPUT_MODE_SPEAK_AUDIO) {
+	if (epContext->my_mode == ENOUTPUT_MODE_SPEAK_AUDIO) {
 		while (1) {
-			err = event_declare(event_list);
-			if (err != ENS_EVENT_BUFFER_FULL)
+			epContext->err = event_declare(event_list);
+			if (epContext->err != ENS_EVENT_BUFFER_FULL)
 				break;
 			usleep(10000);
 		}
-	} else if (synth_callback)
-		finished = synth_callback(NULL, 0, event_list);
+	} else if (epContext->synth_callback)
+		finished = epContext->synth_callback(NULL, 0, event_list);
 	return finished;
 }
 
@@ -261,20 +238,20 @@ static int check_data_path(const char *path, int allow_directory)
 
 #pragma GCC visibility push(default)
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_InitializeOutput(espeak_ng_OUTPUT_MODE output_mode, int buffer_length, const char *device)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_InitializeOutput(EspeakProcessorContext* epContext, espeak_ng_OUTPUT_MODE output_mode, int buffer_length, const char *device)
 {
 	(void)device; // unused if  USE_LIBPCAUDIO is not defined
 
-	my_mode = output_mode;
-	out_samplerate = 0;
+	epContext->my_mode = output_mode;
+	epContext->out_samplerate = 0;
 
 #if USE_LIBPCAUDIO
-	if (((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) && (my_audio == NULL))
+	if (((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) && (my_audio == NULL))
 		my_audio = create_audio_device_object(device, "eSpeak", "Text-to-Speech");
 #endif
 
 #if USE_ASYNC
-	if ((my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0) fifo_init();
+	if ((epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0) fifo_init();
 #endif
 
 	// Don't allow buffer be smaller than safe minimum
@@ -284,17 +261,17 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_InitializeOutput(espeak_ng_OUTPUT_MODE 
 	// allocate 2 bytes per sample
 	// Always round up to the nearest sample and the nearest byte.
 	int millisamples = buffer_length * samplerate;
-	outbuf_size = (millisamples + 1000 - millisamples % 1000) / 500;
-	out_start = (unsigned char *)realloc(outbuf, outbuf_size);
-	if (out_start == NULL)
+	epContext->outbuf_size = (millisamples + 1000 - millisamples % 1000) / 500;
+	epContext->out_start = (unsigned char *)realloc(epContext->outbuf, epContext->outbuf_size);
+	if (epContext->out_start == NULL)
 		return ENOMEM;
 	else
-		outbuf = out_start;
+		epContext->outbuf = epContext->out_start;
 
 	// allocate space for event list.  Allow 200 events per second.
 	// Add a constant to allow for very small buffer_length
-	n_event_list = (buffer_length*200)/1000 + 20;
-	espeak_EVENT *new_event_list = (espeak_EVENT *)realloc(event_list, sizeof(espeak_EVENT) * n_event_list);
+	epContext->n_event_list = (buffer_length*200)/1000 + 20;
+	espeak_EVENT *new_event_list = (espeak_EVENT *)realloc(event_list, sizeof(espeak_EVENT) * epContext->n_event_list);
 	if (new_event_list == NULL)
 		return ENOMEM;
 	event_list = new_event_list;
@@ -357,7 +334,7 @@ const int param_defaults[N_SPEECH_PARAM] = {
 };
 
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(espeak_ng_ERROR_CONTEXT *context)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(EspeakProcessorContext* epContext, espeak_ng_ERROR_CONTEXT *context)
 {
 	int param;
 	int srate = 22050; // default sample rate 22050 Hz
@@ -381,14 +358,14 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(espeak_ng_ERROR_CONTEXT *con
 
 	espeak_VOICE *current_voice_selected = espeak_GetCurrentVoice();
 	memset(current_voice_selected, 0, sizeof(espeak_VOICE));
-	SetVoiceStack(NULL, "");
+	SetVoiceStack(epContext, NULL, "");
 	SynthesizeInit();
-	InitNamedata();
+	InitNamedata(epContext);
 
 	VoiceReset(0);
 
 	for (param = 0; param < N_SPEECH_PARAM; param++)
-		param_stack[0].parameter[param] = saved_parameters[param] = param_defaults[param];
+		epContext->param_stack[0].parameter[param] = epContext->saved_parameters[param] = param_defaults[param];
 
 	SetParameter(espeakRATE, espeakRATE_NORMAL, 0);
 	SetParameter(espeakVOLUME, 100, 0);
@@ -423,20 +400,20 @@ ESPEAK_NG_API int espeak_ng_GetSampleRate(void)
 
 #pragma GCC visibility pop
 
-static espeak_ng_STATUS Synthesize(unsigned int unique_identifier, const void *text, int flags)
+static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned int unique_identifier, const void *text, int flags)
 {
 	// Fill the buffer with output sound
 	int length;
 	int finished = 0;
 
-	if ((outbuf == NULL) || (event_list == NULL))
+	if ((epContext->outbuf == NULL) || (event_list == NULL))
 		return ENS_NOT_INITIALIZED;
 
 	option_ssml = flags & espeakSSML;
 	option_phoneme_input = flags & espeakPHONEMES;
 	option_endpause = flags & espeakENDPAUSE;
 
-	count_samples = 0;
+	epContext->count_samples = 0;
 
 	espeak_ng_STATUS status;
 	if (translator == NULL) {
@@ -455,23 +432,23 @@ static espeak_ng_STATUS Synthesize(unsigned int unique_identifier, const void *t
 	SpeakNextClause(0);
 
 	for (;;) {
-		out_ptr = outbuf;
-		out_end = &outbuf[outbuf_size];
-		event_list_ix = 0;
+		out_ptr = epContext->outbuf;
+		out_end = &epContext->outbuf[epContext->outbuf_size];
+		epContext->event_list_ix = 0;
 		WavegenFill();
 
-		length = (out_ptr - outbuf)/2;
-		count_samples += length;
-		event_list[event_list_ix].type = espeakEVENT_LIST_TERMINATED; // indicates end of event list
-		event_list[event_list_ix].unique_identifier = unique_identifier;
-		event_list[event_list_ix].user_data = my_user_data;
+		length = (out_ptr - epContext->outbuf)/2;
+		epContext->count_samples += length;
+		event_list[epContext->event_list_ix].type = espeakEVENT_LIST_TERMINATED; // indicates end of event list
+		event_list[epContext->event_list_ix].unique_identifier = unique_identifier;
+		event_list[epContext->event_list_ix].user_data = epContext->my_user_data;
 
-		if ((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
-			finished = create_events((short *)outbuf, length, event_list);
+		if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
+			finished = create_events((short *)epContext->outbuf, length, event_list);
 			if (finished < 0)
 				return ENS_AUDIO_ERROR;
-		} else if (synth_callback)
-			finished = synth_callback((short *)outbuf, length, event_list);
+		} else if (epContext->synth_callback)
+			finished = epContext->synth_callback((short *)epContext->outbuf, length, event_list);
 		if (finished) {
 			SpeakNextClause(2); // stop
 			return ENS_SPEECH_STOPPED;
@@ -483,16 +460,16 @@ static espeak_ng_STATUS Synthesize(unsigned int unique_identifier, const void *t
 				// This ensures that <audio> tag (which causes end-of-clause) is at a sound buffer boundary
 
 				event_list[0].type = espeakEVENT_LIST_TERMINATED;
-				event_list[0].unique_identifier = my_unique_identifier;
-				event_list[0].user_data = my_user_data;
+				event_list[0].unique_identifier = epContext->my_unique_identifier;
+				event_list[0].user_data = epContext->my_user_data;
 
 				if (SpeakNextClause(1) == 0) {
 					finished = 0;
-					if ((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
-						if (dispatch_audio(NULL, 0, NULL) < 0)
+					if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
+						if (dispatch_audio(epContext, NULL, 0, NULL) < 0)
 							return ENS_AUDIO_ERROR;
-					} else if (synth_callback)
-						finished = synth_callback(NULL, 0, event_list); // NULL buffer ptr indicates end of data
+					} else if (epContext->synth_callback)
+						finished = epContext->synth_callback(NULL, 0, event_list); // NULL buffer ptr indicates end of data
 					if (finished) {
 						SpeakNextClause(2); // stop
 						return ENS_SPEECH_STOPPED;
@@ -504,19 +481,19 @@ static espeak_ng_STATUS Synthesize(unsigned int unique_identifier, const void *t
 	}
 }
 
-void MarkerEvent(int type, unsigned int char_position, int value, int value2, unsigned char *out_ptr)
+void MarkerEvent(EspeakProcessorContext* epContext, int type, unsigned int char_position, int value, int value2, unsigned char *out_ptr)
 {
 	// type: 1=word, 2=sentence, 3=named mark, 4=play audio, 5=end, 7=phoneme
 	espeak_EVENT *ep;
 	double time;
 
-	if ((event_list == NULL) || (event_list_ix >= (n_event_list-2)))
+	if ((event_list == NULL) || (epContext->event_list_ix >= (epContext->n_event_list-2)))
 		return;
 
-	ep = &event_list[event_list_ix++];
+	ep = &event_list[epContext->event_list_ix++];
 	ep->type = (espeak_EVENT_TYPE)type;
-	ep->unique_identifier = my_unique_identifier;
-	ep->user_data = my_user_data;
+	ep->unique_identifier = epContext->my_unique_identifier;
+	ep->user_data = epContext->my_user_data;
 	ep->text_position = char_position & 0xffffff;
 	ep->length = char_position >> 24;
 
@@ -524,9 +501,9 @@ void MarkerEvent(int type, unsigned int char_position, int value, int value2, un
 	static const int mbrola_delay = 0;
 #endif
 
-	time = ((double)(count_samples + mbrola_delay + (out_ptr - out_start)/2)*1000.0)/samplerate;
+	time = ((double)(epContext->count_samples + mbrola_delay + (out_ptr - epContext->out_start)/2)*1000.0)/samplerate;
 	ep->audio_position = (int)time;
-	ep->sample = (count_samples + mbrola_delay + (out_ptr - out_start)/2);
+	ep->sample = (epContext->count_samples + mbrola_delay + (out_ptr - epContext->out_start)/2);
 
 	if ((type == espeakEVENT_MARK) || (type == espeakEVENT_PLAY))
 		ep->id.name = &namedata[value];
@@ -539,16 +516,17 @@ void MarkerEvent(int type, unsigned int char_position, int value, int value2, un
 		ep->id.number = value;
 }
 
-espeak_ng_STATUS sync_espeak_Synth(unsigned int unique_identifier, const void *text,
+espeak_ng_STATUS sync_espeak_Synth(EspeakProcessorContext* epContext,
+                                   unsigned int unique_identifier, const void *text,
                                    unsigned int position, espeak_POSITION_TYPE position_type,
                                    unsigned int end_position, unsigned int flags, void *user_data)
 {
 	InitText(flags);
-	my_unique_identifier = unique_identifier;
-	my_user_data = user_data;
+	epContext->my_unique_identifier = unique_identifier;
+	epContext->my_user_data = user_data;
 
 	for (int i = 0; i < N_SPEECH_PARAM; i++)
-		saved_parameters[i] = param_stack[0].parameter[i];
+		epContext->saved_parameters[i] = epContext->param_stack[0].parameter[i];
 
 	switch (position_type)
 	{
@@ -570,7 +548,7 @@ espeak_ng_STATUS sync_espeak_Synth(unsigned int unique_identifier, const void *t
 
 	espeak_ng_STATUS aStatus = Synthesize(unique_identifier, text, flags);
 #if USE_LIBPCAUDIO
-	if ((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
+	if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
 		int error = (aStatus == ENS_SPEECH_STOPPED)
 		          ? audio_object_flush(my_audio)
 		          : audio_object_drain(my_audio);
@@ -584,14 +562,14 @@ espeak_ng_STATUS sync_espeak_Synth(unsigned int unique_identifier, const void *t
 	return aStatus;
 }
 
-espeak_ng_STATUS sync_espeak_Synth_Mark(unsigned int unique_identifier, const void *text,
+espeak_ng_STATUS sync_espeak_Synth_Mark(EspeakProcessorContext* epContext, unsigned int unique_identifier, const void *text,
                                         const char *index_mark, unsigned int end_position,
                                         unsigned int flags, void *user_data)
 {
 	InitText(flags);
 
-	my_unique_identifier = unique_identifier;
-	my_user_data = user_data;
+	epContext->my_unique_identifier = unique_identifier;
+	epContext->my_user_data = user_data;
 
 	if (index_mark != NULL) {
 		strncpy0(skip_marker, index_mark, sizeof(skip_marker));
@@ -603,7 +581,7 @@ espeak_ng_STATUS sync_espeak_Synth_Mark(unsigned int unique_identifier, const vo
 	return Synthesize(unique_identifier, text, flags | espeakSSML);
 }
 
-espeak_ng_STATUS sync_espeak_Key(const char *key)
+espeak_ng_STATUS sync_espeak_Key(EspeakProcessorContext* epContext, const char *key)
 {
 	// symbolic name, symbolicname_character  - is there a system resource of symbolic names per language?
 	int letter;
@@ -613,27 +591,27 @@ espeak_ng_STATUS sync_espeak_Key(const char *key)
 	if (key[ix] == 0) // a single character
 		return sync_espeak_Char(letter);
 
-	my_unique_identifier = 0;
-	my_user_data = NULL;
+	epContext->my_unique_identifier = 0;
+	epContext->my_user_data = NULL;
 	return Synthesize(0, key, 0); // speak key as a text string
 }
 
-espeak_ng_STATUS sync_espeak_Char(wchar_t character)
+espeak_ng_STATUS sync_espeak_Char(EspeakProcessorContext* epContext, wchar_t character)
 {
 	// is there a system resource of character names per language?
 	char buf[80];
-	my_unique_identifier = 0;
-	my_user_data = NULL;
+	epContext->my_unique_identifier = 0;
+	epContext->my_user_data = NULL;
 
 	sprintf(buf, "<say-as interpret-as=\"tts:char\">&#%d;</say-as>", character);
 	return Synthesize(0, buf, espeakSSML);
 }
 
-void sync_espeak_SetPunctuationList(const wchar_t *punctlist)
+void sync_espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist)
 {
 	// Set the list of punctuation which are spoken for "some".
-	my_unique_identifier = 0;
-	my_user_data = NULL;
+	epContext->my_unique_identifier = 0;
+	epContext->my_user_data = NULL;
 
 	option_punctlist[0] = 0;
 	if (punctlist != NULL) {
@@ -646,14 +624,14 @@ void sync_espeak_SetPunctuationList(const wchar_t *punctlist)
 
 ESPEAK_API void espeak_SetSynthCallback(EspeakProcessorContext* epContext, t_espeak_callback *SynthCallback)
 {
-	synth_callback = SynthCallback;
+	epContext->synth_callback = SynthCallback;
 #if USE_ASYNC
-	event_set_callback(synth_callback);
+	event_set_callback(epContext->synth_callback);
 #endif
 }
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_Synthesize(const void *text, size_t size,
+espeak_ng_Synthesize(EspeakProcessorContext* epContext, const void *text, size_t size,
                      unsigned int position,
                      espeak_POSITION_TYPE position_type,
                      unsigned int end_position, unsigned int flags,
@@ -667,7 +645,7 @@ espeak_ng_Synthesize(const void *text, size_t size,
 		unique_identifier = &temp_identifier;
 	*unique_identifier = 0;
 
-	if (my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
+	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
 		return sync_espeak_Synth(0, text, position, position_type, end_position, flags, user_data);
 
 #if USE_ASYNC
@@ -700,7 +678,7 @@ espeak_ng_Synthesize(const void *text, size_t size,
 }
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SynthesizeMark(const void *text,
+espeak_ng_SynthesizeMark(EspeakProcessorContext* epContext, const void *text,
                          size_t size,
                          const char *index_mark,
                          unsigned int end_position,
@@ -716,7 +694,7 @@ espeak_ng_SynthesizeMark(const void *text,
 		unique_identifier = &temp_identifier;
 	*unique_identifier = 0;
 
-	if (my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
+	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
 		return sync_espeak_Synth_Mark(0, text, index_mark, end_position, flags, user_data);
 
 #if USE_ASYNC
@@ -749,11 +727,11 @@ espeak_ng_SynthesizeMark(const void *text,
 #endif
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakKeyName(const char *key_name)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakKeyName(EspeakProcessorContext* epContext, const char *key_name)
 {
 	// symbolic name, symbolicname_character  - is there a system resource of symbolicnames per language
 
-	if (my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
+	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
 		return sync_espeak_Key(key_name);
 
 #if USE_ASYNC
@@ -772,7 +750,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakCharacter(wchar_t character)
 	// is there a system resource of character names per language?
 
 #if USE_ASYNC
-	if (my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
+	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
 		return sync_espeak_Char(character);
 
 	t_espeak_command *c = create_espeak_char(character, NULL);
@@ -789,14 +767,14 @@ ESPEAK_API int espeak_GetParameter(EspeakProcessorContext* epContext, espeak_PAR
 {
 	// current: 0=default value, 1=current value
 	if (current)
-		return param_stack[0].parameter[parameter];
+		return epContext->param_stack[0].parameter[parameter];
 	return param_defaults[parameter];
 }
 
 ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetParameter(espeak_PARAMETER parameter, int value, int relative)
 {
 #if USE_ASYNC
-	if (my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
+	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
 		return SetParameter(parameter, value, relative);
 
 	t_espeak_command *c = create_espeak_parameter(parameter, value, relative);
@@ -815,7 +793,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPunctuationList(const wchar_t *punct
 	// Set the list of punctuation which are spoken for "some".
 
 #if USE_ASYNC
-	if (my_mode & ENOUTPUT_MODE_SYNCHRONOUS) {
+	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) {
 		sync_espeak_SetPunctuationList(punctlist);
 		return ENS_OK;
 	}
@@ -874,10 +852,10 @@ ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(EspeakProcessorContex
 
 ESPEAK_API const char *espeak_TextToPhonemes(EspeakProcessorContext* epContext, const void **textptr, int textmode, int phonememode)
 {
-	return espeak_TextToPhonemesWithTerminator(textptr, textmode, phonememode, NULL);
+	return espeak_TextToPhonemesWithTerminator(epContext, textptr, textmode, phonememode, NULL);
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Cancel(void)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Cancel(EspeakProcessorContext* epContext)
 {
 #if USE_ASYNC
 	fifo_stop();
@@ -885,13 +863,13 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Cancel(void)
 #endif
 
 #if USE_LIBPCAUDIO
-	if ((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO)
+	if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO)
 		audio_object_flush(my_audio);
 #endif
 	embedded_value[EMBED_T] = 0; // reset echo for pronunciation announcements
 
 	for (int i = 0; i < N_SPEECH_PARAM; i++)
-		SetParameter(i, saved_parameters[i], 0);
+		SetParameter(i, epContext->saved_parameters[i], 0);
 
 	return ENS_OK;
 }
@@ -905,18 +883,18 @@ ESPEAK_API int espeak_IsPlaying(EspeakProcessorContext* epContext)
 #endif
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Synchronize(void)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Synchronize(EspeakProcessorContext* epContext)
 {
-	espeak_ng_STATUS berr = err;
+	espeak_ng_STATUS berr = epContext->err;
 #if USE_ASYNC
 	while (espeak_IsPlaying())
 		usleep(20000);
 #endif
-	err = ENS_OK;
+	epContext->err = ENS_OK;
 	return berr;
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Terminate(void)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Terminate(EspeakProcessorContext* epContext)
 {
 #if USE_ASYNC
 	fifo_stop();
@@ -924,20 +902,20 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Terminate(void)
 	event_terminate();
 #endif
 
-	if ((my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
+	if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
 #if USE_LIBPCAUDIO
 		audio_object_close(my_audio);
 		audio_object_destroy(my_audio);
 		my_audio = NULL;
 #endif
-		out_samplerate = 0;
+		epContext->out_samplerate = 0;
 	}
 
 	free(event_list);
 	event_list = NULL;
 
-	free(outbuf);
-	outbuf = NULL;
+	free(epContext->outbuf);
+	epContext->outbuf = NULL;
 
 	FreePhData();
 	FreeVoiceList();

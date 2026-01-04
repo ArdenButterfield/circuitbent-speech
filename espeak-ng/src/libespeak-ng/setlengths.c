@@ -42,8 +42,6 @@ static void SetSpeedFactors(voice_t *voice, int x, int speeds[3]);
 static void SetSpeedMods(SPEED_FACTORS *speed, int voiceSpeedF1, int wpm, int x);
 static void SetSpeedMultiplier(int *x, int *wpm);
 
-extern int saved_parameters[];
-
 // convert from words-per-minute to internal speed factor
 // Use this to calibrate speed for wpm 80-450 (espeakRATE_MINIMUM - espeakRATE_MAXIMUM)
 static const unsigned char speed_lookup[] = {
@@ -138,9 +136,8 @@ static const unsigned char wav_factor_350[] = {
 	 45                      // 450
 };
 
-static int len_speeds[3] = { 130, 121, 118 };
 
-void SetSpeed(int control)
+void SetSpeed(EspeakProcessorContext* epContext, int control)
 {
 	int x;
 	int wpm;
@@ -172,9 +169,9 @@ void SetSpeed(int control)
 		// The eSpeak output will be speeded up by at least x2
 		x = 73;
 		if (control & 1) {
-			len_speeds[0] = (x * voice->speedf1)/256;
-			len_speeds[1] = (x * voice->speedf2)/256;
-			len_speeds[2] = (x * voice->speedf3)/256;
+			epContext->len_speeds[0] = (x * voice->speedf1)/256;
+			epContext->len_speeds[1] = (x * voice->speedf2)/256;
+			epContext->len_speeds[2] = (x * voice->speedf3)/256;
 		}
 		if (control & 2) {
 			double sonic;
@@ -199,7 +196,7 @@ void SetSpeed(int control)
 	SetSpeedMultiplier(&x, &wpm);
 
 	if (control & 1) {
-		SetSpeedFactors(voice, x, len_speeds);
+		SetSpeedFactors(voice, x, epContext->len_speeds);
 	}
 
 	if (control & 2) {
@@ -287,7 +284,7 @@ static void SetSpeedMods(SPEED_FACTORS *speed, int voiceSpeedF1, int wpm, int x)
 	}
 }
 
-espeak_ng_STATUS SetParameter(int parameter, int value, int relative)
+espeak_ng_STATUS SetParameter(EspeakProcessorContext* epContext, int parameter, int value, int relative)
 {
 	// parameter: reset-all, amp, pitch, speed, linelength, expression, capitals, number grouping
 	// relative 0=absolute  1=relative
@@ -302,8 +299,8 @@ espeak_ng_STATUS SetParameter(int parameter, int value, int relative)
 			new_value = default_value + (default_value * value)/100;
 		}
 	}
-	param_stack[0].parameter[parameter] = new_value;
-	saved_parameters[parameter] = new_value;
+	epContext->param_stack[0].parameter[parameter] = new_value;
+	epContext->saved_parameters[parameter] = new_value;
 
 	switch (parameter)
 	{
@@ -361,7 +358,7 @@ static void DoEmbedded2(int *embix)
 	} while ((word & 0x80) == 0);
 }
 
-void CalcLengths(Translator *tr)
+void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 {
 	int ix;
 	int ix2;
@@ -523,7 +520,7 @@ void CalcLengths(Translator *tr)
 					p->length = prev->length;
 
 					if (p->type == phLIQUID)
-						p->length = len_speeds[0];
+						p->length = epContext->len_speeds[0];
 
 					if (next->type == phVSTOP)
 						p->length = (p->length * 160)/100;
@@ -615,11 +612,11 @@ void CalcLengths(Translator *tr)
 			}
 
 			if (more_syllables == 0)
-				length_mod *= len_speeds[0];
+				length_mod *= epContext->len_speeds[0];
 			else if (more_syllables == 1)
-				length_mod *= len_speeds[1];
+				length_mod *= epContext->len_speeds[1];
 			else
-				length_mod *= len_speeds[2];
+				length_mod *= epContext->len_speeds[2];
 
 			length_mod = length_mod / 128;
 
@@ -654,9 +651,9 @@ void CalcLengths(Translator *tr)
 				length_mod = length_mod * (256 + (280 - len)/3)/256;
 			}
 
-			if (length_mod > tr->langopts.max_lengthmod*len_speeds[0]) {
+			if (length_mod > tr->langopts.max_lengthmod*epContext->len_speeds[0]) {
 				// limit the vowel length adjustment for some languages
-				length_mod = (tr->langopts.max_lengthmod*len_speeds[0]);
+				length_mod = (tr->langopts.max_lengthmod*epContext->len_speeds[0]);
 			}
 
 			length_mod = length_mod / 128;

@@ -20,7 +20,7 @@
 #define ESPEAK_NG_H
 
 #include <espeak-ng/speak_lib.h>
-
+#include <espeak-ng/common.h>
 #ifdef __cplusplus
 extern "C"
 {
@@ -64,11 +64,6 @@ typedef enum {
 	ENS_UNKNOWN_PHONEME_FEATURE  = 0x10000FFF,
 	ENS_UNKNOWN_TEXT_ENCODING    = 0x100010FF,
 } espeak_ng_STATUS;
-
-typedef enum {
-	ENOUTPUT_MODE_SYNCHRONOUS = 0x0001,
-	ENOUTPUT_MODE_SPEAK_AUDIO = 0x0002,
-} espeak_ng_OUTPUT_MODE;
 
 typedef enum {
 	ENGENDER_UNKNOWN = 0,

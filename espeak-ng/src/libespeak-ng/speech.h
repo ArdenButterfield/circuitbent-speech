@@ -22,6 +22,7 @@
 
 #include <endian.h>               // for BYTE_ORDER, BIG_ENDIAN
 #include <espeak-ng/espeak_ng.h>
+#include <espeak-ng/common.h>
 
 #if defined(__has_feature)
 #  if __has_feature(memory_sanitizer)
@@ -52,31 +53,6 @@ extern "C"
 #define NO_VARIADIC_MACROS
 #endif
 
-#if defined(_WIN32) || defined(_WIN64) // Windows
-
-#define PLATFORM_WINDOWS 1
-#define PATHSEP '\\'
-#define N_PATH_HOME_DEF  230
-#define NO_VARIADIC_MACROS
-
-#else
-
-#define PLATFORM_POSIX 1
-#define PATHSEP  '/'
-#if defined(__linux__) // Linux
-#  include <linux/limits.h>
-#  define N_PATH_HOME_DEF  PATH_MAX
-#else
-#  define N_PATH_HOME_DEF  160
-#endif
-#define USE_NANOSLEEP
-#define __cdecl
-
-#endif
-
-#ifndef N_PATH_HOME
-#define N_PATH_HOME N_PATH_HOME_DEF
-#endif
 
 // will look for espeak_data directory here, and also in user's home directory
 #ifndef PATH_ESPEAK_DATA

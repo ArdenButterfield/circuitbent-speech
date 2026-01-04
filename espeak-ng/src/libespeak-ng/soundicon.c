@@ -41,11 +41,7 @@
 #include "speech.h"                   // for path_home, PATHSEP
 #include "synthesize.h"                   // for samplerate
 
-int n_soundicon_tab = 0;
-SOUND_ICON soundicon_tab[N_SOUNDICON_TAB];
-
-
-static espeak_ng_STATUS LoadSoundFile(const char *fname, int index, espeak_ng_ERROR_CONTEXT *context)
+static espeak_ng_STATUS LoadSoundFile(EspeakProcessorContext* epContext, char *fname, int index, espeak_ng_ERROR_CONTEXT *context)
 {
 	FILE *f;
 	unsigned char *p;
@@ -55,7 +51,7 @@ static espeak_ng_STATUS LoadSoundFile(const char *fname, int index, espeak_ng_ER
 
 	if (fname == NULL) {
 		// filename is already in the table
-		fname = soundicon_tab[index].filename;
+		fname = epContext->soundicon_tab[index].filename;
 	}
 
 	if (fname == NULL)
@@ -119,7 +115,7 @@ static espeak_ng_STATUS LoadSoundFile(const char *fname, int index, espeak_ng_ER
 		fclose(f);
 		return create_file_error_context(context, error, fname);
 	}
-	if ((p = realloc(soundicon_tab[index].data, length)) == NULL) {
+	if ((p = realloc(epContext->soundicon_tab[index].data, length)) == NULL) {
 		fclose(f);
 		return ENOMEM;
 	}
@@ -136,19 +132,19 @@ static espeak_ng_STATUS LoadSoundFile(const char *fname, int index, espeak_ng_ER
 		remove(fname_temp);
 
 	length = p[40] | (p[41] << 8) | (p[42] << 16) | (p[43] << 24);
-	soundicon_tab[index].length = length / 2; // length in samples
-	soundicon_tab[index].data = (char *) p;
+	epContext->soundicon_tab[index].length = length / 2; // length in samples
+	epContext->soundicon_tab[index].data = (char *) p;
 	return ENS_OK;
 }
 
-int LookupSoundicon(int c)
+int LookupSoundicon(EspeakProcessorContext* epContext, int c)
 {
 	// Find the sound icon number for a punctuation character and load the audio file if it's not yet loaded
 	int ix;
 
-	for (ix = 0; ix < n_soundicon_tab; ix++) {
-		if (soundicon_tab[ix].name == c) {
-			if (soundicon_tab[ix].length == 0) { // not yet loaded, load now
+	for (ix = 0; ix < epContext->n_soundicon_tab; ix++) {
+		if (epContext->soundicon_tab[ix].name == c) {
+			if (epContext->soundicon_tab[ix].length == 0) { // not yet loaded, load now
 				if (LoadSoundFile(NULL, ix, NULL) != ENS_OK) {
 					return -1; // sound file is not available
 				}
@@ -159,17 +155,17 @@ int LookupSoundicon(int c)
 	return -1;
 }
 
-int LoadSoundFile2(const char *fname)
+int LoadSoundFile2(EspeakProcessorContext* epContext, const char *fname)
 {
 	// Load a sound file into the sound icon table and memory
 	// (if it's not already loaded)
 	// returns -1 on error or the index of loaded file on success
 
 	int ix;
-	for (ix = 0; ix < n_soundicon_tab; ix++) {
-		if (((soundicon_tab[ix].filename != NULL) && strcmp(fname, soundicon_tab[ix].filename) == 0)) {
+	for (ix = 0; ix < epContext->n_soundicon_tab; ix++) {
+		if (((epContext->soundicon_tab[ix].filename != NULL) && strcmp(fname, epContext->soundicon_tab[ix].filename) == 0)) {
 			// the file information is found. If length = 0 it needs to be loaded to memory
-			if (soundicon_tab[ix].length == 0) {
+			if (epContext->soundicon_tab[ix].length == 0) {
 				if (LoadSoundFile(NULL, ix, NULL) != ENS_OK)
 					return -1; // sound file is not available
 			}
@@ -178,11 +174,11 @@ int LoadSoundFile2(const char *fname)
 	}
 
 	// load the file into the current slot and increase index
-	if (LoadSoundFile(fname, n_soundicon_tab, NULL) != ENS_OK)
+	if (LoadSoundFile(fname, epContext->n_soundicon_tab, NULL) != ENS_OK)
 		return -1;
 
-	soundicon_tab[n_soundicon_tab].filename = (char *)realloc(soundicon_tab[n_soundicon_tab].filename, strlen(fname)+1);
-	strcpy(soundicon_tab[n_soundicon_tab].filename, fname);
-	n_soundicon_tab++;
-	return n_soundicon_tab - 1;
+	epContext->soundicon_tab[epContext->n_soundicon_tab].filename = (char *)realloc(epContext->soundicon_tab[epContext->n_soundicon_tab].filename, strlen(fname)+1);
+	strcpy(epContext->soundicon_tab[epContext->n_soundicon_tab].filename, fname);
+	epContext->n_soundicon_tab++;
+	return epContext->n_soundicon_tab - 1;
 }

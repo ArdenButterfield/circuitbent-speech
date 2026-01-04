@@ -28,6 +28,7 @@ extern "C"
 #include <stdint.h>
 #include <stdbool.h>
 #include <espeak-ng/espeak_ng.h>
+#include <espeak-ng/speak_lib.h>
 #include "phoneme.h"              // for PHONEME_TAB, N_PHONEME_TAB
 
 #define espeakINITIALIZE_PHONEME_IPA 0x0002 // move this to speak_lib.h, after eSpeak version 1.46.02
@@ -421,7 +422,7 @@ extern intptr_t wcmdq[N_WCMDQ][4];
 extern int wcmdq_head;
 extern int wcmdq_tail;
 
-void MarkerEvent(int type, unsigned int char_position, int value, int value2, unsigned char *out_ptr);
+void MarkerEvent(EspeakProcessorContext* epContext, int type, unsigned int char_position, int value, int value2, unsigned char *out_ptr);
 
 extern unsigned char *wavefile_data;
 extern int samplerate;
@@ -435,7 +436,7 @@ extern short echo_buf[N_ECHO_BUF];
 void SynthesizeInit(void);
 int  Generate(PHONEME_LIST *phoneme_list, int *n_ph, bool resume);
 int  SpeakNextClause(int control);
-void SetSpeed(int control);
+void SetSpeed(EspeakProcessorContext* epContext, int control);
 void SetEmbedded(int control, int value);
 int FormantTransition2(frameref_t *seq, int *n_frames, unsigned int data1, unsigned int data2, PHONEME_TAB *other_ph, int which);
 

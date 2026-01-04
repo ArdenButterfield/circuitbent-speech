@@ -25,11 +25,13 @@
 /*                                                           */
 /*************************************************************/
 
-#include <stdio.h>
+#include "encoding.h"
+#include "synthesize.h"
 #include <stddef.h>
+#include <stdio.h>
 
-#include "klatt.h"
 #include "ssml.h"                 // for SSML_STACK, ProcessSsmlTag, N_PARAM...
+#include <espeak-ng/common.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 #ifdef LIBESPEAK_NG_EXPORT
@@ -723,10 +725,20 @@ ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char
 */
 #endif
 
-typedef struct
+typedef struct esb
 {
     int dummy;
 } EspeakBends;
+
+typedef struct {
+    int name; // used for detecting punctuation
+    int length;
+    char *data;
+    char *filename;
+} SOUND_ICON;
+
+#define N_SOUNDICON_TAB  80   // total entries for dynamic loading of audio files
+
 
 typedef struct {
     int type;
@@ -808,5 +820,59 @@ struct epc
     int speech_parameters[N_SPEECH_PARAM]; // current values, from param_stack
     int saved_parameters[N_SPEECH_PARAM]; // Parameters saved on synthesis start
 
+    // setlengths.c
+
+    int len_speeds[3]; // = { 130, 121, 118 };
+
+    // soundicon.c
+
+    int n_soundicon_tab;
+    SOUND_ICON soundicon_tab[N_SOUNDICON_TAB];
+
+    // speech.c
+    unsigned char *outbuf; // = NULL;
+    int outbuf_size; // = 0;
+    unsigned char *out_start;
+
+    espeak_EVENT *event_list; // = NULL;
+    int event_list_ix; // = 0;
+    int n_event_list;
+    long count_samples;
+    #if USE_LIBPCAUDIO
+    static struct audio_object *my_audio = NULL;
+    #endif
+
+    unsigned int my_unique_identifier; // = 0;
+    void *my_user_data; // = NULL;
+    espeak_ng_OUTPUT_MODE my_mode; // = ENOUTPUT_MODE_SYNCHRONOUS;
+    int out_samplerate; // = 0;
+    int voice_samplerate; // = 22050;
+    espeak_ng_STATUS err; // = ENS_OK;
+
+    static t_espeak_callback *synth_callback; // = NULL;
+
+    char path_home[N_PATH_HOME]; // this is the espeak-ng-data directory
 
 };
+
+void initEspeakContext(EspeakProcessorContext* epContext)
+{
+    epContext->len_speeds[0] = 130;
+    epContext->len_speeds[1] = 121;
+    epContext->len_speeds[2] = 118;
+
+    epContext->n_soundicon_tab = 0;
+
+    epContext->outbuf = NULL;
+    epContext->outbuf_size = 0;
+    epContext->event_list = NULL;
+    epContext->event_list_ix = 0;
+    epContext->my_unique_identifier = 0;
+    epContext->my_user_data = NULL;
+    epContext->my_mode = ENOUTPUT_MODE_SYNCHRONOUS;
+    epContext->out_samplerate = 0;
+    epContext->voice_samplerate = 22050;
+    epContext->err = 0;
+    epContext->synth_callback = NULL;
+    epContext->n_soundicon_tab = 0;
+}
