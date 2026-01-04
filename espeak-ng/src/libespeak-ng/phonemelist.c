@@ -40,17 +40,14 @@
 #include "translate.h"
 #include "speech.h"
 
-static void SetRegressiveVoicing(int regression, PHONEME_LIST2 *plist2, PHONEME_TAB *ph, Translator *tr);
+static void SetRegressiveVoicing(EspeakProcessorContext* epContext, int regression, PHONEME_LIST2 *plist2, PHONEME_TAB *ph, Translator *tr);
 static void ReInterpretPhoneme(PHONEME_TAB *ph, PHONEME_TAB *ph2, PHONEME_LIST *plist3, PHONEME_LIST *plist3_start, Translator *tr, PHONEME_DATA *phdata, WORD_PH_DATA *worddata);
 
 static const unsigned char pause_phonemes[8] = {
 	0, phonPAUSE_VSHORT, phonPAUSE_SHORT, phonPAUSE, phonPAUSE_LONG, phonGLOTTALSTOP, phonPAUSE_LONG, phonPAUSE_LONG
 };
 
-extern int n_ph_list2;
-extern PHONEME_LIST2 ph_list2[N_PHONEME_LIST]; // first stage of text->phonemes
-
-static int SubstitutePhonemes(PHONEME_LIST *plist_out)
+static int SubstitutePhonemes(EspeakProcessorContext* epContext, PHONEME_LIST *plist_out)
 {
 	// Copy the phonemes list and perform any substitutions that are required for the
 	// current voice
@@ -63,8 +60,8 @@ static int SubstitutePhonemes(PHONEME_LIST *plist_out)
 	PHONEME_TAB *next = NULL;
 	int deleted_sourceix = -1;
 
-	for (ix = 0; (ix < n_ph_list2) && (n_plist_out < N_PHONEME_LIST); ix++) {
-		plist2 = &ph_list2[ix];
+	for (ix = 0; (ix < epContext->n_ph_list2) && (n_plist_out < N_PHONEME_LIST); ix++) {
+		plist2 = &epContext->ph_list2[ix];
 		if (deleted_sourceix != -1) {
 			plist2->sourceix = deleted_sourceix;
 			deleted_sourceix = -1;
@@ -75,11 +72,11 @@ static int SubstitutePhonemes(PHONEME_LIST *plist_out)
 
 		// don't do any substitution if the language has been temporarily changed
 		if (!(plist2->synthflags & SFLAG_SWITCHED_LANG)) {
-			if (ix < (n_ph_list2 -1))
-				next = phoneme_tab[ph_list2[ix+1].phcode];
+			if (ix < (epContext->n_ph_list2 -1))
+				next = phoneme_tab[epContext->ph_list2[ix+1].phcode];
 
 			word_end = false;
-			if (ix == n_ph_list2 -1 || (plist2+1)->sourceix || ((next != 0) && (next->type == phPAUSE)))
+			if (ix == epContext->n_ph_list2 -1 || (plist2+1)->sourceix || ((next != 0) && (next->type == phPAUSE)))
 				word_end = true; // this phoneme is the end of a word
 
 			// check whether a Voice has specified that we should replace this phoneme
@@ -119,7 +116,7 @@ static int SubstitutePhonemes(PHONEME_LIST *plist_out)
 	return n_plist_out;
 }
 
-void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
+void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post_pause, bool start_sentence)
 {
 	int ix = 0;
 	int j;
@@ -147,14 +144,14 @@ void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
 	WORD_PH_DATA worddata;
 
 	memset(&worddata, 0, sizeof(worddata));
-	plist2 = ph_list2;
+	plist2 = epContext->ph_list2;
 	phlist = phoneme_list;
-	end_sourceix = plist2[n_ph_list2-1].sourceix;
+	end_sourceix = plist2[epContext->n_ph_list2-1].sourceix;
 	MAKE_MEM_UNDEFINED(&phoneme_list, sizeof(phoneme_list));
 
 	// is the last word of the clause unstressed ?
 	max_stress = 0;
-	for (j = n_ph_list2-3; j >= 0; j--) {
+	for (j = epContext->n_ph_list2-3; j >= 0; j--) {
 		// start with the last phoneme (before the terminating pauses) and move backwards
 		if ((plist2[j].stresslevel & 0x7f) > max_stress)
 			max_stress = plist2[j].stresslevel & 0x7f;
@@ -179,7 +176,7 @@ void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
 	delete_count = 0;
 	current_phoneme_tab = tr->phoneme_tab_ix;
 	int deleted_sourceix = -1;
-	for (j = 0; j < n_ph_list2; j++) {
+	for (j = 0; j < epContext->n_ph_list2; j++) {
 		if (current_phoneme_tab != tr->phoneme_tab_ix)
 			plist2[j].synthflags |= SFLAG_SWITCHED_LANG;
 
@@ -207,7 +204,7 @@ void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
 		}
 
 	}
-	n_ph_list2 -= delete_count;
+	epContext->n_ph_list2 -= delete_count;
 
 	SelectPhonemeTable(current_phoneme_tab);
 
@@ -217,7 +214,7 @@ void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
 	}
 
 	SelectPhonemeTable(tr->phoneme_tab_ix);
-	n_ph_list3 = SubstitutePhonemes(ph_list3) - 2;
+	n_ph_list3 = SubstitutePhonemes(epContext, ph_list3) - 2;
 
 	for (j = 0; (j < n_ph_list3) && (ix < N_PHONEME_LIST-3);) {
 		if (ph_list3[j].sourceix) {
@@ -268,7 +265,7 @@ void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
 					k = word_start;
 					word_start--;
 				} else
-					k = 2;   // No more space, don't loose the start of word mark at ph_list2[word_start]
+					k = 2;   // No more space, don't loose the start of word mark at epContext->ph_list2[word_start]
 				for (; k <= j; k++)
 					memcpy(&ph_list3[k-1], &ph_list3[k], sizeof(*plist3));
 			}
@@ -500,14 +497,14 @@ void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence)
 	SelectPhonemeTable(tr->phoneme_tab_ix);
 }
 
-static void SetRegressiveVoicing(int regression, PHONEME_LIST2 *plist2, PHONEME_TAB *ph, Translator *tr) {
+static void SetRegressiveVoicing(EspeakProcessorContext* epContext, int regression, PHONEME_LIST2 *plist2, PHONEME_TAB *ph, Translator *tr) {
 		// set consonant clusters to all voiced or all unvoiced
 		// Regressive
 		int type;
 		bool stop_propagation = false;
 		int voicing = 0;
 
-		for (int j = n_ph_list2-1; j >= 0; j--) {
+		for (int j = epContext->n_ph_list2-1; j >= 0; j--) {
 			if (plist2[j].phcode == phonSWITCH) {
 				/* Find previous phonSWITCH to determine language we're switching back to */
 				int k;

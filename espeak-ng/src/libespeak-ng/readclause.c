@@ -51,38 +51,7 @@
 #define N_XML_BUF   500
 
 static void DecodeWithPhonemeMode(char *buf, char *phonemes, Translator *tr, Translator *tr2, unsigned int flags[]);
-static void TerminateBufWithSpaceAndZero(char *buf, int index, int *ungetc);
-
-static const char *xmlbase = ""; // base URL from <speak>
-
-static int namedata_ix = 0;
-static int n_namedata = 0;
-char *namedata = NULL;
-
-static int ungot_char2 = 0;
-espeak_ng_TEXT_DECODER *p_decoder = NULL;
-static int ungot_char;
-
-static bool ignore_text = false; // set during <sub> ... </sub>  to ignore text which has been replaced by an alias
-static bool audio_text = false; // set during <audio> ... </audio>
-static bool clear_skipping_text = false; // next clause should clear the skipping_text flag
-int count_characters = 0;
-static int sayas_mode;
-static int sayas_start;
-
-#define N_SSML_STACK  20
-static int n_ssml_stack;
-static SSML_STACK ssml_stack[N_SSML_STACK];
-
-static espeak_VOICE base_voice;
-static char base_voice_variant_name[40] = { 0 };
-static char current_voice_id[40] = { 0 };
-
-static int n_param_stack;
-PARAM_STACK param_stack[N_PARAM_STACK];
-
-static int speech_parameters[N_SPEECH_PARAM]; // current values, from param_stack
-int saved_parameters[N_SPEECH_PARAM]; // Parameters saved on synthesis start
+static void TerminateBufWithSpaceAndZero(EspeakProcessorContext* epContext, char *buf, int index, int *ungetc);
 
 #define ESPEAKNG_CLAUSE_TYPE_PROPERTY_MASK 0xFFF0000000000000ull
 
@@ -140,20 +109,20 @@ static int IsRomanU(unsigned int c)
 	return 0;
 }
 
-int Eof(void)
+int Eof(EspeakProcessorContext* epContext)
 {
-	if (ungot_char != 0)
+	if (epContext->ungot_char != 0)
 		return 0;
 
 	return text_decoder_eof(p_decoder);
 }
 
-static int GetC(void)
+static int GetC(EspeakProcessorContext* epContext)
 {
 	int c1;
 
-	if ((c1 = ungot_char) != 0) {
-		ungot_char = 0;
+	if ((c1 = epContext->ungot_char) != 0) {
+		epContext->ungot_char = 0;
 		return c1;
 	}
 
@@ -161,9 +130,9 @@ static int GetC(void)
 	return text_decoder_getc(p_decoder);
 }
 
-static void UngetC(int c)
+static void UngetC(EspeakProcessorContext* epContext, int c)
 {
-	ungot_char = c;
+	epContext->ungot_char = c;
 }
 
 const char *WordToString2(char buf[5], unsigned int word)
@@ -181,21 +150,21 @@ const char *WordToString2(char buf[5], unsigned int word)
 	return buf;
 }
 
-static const char *LookupSpecial(Translator *tr, const char *string, char *text_out)
+static const char *LookupSpecial(EspeakProcessorContext* epContext, Translator *tr, const char *string, char *text_out)
 {
 	unsigned int flags[2];
 	char phonemes[55];
 	char *string1 = (char *)string;
 
 	flags[0] = flags[1] = 0;
-	if (LookupDictList(tr, &string1, phonemes, flags, 0, NULL)) {
+	if (LookupDictList(epContext, tr, &string1, phonemes, flags, 0, NULL)) {
 		DecodeWithPhonemeMode(text_out, phonemes, tr, NULL, flags);
 		return text_out;
 	}
 	return NULL;
 }
 
-static const char *LookupCharName(char buf[60], Translator *tr, int c, bool only)
+static const char *LookupCharName(EspeakProcessorContext* epContext, char buf[60], Translator *tr, int c, bool only)
 {
 	// Find the phoneme string (in ascii) to speak the name of character c
 	// Used for punctuation characters and symbols
@@ -217,18 +186,18 @@ static const char *LookupCharName(char buf[60], Translator *tr, int c, bool only
 
 	if (only == true) {
 		string = &single_letter[2];
-		LookupDictList(tr, &string, phonemes, flags, 0, NULL);
+		LookupDictList(epContext, tr, &string, phonemes, flags, 0, NULL);
 	}
 
 	if (only == false) {
 		string = &single_letter[1];
-		if (LookupDictList(tr, &string, phonemes, flags, 0, NULL) == 0) {
+		if (LookupDictList(epContext, tr, &string, phonemes, flags, 0, NULL) == 0) {
 			// try _* then *
 			string = &single_letter[2];
-			if (LookupDictList(tr, &string, phonemes, flags, 0, NULL) == 0) {
+			if (LookupDictList(epContext, tr, &string, phonemes, flags, 0, NULL) == 0) {
 				// now try the rules
 				single_letter[1] = ' ';
-				TranslateRules(tr, &single_letter[2], phonemes, sizeof(phonemes), NULL, 0, NULL);
+				TranslateRules(epContext, tr, &single_letter[2], phonemes, sizeof(phonemes), NULL, 0, NULL);
 			}
 		}
 		
@@ -237,9 +206,9 @@ static const char *LookupCharName(char buf[60], Translator *tr, int c, bool only
     		SetTranslator2(ESPEAKNG_DEFAULT_VOICE);
     		string = &single_letter[1];
     		single_letter[1] = '_';
-    		if (LookupDictList(translator2, &string, phonemes, flags, 0, NULL) == 0) {
+    		if (LookupDictList(epContext, translator2, &string, phonemes, flags, 0, NULL) == 0) {
     			string = &single_letter[2];
-    			LookupDictList(translator2, &string, phonemes, flags, 0, NULL);
+    			LookupDictList(epContext, translator2, &string, phonemes, flags, 0, NULL);
     		}
     		if (phonemes[0])
     			lang_name = ESPEAKNG_DEFAULT_VOICE;
@@ -261,7 +230,7 @@ static const char *LookupCharName(char buf[60], Translator *tr, int c, bool only
 	return buf;
 }
 
-static int AnnouncePunctuation(Translator *tr, int c1, int *c2_ptr, char *output, int *bufix, int end_clause)
+static int AnnouncePunctuation(EspeakProcessorContext* epContext, Translator *tr, int c1, int *c2_ptr, char *output, int *bufix, int end_clause)
 {
 	// announce punctuation names
 	// c1:  the punctuation character
@@ -285,14 +254,14 @@ static int AnnouncePunctuation(Translator *tr, int c1, int *c2_ptr, char *output
 	if ((soundicon = LookupSoundicon(c1)) >= 0) {
 		// add an embedded command to play the soundicon
 		sprintf(buf, "\001%dI ", soundicon);
-		UngetC(c2);
+		UngetC(epContext, c2);
 	} else {
 		if ((c1 == '.') && (end_clause) && (c2 != '.')) {
-			if (LookupSpecial(tr, "_.p", ph_buf))
+			if (LookupSpecial(epContext, tr, "_.p", ph_buf))
 				punctname = ph_buf; // use word for 'period' instead of 'dot'
 		}
 		if (punctname == NULL)
-			punctname = LookupCharName(cn_buf, tr, c1, false);
+			punctname = LookupCharName(epContext, cn_buf, tr, c1, false);
 
 		if (punctname == NULL)
 			return -1;
@@ -300,13 +269,13 @@ static int AnnouncePunctuation(Translator *tr, int c1, int *c2_ptr, char *output
 
 		if ((*bufix == 0) || (end_clause == 0) || (tr->langopts.param[LOPT_ANNOUNCE_PUNCT] & 2)) {
 			int punct_count = 1;
-			while (!Eof() && (c2 == c1) && (c1 != '<')) { // don't eat extra '<', it can miss XML tags
+			while (!Eof(epContext) && (c2 == c1) && (c1 != '<')) { // don't eat extra '<', it can miss XML tags
 				punct_count++;
-				c2 = GetC();
+				c2 = GetC(epContext);
 			}
 			*c2_ptr = c2;
 			if (end_clause)
-				UngetC(c2);
+				UngetC(epContext, c2);
 
 			if (punct_count == 1)
 				sprintf(buf, " %s", punctname); // we need the space before punctname, to ensure it doesn't merge with the previous word  (eg.  "2.-a")
@@ -330,8 +299,8 @@ static int AnnouncePunctuation(Translator *tr, int c1, int *c2_ptr, char *output
 				        punctname, punct_count, punctname);
 		} else {
 			// end the clause now and pick up the punctuation next time
-			ungot_char2 = c1;
-			TerminateBufWithSpaceAndZero(buf, 0, &c2);
+			epContext->ungot_char2 = c1;
+			TerminateBufWithSpaceAndZero(epContext, buf, 0, &c2);
 		}
 	}
 
@@ -364,7 +333,7 @@ static int AnnouncePunctuation(Translator *tr, int c1, int *c2_ptr, char *output
 	return short_pause;
 }
 
-int AddNameData(const char *name, int wide)
+int AddNameData(EspeakProcessorContext* epContext, const char *name, int wide)
 {
 	// Add the name to the namedata and return its position
 	// (Used by the Windows SAPI wrapper)
@@ -374,32 +343,32 @@ int AddNameData(const char *name, int wide)
 
 	if (wide) {
 		len = (wcslen((const wchar_t *)name)+1)*sizeof(wchar_t);
-		n_namedata = (n_namedata + sizeof(wchar_t) - 1) % sizeof(wchar_t);  // round to wchar_t boundary
+		epContext->n_namedata = (epContext->n_namedata + sizeof(wchar_t) - 1) % sizeof(wchar_t);  // round to wchar_t boundary
 	} else
 		len = strlen(name)+1;
 
-	if (namedata_ix+len >= n_namedata) {
+	if (epContext->namedata_ix+len >= epContext->n_namedata) {
 		// allocate more space for marker names
 		void *vp;
-		if ((vp = realloc(namedata, namedata_ix+len + 1000)) == NULL)
+		if ((vp = realloc(namedata, epContext->namedata_ix+len + 1000)) == NULL)
 			return -1;  // failed to allocate, original data is unchanged but ignore this new name
 		// !!! Bug?? If the allocated data shifts position, then pointers given to user application will be invalid
 
 		namedata = (char *)vp;
-		n_namedata = namedata_ix+len + 1000;
+		epContext->n_namedata = epContext->namedata_ix+len + 1000;
 	}
-	memcpy(&namedata[ix = namedata_ix], name, len);
-	namedata_ix += len;
+	memcpy(&namedata[ix = epContext->namedata_ix], name, len);
+	epContext->namedata_ix += len;
 	return ix;
 }
 
-void SetVoiceStack(espeak_VOICE *v, const char *variant_name)
+void SetVoiceStack(EspeakProcessorContext* epContext, espeak_VOICE *v, const char *variant_name)
 {
 	SSML_STACK *sp;
-	sp = &ssml_stack[0];
+	sp = &epContext->ssml_stack[0];
 
 	if (v == NULL) {
-		memset(sp, 0, sizeof(ssml_stack[0]));
+		memset(sp, 0, sizeof(epContext->ssml_stack[0]));
 		return;
 	}
 	if (v->languages != NULL)
@@ -412,8 +381,8 @@ void SetVoiceStack(espeak_VOICE *v, const char *variant_name)
 
 	if (variant_name[0] == '!' && variant_name[1] == 'v' && variant_name[2] == PATHSEP)
 		variant_name += 3; // strip variant directory name, !v plus PATHSEP
-	strncpy0(base_voice_variant_name, variant_name, sizeof(base_voice_variant_name));
-	memcpy(&base_voice, espeak_GetCurrentVoice(), sizeof(base_voice));
+	strncpy0(epContext->base_voice_variant_name, variant_name, sizeof(epContext->base_voice_variant_name));
+	memcpy(&epContext->base_voice, espeak_GetCurrentVoice(epContext), sizeof(epContext->base_voice));
 }
 
 static void RemoveChar(char *p)
@@ -463,7 +432,7 @@ static int CheckPhonemeMode(int option_phoneme_input, int phoneme_mode, int c1, 
     return phoneme_mode;
 }
 
-int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_buf, int *tone_type, char *voice_change)
+int ReadClause(EspeakProcessorContext* epContext, Translator *tr, char *buf, short *charix, int *charix_top, int n_buf, int *tone_type, char *voice_change)
 {
 	/* Find the end of the current clause.
 	    Write the clause into  buf
@@ -503,9 +472,9 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 	static char ungot_string[N_XML_BUF2+4];
 	static int ungot_string_ix = -1;
 
-	if (clear_skipping_text) {
+	if (epContext->clear_skipping_text) {
 		skipping_text = false;
-		clear_skipping_text = false;
+		epContext->clear_skipping_text = false;
 	}
 
 	tr->phonemes_repeat_count = 0;
@@ -514,15 +483,15 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 	*tone_type = 0;
 	*voice_change = 0;
 
-	if (ungot_char2 != 0) {
-		c2 = ungot_char2;
-	} else if (Eof()) {
+	if (epContext->ungot_char2 != 0) {
+		c2 = epContext->ungot_char2;
+	} else if (Eof(epContext)) {
 		c2 = 0;
 	} else {
-		c2 = GetC();
+		c2 = GetC(epContext);
 	}
 
-	while (!Eof() || (ungot_char != 0) || (ungot_char2 != 0) || (ungot_string_ix >= 0)) {
+	while (!Eof(epContext) || (epContext->ungot_char != 0) || (epContext->ungot_char2 != 0) || (ungot_string_ix >= 0)) {
 		if (!iswalnum(c1)) {
 			if ((end_character_position > 0) && (count_characters > end_character_position)) {
 				return CLAUSE_EOF;
@@ -531,9 +500,9 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 			if ((skip_characters > 0) && (count_characters >= skip_characters)) {
 				// reached the specified start position
 				// don't break a word
-				clear_skipping_text = true;
+				epContext->clear_skipping_text = true;
 				skip_characters = 0;
-				UngetC(c2);
+				UngetC(epContext, c2);
 				return CLAUSE_NONE;
 			}
 		}
@@ -548,31 +517,31 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 			}
 		}
 
-		if ((ungot_string_ix == 0) && (ungot_char2 == 0))
+		if ((ungot_string_ix == 0) && (epContext->ungot_char2 == 0))
 			c1 = ungot_string[ungot_string_ix++];
 		if (ungot_string_ix >= 0) {
 			c2 = ungot_string[ungot_string_ix++];
-		} else if (Eof()) {
+		} else if (Eof(epContext)) {
 			c2 = ' ';
 		} else {
-			c2 = GetC();
+			c2 = GetC(epContext);
 		}
 
-		ungot_char2 = 0;
+		epContext->ungot_char2 = 0;
 
 		if ((option_ssml) && (phoneme_mode == 0)) {
 			if ((c1 == '&') && ((c2 == '#') || ((c2 >= 'a') && (c2 <= 'z')))) {
 				n_xml_buf = 0;
 				c1 = c2;
-				while (!Eof() && (iswalnum(c1) || (c1 == '#')) && (n_xml_buf < N_XML_BUF2)) {
+				while (!Eof(epContext) && (iswalnum(c1) || (c1 == '#')) && (n_xml_buf < N_XML_BUF2)) {
 					xml_buf2[n_xml_buf++] = c1;
-					c1 = GetC();
+					c1 = GetC(epContext);
 				}
 				xml_buf2[n_xml_buf] = 0;
-				if (Eof()) {
+				if (Eof(epContext)) {
 					c2 = '\0';
 				} else {
-					c2 = GetC();
+					c2 = GetC(epContext);
 				}
 				sprintf(ungot_string, "%s%c%c", &xml_buf2[0], c1, c2);
 
@@ -587,49 +556,49 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 					c2 = ' ';
 				}
 
-				if ((c1 <= 0x20) && ((sayas_mode == SAYAS_SINGLE_CHARS) || (sayas_mode == SAYAS_KEY)))
+				if ((c1 <= 0x20) && ((epContext->sayas_mode == SAYAS_SINGLE_CHARS) || (epContext->sayas_mode == SAYAS_KEY)))
 					c1 += 0xe000; // move into unicode private usage area
 			} else if (c1 == '<') {
 				if ((c2 == '/') || iswalpha(c2) || c2 == '!' || c2 == '?') {
 					// check for space in the output buffer for embedded commands produced by the SSML tag
 					if (ix > (n_buf - 20)) {
 						// Perhaps not enough room, end the clause before the SSML tag
-						ungot_char2 = c1;
-						TerminateBufWithSpaceAndZero(buf, ix, &c2);
+						epContext->ungot_char2 = c1;
+						TerminateBufWithSpaceAndZero(epContext, buf, ix, &c2);
 						return CLAUSE_NONE;
 					}
 
 					// SSML Tag
 					n_xml_buf = 0;
 					c1 = c2;
-					while (!Eof() && (c1 != '>') && (n_xml_buf < N_XML_BUF)) {
+					while (!Eof(epContext) && (c1 != '>') && (n_xml_buf < N_XML_BUF)) {
 						xml_buf[n_xml_buf++] = c1;
-						c1 = GetC();
+						c1 = GetC(epContext);
 					}
 					xml_buf[n_xml_buf] = 0;
 					c2 = ' ';
 
-					if (base_voice.identifier)
-						strcpy(current_voice_id, base_voice.identifier);
-					terminator = ProcessSsmlTag(xml_buf, buf, &ix, n_buf, xmlbase, &audio_text, current_voice_id, &base_voice, base_voice_variant_name, &ignore_text, &clear_skipping_text, &sayas_mode, &sayas_start, ssml_stack, &n_ssml_stack, &n_param_stack, (int *)speech_parameters);
+					if (epContext->base_voice.identifier)
+						strcpy(epContext->current_voice_id, epContext->base_voice.identifier);
+					terminator = ProcessSsmlTag(xml_buf, buf, &ix, n_buf, epContext->xmlbase, &epContext->audio_text, epContext->current_voice_id, &epContext->base_voice, epContext->base_voice_variant_name, &epContext->ignore_text, &epContext->clear_skipping_text, &epContext->sayas_mode, &epContext->sayas_start, epContext->n_ssml_stack, &epContext->n_ssml_stack, &epContext->n_param_stack, (int *)epContext->speech_parameters);
 
 					if (terminator != 0) {
-						TerminateBufWithSpaceAndZero(buf, ix, NULL);
+						TerminateBufWithSpaceAndZero(epContext, buf, ix, NULL);
 
 						if (terminator & CLAUSE_TYPE_VOICE_CHANGE)
-							strcpy(voice_change, current_voice_id);
+							strcpy(voice_change, epContext->current_voice_id);
 						return terminator;
 					}
 					c1 = ' ';
-					if (!Eof()) {
-						c2 = GetC();
+					if (!Eof(epContext)) {
+						c2 = GetC(epContext);
 					}
 					continue;
 				}
 			}
 		}
 
-		if (ignore_text)
+		if (epContext->ignore_text)
 			continue;
 
 		if ((c2 == '\n') && (option_linelength == -1)) {
@@ -640,7 +609,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 				ix += utf8_out(c1, &buf[ix]);
 				terminator = CLAUSE_PERIOD; // line doesn't end in punctuation, assume period
 			}
-			TerminateBufWithSpaceAndZero(buf, ix, NULL);
+			TerminateBufWithSpaceAndZero(epContext, buf, ix, NULL);
 			return terminator;
 		}
 
@@ -648,7 +617,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
  			// an embedded command. If it's a voice change, end the clause
 			if (c2 == 'V') {
 				buf[ix++] = 0; // end the clause at this point
-				while (!Eof() && !iswspace(c1 = GetC()) && (ix < (n_buf-1)))
+				while (!Eof(epContext) && !iswspace(c1 = GetC(epContext)) && (ix < (n_buf-1)))
 					buf[ix++] = c1; // add voice name to end of buffer, after the text
 				buf[ix++] = 0;
 				return CLAUSE_VOICE;
@@ -658,7 +627,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 				strcpy(&buf[ix], "   ");
 				ix += 3;
 
-				if (!Eof() && (c2 = GetC()) == '0')
+				if (!Eof(epContext) && (c2 = GetC(epContext)) == '0')
 					option_punctuation = 0;
 				else {
 					option_punctuation = 1;
@@ -666,17 +635,17 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 					if (c2 != '1') {
 						// a list of punctuation characters to be spoken, terminated by space
 						j = 0;
-						while (!Eof() && !iswspace(c2) && (j < N_PUNCTLIST-1)) {
+						while (!Eof(epContext) && !iswspace(c2) && (j < N_PUNCTLIST-1)) {
 							option_punctlist[j++] = c2;
-							c2 = GetC();
+							c2 = GetC(epContext);
 							buf[ix++] = ' ';
 						}
 						option_punctlist[j] = 0; // terminate punctuation list
 						option_punctuation = 2;
 					}
 				}
-				if (!Eof())
-					c2 = GetC();
+				if (!Eof(epContext))
+					c2 = GetC(epContext);
 				continue;
 			}
 		}
@@ -693,7 +662,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 			if (stressed_word) {
 				stressed_word = false;
 				c1 = CHAR_EMPHASIS; // indicate this word is stressed
-				UngetC(c2);
+				UngetC(epContext, c2);
 				c2 = ' ';
 			}
 
@@ -710,9 +679,9 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 		if (iswupper(c1)) {
 			tr->clause_upper_count++;
 
-			if ((option_capitals == 2) && (sayas_mode == 0) && !iswupper(cprev)) {
+			if ((option_capitals == 2) && (epContext->sayas_mode == 0) && !iswupper(cprev)) {
 				char text_buf[30];
-				if (LookupSpecial(tr, "_cap", text_buf) != NULL) {
+				if (LookupSpecial(epContext, tr, "_cap", text_buf) != NULL) {
 					j = strlen(text_buf);
 					if ((ix + j) < n_buf) {
 						strcpy(&buf[ix], text_buf);
@@ -729,16 +698,16 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 			parag = 0;
 
 			// count consecutive newlines, ignoring other spaces
-			while (!Eof() && iswspace(c2)) {
+			while (!Eof(epContext) && iswspace(c2)) {
 				if (c2 == '\n')
 					parag++;
-				c2 = GetC();
+				c2 = GetC(epContext);
 			}
 			if (parag > 0) {
 				// 2nd newline, assume paragraph
 				if (end_clause_after_tag)
 					RemoveChar(&buf[end_clause_index]); // delete clause-end punctiation
-				TerminateBufWithSpaceAndZero(buf, ix, &c2);
+				TerminateBufWithSpaceAndZero(epContext, buf, ix, &c2);
 				if (parag > 3)
 					parag = 3;
 				if (option_ssml) parag = 1;
@@ -747,7 +716,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 
 			if (linelength <= option_linelength) {
 				// treat lines shorter than a specified length as end-of-clause
-				TerminateBufWithSpaceAndZero(buf, ix, &c2);
+				TerminateBufWithSpaceAndZero(epContext, buf, ix, &c2);
 				return CLAUSE_COLON;
 			}
 
@@ -756,7 +725,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 
 		announced_punctuation = 0;
 
-		if ((phoneme_mode == 0) && (sayas_mode == 0)) {
+		if ((phoneme_mode == 0) && (epContext->sayas_mode == 0)) {
 			is_end_clause = false;
 
 			if (end_clause_after_tag) {
@@ -766,8 +735,8 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 
 				if (!iswspace(c1)) {
 					if (!IsAlpha(c1) || !iswlower(c1)) {
-						ungot_char2 = c1;
-						TerminateBufWithSpaceAndZero(buf, end_clause_index, &c2);
+						epContext->ungot_char2 = c1;
+						TerminateBufWithSpaceAndZero(epContext, buf, end_clause_index, &c2);
 						return end_clause_after_tag;
 					}
 					end_clause_after_tag = 0;
@@ -775,7 +744,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 			}
 
 			if ((c1 == '.') && (c2 == '.')) {
-				while (!Eof() && (c_next = GetC()) == '.') {
+				while (!Eof(epContext) && (c_next = GetC(epContext)) == '.') {
 					// 3 or more dots, replace by elipsis
 					c1 = 0x2026;
 					c2 = ' ';
@@ -783,7 +752,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 				if (c1 == 0x2026)
 					c2 = c_next;
 				else
-					UngetC(c_next);
+					UngetC(epContext, c_next);
 			}
 
 			punct_data = 0;
@@ -792,8 +761,8 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 				// Handling of sequences of ? and ! like ??!?, !!??!, ?!! etc
 				// Use only first char as determinant
 				if(punct_data & (CLAUSE_QUESTION | CLAUSE_EXCLAMATION)) {
-					while(!Eof() && clause_type_from_codepoint(c2) & (CLAUSE_QUESTION | CLAUSE_EXCLAMATION)) {
-						c_next = GetC();
+					while(!Eof(epContext) && clause_type_from_codepoint(c2) & (CLAUSE_QUESTION | CLAUSE_EXCLAMATION)) {
+						c_next = GetC(epContext);
 						c2 = c_next;
 					}
 				}
@@ -805,7 +774,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 					continue;
 				}
 
-				if (iswspace(c2) || (punct_data & CLAUSE_OPTIONAL_SPACE_AFTER) || IsBracket(c2) || (c2 == '?') || Eof() || c2 == CTRL_EMBEDDED) { // don't check for '-' because it prevents recognizing ':-)'
+				if (iswspace(c2) || (punct_data & CLAUSE_OPTIONAL_SPACE_AFTER) || IsBracket(c2) || (c2 == '?') || Eof(epContext) || c2 == CTRL_EMBEDDED) { // don't check for '-' because it prevents recognizing ':-)'
 					// note: (c2='?') is for when a smart-quote has been replaced by '?'
 					is_end_clause = true;
 				}
@@ -813,12 +782,12 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 
 			// don't announce punctuation for the alternative text inside inside <audio> ... </audio>
 			if (c1 == 0xe000+'<')  c1 = '<';
-			if (option_punctuation && iswpunct(c1) && (audio_text == false)) {
+			if (option_punctuation && iswpunct(c1) && (epContext->audio_text == false)) {
 				// option is set to explicitly speak punctuation characters
 				// if a list of allowed punctuation has been set up, check whether the character is in it
 				if ((option_punctuation == 1) || (wcschr(option_punctlist, c1) != NULL)) {
 					tr->phonemes_repeat_count = 0;
-					if ((terminator = AnnouncePunctuation(tr, c1, &c2, buf, &ix, is_end_clause)) >= 0)
+					if ((terminator = AnnouncePunctuation(epContext, tr, c1, &c2, buf, &ix, is_end_clause)) >= 0)
 						return terminator;
 					announced_punctuation = c1;
 				}
@@ -830,7 +799,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 
 				p2 = &buf[ix];
 				char cn_buf[60];
-				sprintf(p2, "%s", LookupCharName(cn_buf, tr, c1, true));
+				sprintf(p2, "%s", LookupCharName(epContext, cn_buf, tr, c1, true));
 				if (p2[0] != 0) {
 					ix += strlen(p2);
 					announced_punctuation = c1;
@@ -843,10 +812,10 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 				c_next = c2;
 
 				if (iswspace(c_next)) {
-					while (!Eof() && iswspace(c_next)) {
+					while (!Eof(epContext) && iswspace(c_next)) {
 						if (c_next == '\n')
 							nl_count++;
-						c_next = GetC(); // skip past space(s)
+						c_next = GetC(epContext); // skip past space(s)
 					}
 				}
 
@@ -901,7 +870,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 				}
 
 				if (is_end_clause) {
-					TerminateBufWithSpaceAndZero(buf, ix, &c_next);
+					TerminateBufWithSpaceAndZero(epContext, buf, ix, &c_next);
 
 					if (iswdigit(cprev) && !IsAlpha(c_next)) // ????
 						punct_data &= ~CLAUSE_DOT_AFTER_LAST_WORD;
@@ -911,14 +880,14 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 						return CLAUSE_PARAGRAPH;
 					}
 					return punct_data; // only recognise punctuation if followed by a blank or bracket/quote
-				} else if (!Eof()) {
+				} else if (!Eof(epContext)) {
 					if (iswspace(c2))
-						UngetC(c_next);
+						UngetC(epContext, c_next);
 				}
 			}
 		}
 
-		if (speech_parameters[espeakSILENCE] == 1)
+		if (epContext->speech_parameters[espeakSILENCE] == 1)
 			continue;
 
 		if (c1 == announced_punctuation) {
@@ -946,7 +915,7 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 			// clause too long, getting near end of buffer, so break here
 			// try to break at a word boundary (unless we actually reach the end of buffer).
 			// (n_buf-4) is to allow for 3 bytes of multibyte character plus terminator.
-			TerminateBufWithSpaceAndZero(buf, ix, &c2);
+			TerminateBufWithSpaceAndZero(epContext, buf, ix, &c2);
 			return CLAUSE_NONE;
 		}
 	}
@@ -955,56 +924,56 @@ int ReadClause(Translator *tr, char *buf, short *charix, int *charix_top, int n_
 		ix += utf8_out(CHAR_EMPHASIS, &buf[ix]);
 	if (end_clause_after_tag)
 		RemoveChar(&buf[end_clause_index]); // delete clause-end punctiation
-	TerminateBufWithSpaceAndZero(buf, ix, NULL);
+	TerminateBufWithSpaceAndZero(epContext, buf, ix, NULL);
 	return CLAUSE_EOF; // end of file
 }
 
-void InitNamedata(void)
+void InitNamedata(EspeakProcessorContext* epContext)
 {
-	namedata_ix = 0;
+	epContext->namedata_ix = 0;
 	if (namedata != NULL) {
 		free(namedata);
 		namedata = NULL;
-		n_namedata = 0;
+		epContext->n_namedata = 0;
 	}
 }
 
-void InitText2(void)
+void InitText2(EspeakProcessorContext* epContext)
 {
 	int param;
 
-	ungot_char = 0;
-	ungot_char2 = 0;
+	epContext->ungot_char = 0;
+	epContext->ungot_char2 = 0;
 
-	n_ssml_stack = 1;
-	MAKE_MEM_UNDEFINED(&ssml_stack[1], sizeof(ssml_stack) - sizeof(ssml_stack[0]));
-	n_param_stack = 1;
-	MAKE_MEM_UNDEFINED(&param_stack[1], sizeof(param_stack) - sizeof(param_stack[0]));
-	ssml_stack[0].tag_type = 0;
+	epContext->n_ssml_stack = 1;
+	MAKE_MEM_UNDEFINED(&epContext->ssml_stack[1], sizeof(epContext->ssml_stack) - sizeof(epContext->ssml_stack[0]));
+	epContext->n_param_stack = 1;
+	MAKE_MEM_UNDEFINED(&epContext->param_stack[1], sizeof(epContext->param_stack) - sizeof(epContext->param_stack[0]));
+	epContext->ssml_stack[0].tag_type = 0;
 
 	for (param = 0; param < N_SPEECH_PARAM; param++)
-		speech_parameters[param] = param_stack[0].parameter[param]; // set all speech parameters to defaults
+		epContext->speech_parameters[param] = epContext->param_stack[0].parameter[param]; // set all speech parameters to defaults
 
-	option_punctuation = speech_parameters[espeakPUNCTUATION];
-	option_capitals = speech_parameters[espeakCAPITALS];
+	option_punctuation = epContext->speech_parameters[espeakPUNCTUATION];
+	option_capitals = epContext->speech_parameters[espeakCAPITALS];
 
-	current_voice_id[0] = 0;
+	epContext->current_voice_id[0] = 0;
 
-	ignore_text = false;
-	audio_text = false;
-	clear_skipping_text = false;
+	epContext->ignore_text = false;
+	epContext->audio_text = false;
+	epContext->clear_skipping_text = false;
 	count_characters = -1;
-	sayas_mode = 0;
+	epContext->sayas_mode = 0;
 
-	xmlbase = NULL;
+	epContext->xmlbase = NULL;
 }
 
-static void TerminateBufWithSpaceAndZero(char *buf, int index, int *ungetc) {
+static void TerminateBufWithSpaceAndZero(EspeakProcessorContext* epContext, char *buf, int index, int *ungetc) {
 	buf[index] = ' ';
 	buf[index+1] = 0;
 
 	if (ungetc != NULL) {
-		UngetC(*ungetc);
+		UngetC(epContext, *ungetc);
 	}
 }
 

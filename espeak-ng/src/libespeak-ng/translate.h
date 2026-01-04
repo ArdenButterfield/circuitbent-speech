@@ -20,8 +20,11 @@
 #ifndef ESPEAK_NG_TRANSLATE_H
 #define ESPEAK_NG_TRANSLATE_H
 
+#include "klatt.h"
+
 #include <stdbool.h>
 
+#include <espeak-ng/speak_lib.h>
 #include <espeak-ng/espeak_ng.h>
 #include <espeak-ng/encoding.h>
 
@@ -653,9 +656,9 @@ extern espeak_ng_TEXT_DECODER *p_decoder;
 
 int lookupwchar(const unsigned short *list, int c);
 char *strchr_w(const char *s, int c);
-void InitNamedata(void);
+void InitNamedata(EspeakProcessorContext* epContext);
 void InitText(int flags);
-void InitText2(void);
+void InitText2(EspeakProcessorContext* epContext);
 const ALPHABET *AlphabetFromChar(int c);
 
 Translator *SelectTranslator(const char *name);
@@ -670,7 +673,7 @@ int TranslateWord(Translator *tr, char *word1, WORD_TAB *wtab, char *word_out);
 void TranslateClause(Translator *tr, int *tone, char **voice_change);
 void TranslateClauseWithTerminator(Translator *tr, int *tone_out, char **voice_change, int *terminator_out);
 
-void SetVoiceStack(espeak_VOICE *v, const char *variant_name);
+void SetVoiceStack(EspeakProcessorContext* epContext, espeak_VOICE *v, const char *variant_name);
 
 extern FILE *f_trans; // for logging
 

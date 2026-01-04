@@ -27,19 +27,14 @@ extern "C"
 {
 #endif
 
-typedef struct {
-	int type;
-	int parameter[N_SPEECH_PARAM];
-} PARAM_STACK;
-
-extern PARAM_STACK param_stack[];
-
 int clause_type_from_codepoint(uint32_t c);
-int Eof(void);
+int Eof(EspeakProcessorContext* epContext);
 const char *WordToString2(char buf[5], unsigned int word);
-int AddNameData(const char *name,
+int AddNameData(EspeakProcessorContext* epContext,
+                const char *name,
                 int wide);
-int ReadClause(Translator *tr,
+int ReadClause(EspeakProcessorContext* epContext,
+        Translator *tr,
 		char *buf,
 		short *charix,
 		int *charix_top,

@@ -32,7 +32,7 @@ extern "C"
 }
 #endif
 
-void MakePhonemeList(Translator *tr, int post_pause, bool start_sentence);
+void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post_pause, bool start_sentence);
 
 #endif
 

@@ -29,6 +29,7 @@
 #include <stddef.h>
 
 #include "klatt.h"
+#include "ssml.h"                 // for SSML_STACK, ProcessSsmlTag, N_PARAM...
 
 #if defined(_WIN32) || defined(_WIN64)
 #ifdef LIBESPEAK_NG_EXPORT
@@ -76,7 +77,45 @@ Revision 11 (espeak-ng)
 Revision 12 (espeak-ng)
   Exposed espeak_SetPhonemeCallback. This is available in eSpeak, but was not exposed in this header.
 
+
+
+
 */
+
+// voice table
+typedef struct {
+    const char *name;      // a given name for this voice. UTF8 string.
+    const char *languages;       // list of pairs of (byte) priority + (string) language (and dialect qualifier)
+    const char *identifier;      // the filename for this voice within espeak-ng-data/voices
+    unsigned char gender;  // 0=none 1=male, 2=female,
+    unsigned char age;     // 0=not specified, or age in years
+    unsigned char variant; // only used when passed as a parameter to espeak_SetVoiceByProperties
+    unsigned char xx1;     // for internal use
+    int score;       // for internal use
+    void *spare;     // for internal use
+} espeak_VOICE;
+
+/* Note: The espeak_VOICE structure is used for two purposes:
+  1.  To return the details of the available voices.
+  2.  As a parameter to  espeak_SetVoiceByProperties() in order to specify selection criteria.
+
+   In (1), the "languages" field consists of a list of (UTF8) language names for which this voice
+   may be used, each language name in the list is terminated by a zero byte and is also preceded by
+   a single byte which gives a "priority" number.  The list of languages is terminated by an
+   additional zero byte.
+
+   A language name consists of a language code, optionally followed by one or more qualifier (dialect)
+   names separated by hyphens (eg. "en-uk").  A voice might, for example, have languages "en-uk" and
+   "en".  Even without "en" listed, voice would still be selected for the "en" language (because
+   "en-uk" is related) but at a lower priority.
+
+   The priority byte indicates how the voice is preferred for the language. A low number indicates a
+   more preferred voice, a higher number indicates a less preferred voice.
+
+   In (2), the "languages" field consists simply of a single (UTF8) language name, with no preceding
+   priority byte.
+*/
+
          /********************/
          /*  Initialization  */
          /********************/
@@ -86,52 +125,7 @@ Revision 12 (espeak-ng)
 #define espeakRATE_MAXIMUM  450
 #define espeakRATE_NORMAL   175
 
-typedef struct
-{
-    int dummy;
-} EspeakBends;
-
-typedef struct epc
-{
-    EspeakBends bends;
-
-    // dictionary.c
-    int dictionary_skipwords;
-    char dictionary_name[40];
-
-    // TODO: come back to event.c questions on thread library
-
-    // intonation.c
-    int tone_pitch_env; // used to return pitch envelope
-
-    int number_pre;
-    int number_tail;
-    int last_primary;
-    int tone_posn;
-    int tone_posn2;
-    int no_tonic;
-
-    // klatt.c
-    unsigned char *out_ptr;
-    unsigned char *out_end;
-    int nsamples;
-    int sample_count;
-
-    klatt_frame_t kt_frame;
-    klatt_global_t kt_globals;
-
-    // mbrola.h
-    int mbrola_delay;
-    char mbrola_name[20];
-
-    // numbers.c
-    int n_digit_lookup;
-    char *digit_lookup;
-    int speak_missing_thousands;
-    int number_control;
-
-
-} EspeakProcessorContext;
+typedef struct epc EspeakProcessorContext;
 
 typedef enum {
   espeakEVENT_LIST_TERMINATED = 0, // Retrieval mode: terminates the event list.
@@ -615,40 +609,6 @@ ESPEAK_API void espeak_CompileDictionary(EspeakProcessorContext* epContext, cons
          /***********************/
 
 
-// voice table
-typedef struct {
-	const char *name;      // a given name for this voice. UTF8 string.
-	const char *languages;       // list of pairs of (byte) priority + (string) language (and dialect qualifier)
-	const char *identifier;      // the filename for this voice within espeak-ng-data/voices
-	unsigned char gender;  // 0=none 1=male, 2=female,
-	unsigned char age;     // 0=not specified, or age in years
-	unsigned char variant; // only used when passed as a parameter to espeak_SetVoiceByProperties
-	unsigned char xx1;     // for internal use
-	int score;       // for internal use
-	void *spare;     // for internal use
-} espeak_VOICE;
-
-/* Note: The espeak_VOICE structure is used for two purposes:
-  1.  To return the details of the available voices.
-  2.  As a parameter to  espeak_SetVoiceByProperties() in order to specify selection criteria.
-
-   In (1), the "languages" field consists of a list of (UTF8) language names for which this voice
-   may be used, each language name in the list is terminated by a zero byte and is also preceded by
-   a single byte which gives a "priority" number.  The list of languages is terminated by an
-   additional zero byte.
-
-   A language name consists of a language code, optionally followed by one or more qualifier (dialect)
-   names separated by hyphens (eg. "en-uk").  A voice might, for example, have languages "en-uk" and
-   "en".  Even without "en" listed, voice would still be selected for the "en" language (because
-   "en-uk" is related) but at a lower priority.
-
-   The priority byte indicates how the voice is preferred for the language. A low number indicates a
-   more preferred voice, a higher number indicates a less preferred voice.
-
-   In (2), the "languages" field consists simply of a single (UTF8) language name, with no preceding
-   priority byte.
-*/
-
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -762,3 +722,91 @@ ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char
    path_data  returns the path to espeak_data
 */
 #endif
+
+typedef struct
+{
+    int dummy;
+} EspeakBends;
+
+typedef struct {
+    int type;
+    int parameter[N_SPEECH_PARAM];
+} PARAM_STACK;
+
+struct epc
+{
+    EspeakBends bends;
+
+    // dictionary.c
+    int dictionary_skipwords;
+    char dictionary_name[40];
+
+    // TODO: come back to event.c questions on thread library
+
+    // intonation.c
+    int tone_pitch_env; // used to return pitch envelope
+
+    int number_pre;
+    int number_tail;
+    int last_primary;
+    int tone_posn;
+    int tone_posn2;
+    int no_tonic;
+
+    // klatt.c
+    unsigned char *out_ptr;
+    unsigned char *out_end;
+    int nsamples;
+    int sample_count;
+
+    klatt_frame_t kt_frame;
+    klatt_global_t kt_globals;
+
+    // mbrola.h
+    int mbrola_delay;
+    char mbrola_name[20];
+
+    // numbers.c
+    int n_digit_lookup;
+    char *digit_lookup;
+    int speak_missing_thousands;
+    int number_control;
+
+    // phonemelist.c
+    int n_ph_list2;
+    PHONEME_LIST2 ph_list2[N_PHONEME_LIST]; // first stage of text->phonemes
+
+    // readclause.c
+    const char *xmlbase; // = ""; // base URL from <speak>
+
+    int namedata_ix; // = 0;
+    int n_namedata; // = 0;
+    char *namedata; // = NULL;
+
+    int ungot_char2; // = 0;
+    espeak_ng_TEXT_DECODER *p_decoder; // = NULL;
+    int ungot_char;
+
+    bool ignore_text; // = false; // set during <sub> ... </sub>  to ignore text which has been replaced by an alias
+    bool audio_text; // = false; // set during <audio> ... </audio>
+    bool clear_skipping_text; // = false; // next clause should clear the skipping_text flag
+    int count_characters; // = 0;
+    int sayas_mode;
+    int sayas_start;
+
+    #define N_SSML_STACK  20
+    int n_ssml_stack;
+    SSML_STACK ssml_stack[N_SSML_STACK];
+
+    espeak_VOICE base_voice;
+    char base_voice_variant_name[40]; // = { 0 };
+    char current_voice_id[40]; // = { 0 };
+
+    int n_param_stack;
+    PARAM_STACK param_stack[N_PARAM_STACK];
+
+    int speech_parameters[N_SPEECH_PARAM]; // current values, from param_stack
+    int saved_parameters[N_SPEECH_PARAM]; // Parameters saved on synthesis start
+
+
+};
