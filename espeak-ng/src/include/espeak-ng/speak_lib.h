@@ -33,6 +33,11 @@
 #include "ssml.h"                 // for SSML_STACK, ProcessSsmlTag, N_PARAM...
 #include <espeak-ng/common.h>
 
+#if USE_LIBSONIC
+#include "sonic.h"
+#endif
+
+
 #if defined(_WIN32) || defined(_WIN64)
 #ifdef LIBESPEAK_NG_EXPORT
 #define ESPEAK_API __declspec(dllexport)
@@ -851,7 +856,7 @@ struct epc
     int voice_samplerate; // = 22050;
     espeak_ng_STATUS err; // = ENS_OK;
 
-    static t_espeak_callback *synth_callback; // = NULL;
+     t_espeak_callback *synth_callback; // = NULL;
 
     char path_home[N_PATH_HOME]; // this is the espeak-ng-data directory
 
@@ -912,13 +917,13 @@ struct epc
     int option_capitals;// = 0;
     int option_punctuation;// = 0;
     int option_sayas;// = 0;
-    static int option_sayas2;// = 0; // used in translate_clause()
-    static int option_emphasis;// = 0; // 0=normal, 1=normal, 2=weak, 3=moderate, 4=strong
+     int option_sayas2;// = 0; // used in translate_clause()
+     int option_emphasis;// = 0; // 0=normal, 1=normal, 2=weak, 3=moderate, 4=strong
     int option_ssml;// = 0;
     int option_phoneme_input;// = 0; // allow [[phonemes]] in input
     int option_wordgap;// = 0;
 
-    static int count_sayas_digits;
+    int count_sayas_digits;
     int skip_sentences;
     int skip_words;
     int skip_characters;
@@ -926,17 +931,17 @@ struct epc
     bool skipping_text; // waiting until word count, sentence count, or named marker is reached
     int end_character_position;
     int count_sentences;
-    static int count_words;
+    int count_words;
     int clause_start_char;
     int clause_start_word;
-    static bool new_sentence;
+    bool new_sentence;
     int word_emphasis; // = 0; // set if emphasis level 3 or 4
     int embedded_flag; // = 0; // there are embedded commands to be applied to the next phoneme, used in TranslateWord2()
 
     int max_clause_pause; // = 0;
     bool any_stressed_words;
     int pre_pause;
-    static ALPHABET *current_alphabet;
+    ALPHABET *current_alphabet;
 
     char word_phonemes[N_WORD_PHONEMES]; // a word translated into phoneme codes
 
@@ -967,10 +972,126 @@ struct epc
     voice_t voicedata;
     voice_t *voice;
 
+    // wavegen.c
+    voice_t *wvoice;// = NULL;
+
+    int option_harmonic1;// = 10;
+    int flutter_amp;// = 64;
+
+    int general_amplitude;// = 60;
+    int consonant_amp;// = 26;
+
+    int embedded_value[N_EMBEDDED_VALUES];
+
+    int PHASE_INC_FACTOR;
+    int samplerate;// = 0; // this is set by Wavegeninit()
+
+    wavegen_peaks_t peaks[N_PEAKS];
+    int peak_harmonic[N_PEAKS];
+    int peak_height[N_PEAKS];
+
+    int echo_head;
+    int echo_tail;
+    int echo_amp;
+    short echo_buf[N_ECHO_BUF];
+    int echo_length;// = 0; // period (in sample\) to ensure completion of echo at the end of speech, set in WavegenSetEcho()
+
+    int voicing;
+    RESONATOR rbreath[N_PEAKS];
+
+    int harm_inc[N_LOWHARM]; // only for these harmonics do we interpolate amplitude between steps
+    int *harmspect;
+    int hswitch;// = 0;
+    int hspect[2][MAX_HARMONIC]; // 2 copies, we interpolate between then
+
+    int nsamples;// = 0; // number to do
+    int modulation_type;// = 0;
+    int glottal_flag;// = 0;
+    int glottal_reduce;// = 0;
+
+    WGEN_DATA wdata;
+
+    int amp_ix;
+    int amp_inc;
+    unsigned char *amplitude_env;// = NULL;
+
+    int samplecount;// = 0; // number done
+    int samplecount_start;// = 0; // count at start of this segment
+    int end_wave;// = 0; // continue to end of wave cycle
+    int wavephase;
+    int phaseinc;
+    int cycle_samples; // number of samples in a cycle at current pitch
+    int cbytes;
+    int hf_factor;
+
+    double minus_pi_t;
+    double two_pi_t;
+
+    espeak_ng_OUTPUT_HOOKS* output_hooks;
+    int const_f0;
+
+    // the queue of operations passed to wavegen from sythesize
+    intptr_t wcmdq[N_WCMDQ][4];
+    int wcmdq_head;// = 0;
+    int wcmdq_tail;// = 0;
+
+
+    #if USE_LIBSONIC
+    sonicStream sonicSpeedupStream;
+    double sonicSpeed;
+    #endif
+
+    int Flutter_inc;
+
+    // waveform shape table for HF peaks, formants 6,7,8
+    int wavemult_offset;// = 0;
+    int wavemult_max;// = 0;
+
+    // the presets are for 22050 Hz sample rate.
+    // A different rate will need to recalculate the presets in WavegenInit()
+    static unsigned char wavemult[N_WAVEMULT];
+
 };
 
 void initEspeakContext(EspeakProcessorContext* epContext)
 {
+    epContext->wvoice = NULL;
+
+    epContext->option_harmonic1 = 10;
+    epContext->flutter_amp = 64;
+
+    epContext->general_amplitude = 60;
+    epContext->consonant_amp = 26;
+    epContext->samplerate = 0;;
+    epContext->echo_amp = 0;
+
+    epContext->echo_length = 0; // period (in sample\) to ensure completion of echo at the end of speech, set in WavegenSetEcho()
+
+    epContext->hswitch = 0;
+
+    epContext->nsamples = 0; // number to do
+    epContext->modulation_type = 0;
+    epContext->glottal_flag = 0;
+    epContext->glottal_reduce = 0;
+
+    epContext->amplitude_env = NULL;
+
+    epContext->samplecount = 0; // number done
+    epContext->samplecount_start = 0; // count at start of this segment
+    epContext->end_wave = 0; // continue to end of wave cycle
+    epContext->output_hooks = NULL;
+    epContext->const_f0 = 0;
+
+    // the queue of operations passed to wavegen from sythesize
+    epContext->wcmdq_head = 0;
+    epContext->wcmdq_tail = 0;
+
+    #if USE_LIBSONIC
+    epContext->sonicSpeedupStream = NULL;
+    epContext->sonicSpeed = 1.0;
+    #endif
+
+
     epContext->len_speeds[0] = 130;
     epContext->len_speeds[1] = 121;
     epContext->len_speeds[2] = 118;
@@ -1043,4 +1164,23 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->n_voices_list = 0;
 
     epContext->voice = &epContext->voicedata;
+
+    epContext->wavemult_offset = 0;
+    epContext->wavemult_max = 0;
+
+    static unsigned char defaultWavemult[N_WAVEMULT] = {
+        0,   0,   0,   2,   3,   5,   8,  11,  14,  18,  22,  27,  32,  37,  43,  49,
+       55,  62,  69,  76,  83,  90,  98, 105, 113, 121, 128, 136, 144, 152, 159, 166,
+      174, 181, 188, 194, 201, 207, 213, 218, 224, 228, 233, 237, 240, 244, 246, 249,
+      251, 252, 253, 253, 253, 253, 252, 251, 249, 246, 244, 240, 237, 233, 228, 224,
+      218, 213, 207, 201, 194, 188, 181, 174, 166, 159, 152, 144, 136, 128, 121, 113,
+      105,  98,  90,  83,  76,  69,  62,  55,  49,  43,  37,  32,  27,  22,  18,  14,
+       11,   8,   5,   3,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+        0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+  };
+
+    for (int i = 0; i < N_WAVEMULT; i++)
+    {
+        epContext->wavemult[i] = defaultWavemult[i];
+    }
 }

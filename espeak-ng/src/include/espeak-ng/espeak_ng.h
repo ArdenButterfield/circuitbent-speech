@@ -38,32 +38,7 @@ extern "C"
 
 #define ESPEAKNG_DEFAULT_VOICE "en"
 
-typedef enum {
-	ENS_GROUP_MASK               = 0x70000000,
-	ENS_GROUP_ERRNO              = 0x00000000, /* Values 0-255 map to errno error codes. */
-	ENS_GROUP_ESPEAK_NG          = 0x10000000, /* eSpeak NG error codes. */
 
-	/* eSpeak NG 1.49.0 */
-	ENS_OK                       = 0,
-	ENS_COMPILE_ERROR            = 0x100001FF,
-	ENS_VERSION_MISMATCH         = 0x100002FF,
-	ENS_FIFO_BUFFER_FULL         = 0x100003FF,
-	ENS_NOT_INITIALIZED          = 0x100004FF,
-	ENS_AUDIO_ERROR              = 0x100005FF,
-	ENS_VOICE_NOT_FOUND          = 0x100006FF,
-	ENS_MBROLA_NOT_FOUND         = 0x100007FF,
-	ENS_MBROLA_VOICE_NOT_FOUND   = 0x100008FF,
-	ENS_EVENT_BUFFER_FULL        = 0x100009FF,
-	ENS_NOT_SUPPORTED            = 0x10000AFF,
-	ENS_UNSUPPORTED_PHON_FORMAT  = 0x10000BFF,
-	ENS_NO_SPECT_FRAMES          = 0x10000CFF,
-	ENS_EMPTY_PHONEME_MANIFEST   = 0x10000DFF,
-	ENS_SPEECH_STOPPED           = 0x10000EFF,
-
-	/* eSpeak NG 1.49.2 */
-	ENS_UNKNOWN_PHONEME_FEATURE  = 0x10000FFF,
-	ENS_UNKNOWN_TEXT_ENCODING    = 0x100010FF,
-} espeak_ng_STATUS;
 
 typedef enum {
 	ENGENDER_UNKNOWN = 0,
@@ -71,14 +46,6 @@ typedef enum {
 	ENGENDER_FEMALE = 2,
 	ENGENDER_NEUTRAL = 3,
 } espeak_ng_VOICE_GENDER;
-
-typedef struct
-{
-  void (*outputPhoSymbol)(char* pho_code,int pho_type);
-  void (*outputSilence)(short echo_tail);
-  void (*outputVoiced)(short sample);
-  void (*outputUnvoiced)(short sample);
-} espeak_ng_OUTPUT_HOOKS;
 
 /* eSpeak NG 1.49.0 */
 
@@ -109,7 +76,7 @@ espeak_ng_InitializeOutput(espeak_ng_OUTPUT_MODE output_mode,
                            const char *device);
 
 ESPEAK_NG_API int
-espeak_ng_GetSampleRate(void);
+espeak_ng_GetSampleRate(EspeakProcessorContext* epContext);
 
 ESPEAK_NG_API espeak_ng_STATUS
 espeak_ng_SetParameter(espeak_PARAMETER parameter,

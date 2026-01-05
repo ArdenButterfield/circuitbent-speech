@@ -106,16 +106,16 @@ espeak_ng_STATUS LoadPhData(EspeakProcessorContext* epContext, int *srate, espea
 		return status;
 	if ((status = ReadPhFile((void **)&epContext->tunes, "intonations", &length, context)) != ENS_OK)
 		return status;
-	wavefile_data = (unsigned char *)epContext->phondata_ptr;
+	epContext->wavefile_data = (unsigned char *)epContext->phondata_ptr;
 	epContext->n_tunes = length / sizeof(TUNE);
 
 	// read the version number and sample rate from the first 8 bytes of phondata
 	version = 0; // bytes 0-3, version number
 	rate = 0;    // bytes 4-7, sample rate
-	if (wavefile_data) {
+	if (epContext->wavefile_data) {
 		for (ix = 0; ix < 4; ix++) {
-			version += (wavefile_data[ix] << (ix*8));
-			rate += (wavefile_data[ix+4] << (ix*8));
+			version += (epContext->wavefile_data[ix] << (ix*8));
+			rate += (epContext->wavefile_data[ix+4] << (ix*8));
 		}
 	}
 
@@ -447,7 +447,7 @@ static int CountVowelPosition(PHONEME_LIST *plist, PHONEME_LIST *plist_start)
 	return count;
 }
 
-static bool InterpretCondition(Translator *tr, int control, PHONEME_LIST *plist, PHONEME_LIST *plist_start, unsigned short *p_prog, WORD_PH_DATA *worddata)
+static bool InterpretCondition(EspeakProcessorContext* epContext, Translator *tr, int control, PHONEME_LIST *plist, PHONEME_LIST *plist_start, unsigned short *p_prog, WORD_PH_DATA *worddata)
 {
 	unsigned int data;
 	int instn;
@@ -641,7 +641,7 @@ static bool InterpretCondition(Translator *tr, int control, PHONEME_LIST *plist,
 			return control & 1;
 #if USE_KLATT
 		case 2: // KlattSynth
-			return voice->klattv[0] != 0;
+			return epContext->voice->klattv[0] != 0;
 #endif
 #if USE_MBROLA
 		case 3: // MbrolaSynth
@@ -829,7 +829,7 @@ void InterpretPhoneme(EspeakProcessorContext* epContext, Translator *tr, int con
 			truth = true;
 			while ((instn & 0xe000) == 0x2000) {
 				// process a sequence of conditions, using  boolean accumulator
-				truth2 = InterpretCondition(tr, control, plist, plist_start, prog, worddata);
+				truth2 = InterpretCondition(epContext, tr, control, plist, plist_start, prog, worddata);
 				prog += NumInstnWords(prog);
 				if (*prog == i_NOT) {
 					truth2 = truth2 ^ 1;

@@ -268,14 +268,14 @@ void VoiceReset(EspeakProcessorContext* epContext, int tone_only)
 	epContext->voice->voicing = 64;
 	epContext->voice->consonant_amp = 90; // change from 100 to 90 for v.1.47
 	epContext->voice->consonant_ampv = 100;
-	epContext->voice->samplerate = samplerate;
+	epContext->voice->samplerate = epContext->samplerate;
 	memset(epContext->voice->klattv, 0, sizeof(epContext->voice->klattv));
 
 	speed.fast_settings = espeakRATE_MAXIMUM;
 
 	epContext->voice->roughness = 2;
 
-	InitBreath();
+	InitBreath(epContext);
 	for (pk = 0; pk < N_PEAKS; pk++) {
 		epContext->voice->freq[pk] = 256;
 		epContext->voice->freq2[pk] = epContext->voice->freq[pk];
@@ -287,7 +287,7 @@ void VoiceReset(EspeakProcessorContext* epContext, int tone_only)
 		epContext->voice->freqadd[pk] = 0;
 
 		// adjust formant smoothing depending on sample rate
-		formant_rate[pk] = (formant_rate_22050[pk] * 22050)/samplerate;
+		formant_rate[pk] = (formant_rate_22050[pk] * 22050)/epContext->samplerate;
 	}
 
 	// This table provides the opportunity for tone control.

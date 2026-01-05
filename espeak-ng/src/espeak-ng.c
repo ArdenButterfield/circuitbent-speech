@@ -371,7 +371,6 @@ int main(int argc, char **argv)
 	char filename[200];
 	char voicename[40];
 	char devicename[200];
-	#define N_PUNCTLIST 100
 	wchar_t option_punctlist[N_PUNCTLIST];
 
 	voicename[0] = 0;

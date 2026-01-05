@@ -116,4 +116,35 @@ typedef enum {
     ENOUTPUT_MODE_SPEAK_AUDIO = 0x0002,
 } espeak_ng_OUTPUT_MODE;
 
+
+#define N_LOWHARM  30
+#define MAX_HARMONIC 400 // 400 * 50Hz = 20 kHz, more than enough
+
+typedef struct {
+    int freq;     // Hz<<16
+    int height;   // height<<15
+    int left;     // Hz<<16
+    int right;    // Hz<<16
+    double freq1; // floating point versions of the above
+    double height1;
+    double left1;
+    double right1;
+    double freq_inc; // increment by this every 64 samples
+    double height_inc;
+    double left_inc;
+    double right_inc;
+} wavegen_peaks_t;
+
+typedef struct
+{
+    void (*outputPhoSymbol)(char* pho_code,int pho_type);
+    void (*outputSilence)(short echo_tail);
+    void (*outputVoiced)(short sample);
+    void (*outputUnvoiced)(short sample);
+} espeak_ng_OUTPUT_HOOKS;
+
+#define N_WAVEMULT 128
+
+#define N_PUNCTLIST 100
+
 #endif //HOMER_COMMON_H

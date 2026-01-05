@@ -22,31 +22,15 @@
 #define ESPEAK_NG_WAVEGEN_H
 
 #include "voice.h"
-
+#include <espeak-ng/common.h>
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-typedef struct {
-	int freq;     // Hz<<16
-	int height;   // height<<15
-	int left;     // Hz<<16
-	int right;    // Hz<<16
-	double freq1; // floating point versions of the above
-	double height1;
-	double left1;
-	double right1;
-	double freq_inc; // increment by this every 64 samples
-	double height_inc;
-	double left_inc;
-	double right_inc;
-} wavegen_peaks_t;
-
-
-int GetAmplitude(void);
-void InitBreath(void);
-int PeaksToHarmspect(wavegen_peaks_t *peaks,
+int GetAmplitude(EspeakProcessorContext* epContext);
+void InitBreath(EspeakProcessorContext* epContext);
+int PeaksToHarmspect(EspeakProcessorContext* epContext, wavegen_peaks_t *peaks,
 		int pitch,
 		int *htab,
 		int control);
@@ -57,18 +41,18 @@ void SetPitch2(voice_t *voice,
 		int *pitch_base,
 		int *pitch_range);
 
-void WavegenInit(int rate,
+void WavegenInit(EspeakProcessorContext* epContext, int rate,
 		int wavemult_fact);
 
 void WavegenFini(void);
 
 
-int WavegenFill(void);
-void WavegenSetVoice(voice_t *v);
-int WcmdqFree(void);
-void WcmdqStop(void);
-int WcmdqUsed(void);
-void WcmdqInc(void);
+int WavegenFill(EspeakProcessorContext* epContext);
+void WavegenSetVoice(EspeakProcessorContext* epContext, voice_t *v);
+int WcmdqFree(EspeakProcessorContext* epContext);
+void WcmdqStop(EspeakProcessorContext* epContext);
+int WcmdqUsed(EspeakProcessorContext* epContext);
+void WcmdqInc(EspeakProcessorContext* epContext);
 
 #ifdef __cplusplus
 }

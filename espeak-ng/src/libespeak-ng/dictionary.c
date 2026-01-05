@@ -438,7 +438,7 @@ static const unsigned short ipa1[96] = {
 static char *phon_out_buf = NULL;   // passes the result of GetTranslatedPhonemeString()
 static unsigned int phon_out_size = 0;
 
-char *WritePhMnemonic(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags)
+char *WritePhMnemonic(EspeakProcessorContext* epContext, char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags)
 {
 	int c;
 	int mnem;
@@ -466,9 +466,9 @@ char *WritePhMnemonic(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int 
 		phdata.ipa_string[0] = 0;
 
 		if (plist == NULL)
-			InterpretPhoneme2(ph->code, &phdata);
+			InterpretPhoneme2(epContext, ph->code, &phdata);
 		else
-			InterpretPhoneme(NULL, 0, plist, plist, &phdata, NULL);
+			InterpretPhoneme(epContext, NULL, 0, plist, plist, &phdata, NULL);
 
 		p = phdata.ipa_string;
 		if (*p == 0x20) {
@@ -524,7 +524,7 @@ char *WritePhMnemonic(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int 
 }
 
 //// Extension: write phone mnemonic with stress
-char *WritePhMnemonicWithStress(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags) {
+char *WritePhMnemonicWithStress(EspeakProcessorContext* epContext, char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags) {
 	if (plist->synthflags & SFLAG_SYLLABLE) {
 		unsigned char stress = plist->stresslevel;
 
@@ -553,11 +553,11 @@ char *WritePhMnemonicWithStress(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *p
 		}
 	}
 
-	return WritePhMnemonic(phon_out, ph, plist, use_ipa, flags);
+	return WritePhMnemonic(epContext, phon_out, ph, plist, use_ipa, flags);
 }
 ////
 
-const char *GetTranslatedPhonemeString(int phoneme_mode)
+const char *GetTranslatedPhonemeString(EspeakProcessorContext* epContext, int phoneme_mode)
 {
 	/* Called after a clause has been translated into phonemes, in order
 	   to display the clause in phoneme mnemonic form.
@@ -609,7 +609,7 @@ const char *GetTranslatedPhonemeString(int phoneme_mode)
 
 		plist = &phoneme_list[ix];
 
-		WritePhMnemonic(phon_buf2, plist->ph, plist, use_ipa, &flags);
+		WritePhMnemonic(epContext, phon_buf2, plist->ph, plist, use_ipa, &flags);
 		if (plist->newword & PHLIST_START_OF_WORD && !(plist->newword & (PHLIST_START_OF_SENTENCE | PHLIST_START_OF_CLAUSE)))
 			*buf++ = ' ';
 
@@ -653,13 +653,13 @@ const char *GetTranslatedPhonemeString(int phoneme_mode)
 
 		if (plist->ph->code != phonSWITCH) {
 			if (plist->synthflags & SFLAG_LENGTHEN)
-				buf = WritePhMnemonic(buf, phoneme_tab[phonLENGTHEN], plist, use_ipa, NULL);
+				buf = WritePhMnemonic(epContext, buf, phoneme_tab[phonLENGTHEN], plist, use_ipa, NULL);
 			if ((plist->synthflags & SFLAG_SYLLABLE) && (plist->type != phVOWEL)) {
 				// syllablic consonant
-				buf = WritePhMnemonic(buf, phoneme_tab[phonSYLLABIC], plist, use_ipa, NULL);
+				buf = WritePhMnemonic(epContext, buf, phoneme_tab[phonSYLLABIC], plist, use_ipa, NULL);
 			}
 			if (plist->tone_ph > 0)
-				buf = WritePhMnemonic(buf, phoneme_tab[plist->tone_ph], plist, use_ipa, NULL);
+				buf = WritePhMnemonic(epContext, buf, phoneme_tab[plist->tone_ph], plist, use_ipa, NULL);
 		}
 
 		len = buf - phon_buf;
@@ -2050,7 +2050,7 @@ static void MatchRule(EspeakProcessorContext* epContext, Translator *tr, char *w
 					total_consumed = consumed;
 				}
 
-				if ((option_phonemes & espeakPHONEMES_TRACE) && (match.points > 0) && ((word_flags & FLAG_NO_TRACE) == 0)) {
+				if ((epContext->option_phonemes & espeakPHONEMES_TRACE) && (match.points > 0) && ((word_flags & FLAG_NO_TRACE) == 0)) {
 					// show each rule that matches, and it's points score
 					int pts;
 					char decoded_phonemes[80];
@@ -2121,7 +2121,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 	}
 	word_copy[ix] = 0;
 
-	if ((option_phonemes & espeakPHONEMES_TRACE) && ((word_flags & FLAG_NO_TRACE) == 0)) {
+	if ((epContext->option_phonemes & espeakPHONEMES_TRACE) && ((word_flags & FLAG_NO_TRACE) == 0)) {
 		char wordbuf[120];
 		unsigned int ix;
 
@@ -2208,7 +2208,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 					// no group for this letter, use default group
 					MatchRule(epContext, tr, &p, p_start, 0, tr->groups1[0], &match1, word_flags, dict_flags0);
 
-					if ((match1.points == 0) && ((option_sayas & 0x10) == 0)) {
+					if ((match1.points == 0) && ((epContext->option_sayas & 0x10) == 0)) {
 						n = utf8_in(&letter, p-1)-1;
 
 						if (tr->letter_bits_offset > 0) {
@@ -2221,12 +2221,12 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 
 						// is it a bracket ?
 						if (letter == 0xe000+'(') {
-							if (pre_pause < tr->langopts.param[LOPT_BRACKET_PAUSE_ANNOUNCED])
-								pre_pause = tr->langopts.param[LOPT_BRACKET_PAUSE_ANNOUNCED]; // a bracket, already spoken by AnnouncePunctuation()
+							if (epContext->pre_pause < tr->langopts.param[LOPT_BRACKET_PAUSE_ANNOUNCED])
+								epContext->pre_pause = tr->langopts.param[LOPT_BRACKET_PAUSE_ANNOUNCED]; // a bracket, already spoken by AnnouncePunctuation()
 						}
 						if (IsBracket(letter)) {
-							if (pre_pause < tr->langopts.param[LOPT_BRACKET_PAUSE])
-								pre_pause = tr->langopts.param[LOPT_BRACKET_PAUSE];
+							if (epContext->pre_pause < tr->langopts.param[LOPT_BRACKET_PAUSE])
+								epContext->pre_pause = tr->langopts.param[LOPT_BRACKET_PAUSE];
 						}
 
 						// no match, try removing the accent and re-translating the word
@@ -2279,7 +2279,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 							break;
 						}
 					} else {
-						LookupLetter(tr, wc, -1, ph_buf, 0);
+						LookupLetter(epContext, tr, wc, -1, ph_buf, 0);
 						if (ph_buf[0]) {
 							match1.phonemes = ph_buf;
 							match1.points = 1;
@@ -2304,7 +2304,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 				return 0;
 			}
 
-			if ((option_phonemes & espeakPHONEMES_TRACE) && ((word_flags & FLAG_NO_TRACE) == 0))
+			if ((epContext->option_phonemes & espeakPHONEMES_TRACE) && ((word_flags & FLAG_NO_TRACE) == 0))
 				fprintf(f_trans, "\n");
 
 			match1.end_type &= ~SUFX_UNPRON;
@@ -2599,7 +2599,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 				continue;
 		}
 
-		if ((dictionary_flags2 & FLAG_ATEND) && (word_end < translator->clause_end) && (lookup_symbol == 0)) {
+		if ((dictionary_flags2 & FLAG_ATEND) && (word_end < epContext->translator->clause_end) && (lookup_symbol == 0)) {
 			// only use this pronunciation if it's the last word of the clause, or called from Lookup()
 			continue;
 		}
@@ -2609,7 +2609,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 			continue;
 		}
 
-		if ((dictionary_flags2 & FLAG_SENTENCE) && !(translator->clause_terminator & CLAUSE_TYPE_SENTENCE)) {
+		if ((dictionary_flags2 & FLAG_SENTENCE) && !(epContext->translator->clause_terminator & CLAUSE_TYPE_SENTENCE)) {
 			// only if this clause is a sentence , i.e. terminator is {. ? !} not {, : :}
 			continue;
 		}
@@ -2641,7 +2641,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 			}
 		}
 		if (dictionary_flags2 & FLAG_NATIVE) {
-			if (tr != translator)
+			if (tr != epContext->translator)
 				continue; // don't use if we've switched translators
 		}
 		if (dictionary_flags & FLAG_ALT2_TRANS) {
@@ -2656,7 +2656,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 		}
 
 		if (phoneme_len == 0) {
-			if (option_phonemes & espeakPHONEMES_TRACE) {
+			if (epContext->option_phonemes & espeakPHONEMES_TRACE) {
 				print_dictionary_flags(flags, dict_flags_buf, sizeof(dict_flags_buf));
 				fprintf(f_trans, "Flags:  %s  %s\n", word1, dict_flags_buf);
 			}
@@ -2666,7 +2666,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 		if (flags != NULL)
 			flags[0] |= FLAG_FOUND; // this flag indicates word was found in dictionary
 
-		if (option_phonemes & espeakPHONEMES_TRACE) {
+		if (epContext->option_phonemes & espeakPHONEMES_TRACE) {
 			char ph_decoded[N_WORD_PHONEMES];
 			bool textmode;
 
@@ -2677,7 +2677,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 			else
 				textmode = true;
 
-			if (textmode == translator->langopts.textmode) {
+			if (textmode == epContext->translator->langopts.textmode) {
 				// only show this line if the word translates to phonemes, not replacement text
 				if ((dictionary_flags & FLAG_SKIPWORDS) && (wtab != NULL)) {
 					// matched more than one word
@@ -2799,7 +2799,7 @@ int LookupDictList(EspeakProcessorContext* epContext, Translator *tr, char **wor
 		word2 = word;
 		if (*word2 == '_') word2++;
 		len = utf8_in(&letter, word2);
-		LookupAccentedLetter(tr, letter, ph_out);
+		LookupAccentedLetter(epContext, tr, letter, ph_out);
 		found = word2 + len;
 	}
 
@@ -2836,7 +2836,7 @@ int LookupDictList(EspeakProcessorContext* epContext, Translator *tr, char **wor
 				word1 = *wordptr;
 				*wordptr = &word_replacement[2];
 
-				if (option_phonemes & espeakPHONEMES_TRACE) {
+				if (epContext->option_phonemes & espeakPHONEMES_TRACE) {
 					len = found - word1;
 					memcpy(word, word1, len); // include multiple matching words
 					word[len] = 0;
@@ -2871,8 +2871,8 @@ int Lookup(EspeakProcessorContext* epContext, Translator *tr, const char *word, 
 		flags0 = flags[0];
 
 	if (flags[0] & FLAG_TEXTMODE) {
-		int say_as = option_sayas;
-		option_sayas = 0; // don't speak replacement word as letter names
+		int say_as = epContext->option_sayas;
+		epContext->option_sayas = 0; // don't speak replacement word as letter names
 		// NOTE: TranslateRoman checks text[-2] and IsLetterGroup looks
 		// for a heading \0, so pad the start of text to prevent
 		// it reading data on the stack.
@@ -2882,9 +2882,9 @@ int Lookup(EspeakProcessorContext* epContext, Translator *tr, const char *word, 
 		text[1] = ' ';
 		text[2] = ' ';
 		strncpy0(text+3, word1, sizeof(text)-3);
-		flags0 = TranslateWord(tr, text+3, NULL, NULL);
+		flags0 = TranslateWord(epContext, tr, text+3, NULL, NULL);
 		strcpy(ph_out, word_phonemes);
-		option_sayas = say_as;
+		epContext->option_sayas = say_as;
 	}
 	return flags0;
 }
@@ -2902,7 +2902,7 @@ static int LookupFlags(EspeakProcessorContext* epContext, Translator *tr, const 
 	return flags[0];
 }
 
-int RemoveEnding(Translator *tr, char *word, int end_type, char *word_copy)
+int RemoveEnding(EspeakProcessorContext* epContext, Translator *tr, char *word, int end_type, char *word_copy)
 {
 	/* Removes a standard suffix from a word, once it has been indicated by the dictionary rules.
 	   end_type: bits 0-6  number of letters
@@ -3010,7 +3010,7 @@ int RemoveEnding(Translator *tr, char *word, int end_type, char *word_copy)
 		if (end_flags & FLAG_SUFX_E_ADDED) {
 			utf8_out(tr->langopts.suffix_add_e, &word_end[1]);
 
-			if (option_phonemes & espeakPHONEMES_TRACE)
+			if (epContext->option_phonemes & espeakPHONEMES_TRACE)
 				fprintf(f_trans, "add e\n");
 		}
 	}

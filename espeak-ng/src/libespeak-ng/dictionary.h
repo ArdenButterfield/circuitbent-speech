@@ -37,9 +37,9 @@ int LoadDictionary(EspeakProcessorContext* epContext, Translator *tr, const char
 int HashDictionary(const char *string);
 const char *EncodePhonemes(const char *p, char *outptr, int *bad_phoneme);
 void DecodePhonemes(const char *inptr, char *outptr);
-char *WritePhMnemonic(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags);
-char *WritePhMnemonicWithStress(char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags);
-const char *GetTranslatedPhonemeString(int phoneme_mode);
+char *WritePhMnemonic(EspeakProcessorContext* epContext, char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags);
+char *WritePhMnemonicWithStress(EspeakProcessorContext* epContext, char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags);
+const char *GetTranslatedPhonemeString(EspeakProcessorContext* epContext, int phoneme_mode);
 int GetVowelStress(Translator *tr, unsigned char *phonemes, signed char *vowel_stress, int *vowel_count, int *stressed_syllable, int control);
 int IsVowel(Translator *tr, int letter);
 void SetWordStress(Translator *tr, char *output, unsigned int *dictionary_flags, int tonic, int control);
@@ -48,7 +48,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 int TransposeAlphabet(Translator *tr, char *text);
 int Lookup(EspeakProcessorContext* epContext, Translator *tr, const char *word, char *ph_out);
 int LookupDictList(EspeakProcessorContext* epContext, Translator *tr, char **wordptr, char *ph_out, unsigned int *flags, int end_flags, WORD_TAB *wtab);
-int RemoveEnding(Translator *tr, char *word, int end_type, char *word_copy);
+int RemoveEnding(EspeakProcessorContext* epContext, Translator *tr, char *word, int end_type, char *word_copy);
 
 #ifdef __cplusplus
 }

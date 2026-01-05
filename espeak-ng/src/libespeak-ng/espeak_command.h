@@ -136,7 +136,7 @@ espeak_ng_STATUS sync_espeak_Synth_Mark(unsigned int unique_identifier, const vo
                                         unsigned int flags, void *user_data);
 espeak_ng_STATUS sync_espeak_Key(const char *key);
 espeak_ng_STATUS sync_espeak_Char(wchar_t character);
-void sync_espeak_SetPunctuationList(const wchar_t *punctlist);
+void sync_espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist);
 void sync_espeak_SetParameter(espeak_PARAMETER parameter, int value, int relative);
 espeak_ng_STATUS SetParameter(int parameter, int value, int relative);
 

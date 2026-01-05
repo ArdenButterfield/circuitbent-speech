@@ -1079,7 +1079,7 @@ static espeak_ng_STATUS LoadSpect(CompileContext *ctx, const char *path, int con
 	return ENS_OK;
 }
 
-static int LoadWavefile(CompileContext *ctx, FILE *f, const char *fname)
+static int LoadWavefile(EspeakProcessorContext* epContext, CompileContext *ctx, FILE *f, const char *fname)
 {
 	int displ;
 	unsigned char c1;
@@ -1096,9 +1096,9 @@ static int LoadWavefile(CompileContext *ctx, FILE *f, const char *fname)
 	sr2 = Read4Bytes(f);
 	fseek(f, 40, SEEK_SET);
 
-	if ((sr1 != samplerate) || (sr2 != sr1*2)) {
-		if (sr1 != samplerate)
-			error(ctx, "Can't resample (%d to %d): %s", sr1, samplerate, fname);
+	if ((sr1 != epContext->samplerate) || (sr2 != sr1*2)) {
+		if (sr1 != epContext->samplerate)
+			error(ctx, "Can't resample (%d to %d): %s", sr1, epContext->samplerate, fname);
 		else
 			error(ctx, "WAV file is not mono: %s", fname);
 		return 0;
@@ -1259,7 +1259,7 @@ static int LoadEnvelope2(CompileContext *ctx, FILE *f)
 	return displ;
 }
 
-static espeak_ng_STATUS LoadDataFile(CompileContext *ctx, const char *path, int control, int *addr)
+static espeak_ng_STATUS LoadDataFile(EspeakProcessorContext* epContext, CompileContext *ctx, const char *path, int control, int *addr)
 {
 	// load spectrum sequence or sample data from a file.
 	// return index into spect or sample data area. bit 23=1 if a sample
@@ -1309,7 +1309,7 @@ static espeak_ng_STATUS LoadDataFile(CompileContext *ctx, const char *path, int 
 			status = LoadSpect(ctx, path, control, addr);
 			type_code = 'S';
 		} else if (id == 0x46464952) {
-			*addr = LoadWavefile(ctx, f, path);
+			*addr = LoadWavefile(epContext, ctx, f, path);
 			type_code = 'W';
 		} else if (id == 0x43544950) {
 			status = LoadEnvelope(ctx, f, addr);
@@ -2324,7 +2324,7 @@ espeak_ng_CompilePhonemeData(long rate,
 }
 
 espeak_ng_STATUS
-espeak_ng_CompilePhonemeDataPath(long rate,
+espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
                                  const char *source_path,
                                  const char *destination_path,
                                  FILE *log,
@@ -2350,15 +2350,15 @@ espeak_ng_CompilePhonemeDataPath(long rate,
 		sprintf(phdst, "%s", path_home);
 	}
 
-	samplerate = rate;
+	epContext->samplerate = rate;
 	LoadPhData(NULL, NULL);
-	if (LoadVoice("", 8/*compiling phonemes*/) == NULL) {
+	if (LoadVoice(epContext, "", 8/*compiling phonemes*/) == NULL) {
 		clean_context(ctx);
 		return ENS_VOICE_NOT_FOUND;
 	}
 
-	WavegenInit(rate, 0);
-	WavegenSetVoice(voice);
+	WavegenInit(epContext, rate, 0);
+	WavegenSetVoice(epContext, voice);
 
 	ctx->error_count = 0;
 	ctx->f_errors = log;
@@ -2429,7 +2429,7 @@ espeak_ng_CompilePhonemeDataPath(long rate,
 
 	// write a word so that further data doesn't start at displ=0
 	Write4Bytes(ctx->f_phdata, version_phdata);
-	Write4Bytes(ctx->f_phdata, samplerate);
+	Write4Bytes(ctx->f_phdata, epContext->samplerate);
 	Write4Bytes(ctx->f_phindex, version_phdata);
 
 	memset(ctx->ref_hash_tab, 0, sizeof(ctx->ref_hash_tab));

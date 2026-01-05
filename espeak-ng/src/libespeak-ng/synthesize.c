@@ -75,8 +75,8 @@ void SynthesizeInit(EspeakProcessorContext* epContext)
 static void EndAmplitude(EspeakProcessorContext* epContext)
 {
 	if (epContext->amp_length > 0) {
-		if (wcmdq[epContext->last_amp_cmd][1] == 0)
-			wcmdq[epContext->last_amp_cmd][1] = epContext->amp_length;
+		if (epContext->wcmdq[epContext->last_amp_cmd][1] == 0)
+			epContext->wcmdq[epContext->last_amp_cmd][1] = epContext->amp_length;
 		epContext->amp_length = 0;
 	}
 }
@@ -85,16 +85,16 @@ static void EndPitch(EspeakProcessorContext* epContext, int voice_break)
 {
 	// possible end of pitch envelope, fill in the length
 	if ((epContext->pitch_length > 0) && (epContext->last_pitch_cmd >= 0)) {
-		if (wcmdq[epContext->last_pitch_cmd][1] == 0)
-			wcmdq[epContext->last_pitch_cmd][1] = epContext->pitch_length;
+		if (epContext->wcmdq[epContext->last_pitch_cmd][1] == 0)
+			epContext->wcmdq[epContext->last_pitch_cmd][1] = epContext->pitch_length;
 		epContext->pitch_length = 0;
 	}
 
 	if (voice_break) {
 		epContext->last_wcmdq = -1;
 		epContext->last_frame = NULL;
-		epContext->syllable_end = wcmdq_tail;
-		SmoothSpect();
+		epContext->syllable_end = epContext->wcmdq_tail;
+		SmoothSpect(epContext);
 		epContext->syllable_centre = -1;
 	}
 }
@@ -103,23 +103,23 @@ static void DoAmplitude(EspeakProcessorContext* epContext, int amp, const unsign
 {
 	intptr_t *q;
 
-	epContext->last_amp_cmd = wcmdq_tail;
+	epContext->last_amp_cmd = epContext->wcmdq_tail;
 	epContext->amp_length = 0; // total length of vowel with this amplitude envelope
 
-	q = wcmdq[wcmdq_tail];
+	q = epContext->wcmdq[epContext->wcmdq_tail];
 	q[0] = WCMD_AMPLITUDE;
 	q[1] = 0; // fill in later from epContext->amp_length
 	q[2] = (intptr_t)amp_env;
 	q[3] = amp;
-	WcmdqInc();
+	WcmdqInc(epContext);
 }
 
-static void DoPhonemeAlignment(char* pho, int type)
+static void DoPhonemeAlignment(EspeakProcessorContext* epContext, char* pho, int type)
 {
-	wcmdq[wcmdq_tail][0] = WCMD_PHONEME_ALIGNMENT;
-	wcmdq[wcmdq_tail][1] = (intptr_t)pho;
-	wcmdq[wcmdq_tail][2] = type;
-	WcmdqInc();
+	epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_PHONEME_ALIGNMENT;
+	epContext->wcmdq[epContext->wcmdq_tail][1] = (intptr_t)pho;
+	epContext->wcmdq[epContext->wcmdq_tail][2] = type;
+	WcmdqInc(epContext);
 }
 
 static void DoPitch(EspeakProcessorContext* epContext, const unsigned char *env, int pitch1, int pitch2)
@@ -134,18 +134,18 @@ static void DoPitch(EspeakProcessorContext* epContext, const unsigned char *env,
 		pitch2 = 76;
 		env = envelope_data[PITCHfall];
 	}
-	epContext->last_pitch_cmd = wcmdq_tail;
+	epContext->last_pitch_cmd = epContext->wcmdq_tail;
 	epContext->pitch_length = 0; // total length of spect with this pitch envelope
 
 	if (pitch2 < 0)
 		pitch2 = 0;
 
-	q = wcmdq[wcmdq_tail];
+	q = epContext->wcmdq[epContext->wcmdq_tail];
 	q[0] = WCMD_PITCH;
 	q[1] = 0; // length, fill in later from epContext->pitch_length
 	q[2] = (intptr_t)env;
 	q[3] = (pitch1 << 16) + pitch2;
-	WcmdqInc();
+	WcmdqInc(epContext);
 }
 
 int PauseLength(int pause, int control)
@@ -178,23 +178,23 @@ static void DoPause(EspeakProcessorContext* epContext, int length, int control)
 		len = PauseLength(length, control);
 
 		if (len < 90000)
-			len = (len * samplerate) / 1000; // convert from mS to number of samples
+			len = (len * epContext->samplerate) / 1000; // convert from mS to number of samples
 		else {
-			int srate2 = samplerate / 25; // avoid overflow
+			int srate2 = epContext->samplerate / 25; // avoid overflow
 			len = (len * srate2) / 40;
 		}
 	}
 
 	EndPitch(epContext, 1);
-	wcmdq[wcmdq_tail][0] = WCMD_PAUSE;
-	wcmdq[wcmdq_tail][1] = len;
-	WcmdqInc();
+	epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_PAUSE;
+	epContext->wcmdq[epContext->wcmdq_tail][1] = len;
+	WcmdqInc(epContext);
 	epContext->last_frame = NULL;
 
 	if (epContext->fmt_amplitude != 0) {
-		wcmdq[wcmdq_tail][0] = WCMD_FMT_AMPLITUDE;
-		wcmdq[wcmdq_tail][1] = epContext->fmt_amplitude = 0;
-		WcmdqInc();
+		epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_FMT_AMPLITUDE;
+		epContext->wcmdq[epContext->wcmdq_tail][1] = epContext->fmt_amplitude = 0;
+		WcmdqInc(epContext);
 	}
 }
 
@@ -212,7 +212,7 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 	unsigned char *p;
 
 	index = index & 0x7fffff;
-	p = &wavefile_data[index];
+	p = &epContext->wavefile_data[index];
 	wav_scale = p[2];
 	wav_length = (p[1] * 256);
 	wav_length += p[0]; // length in bytes
@@ -226,7 +226,7 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 		min_length *= 2; // 16 bit samples
 
 	if (std_length > 0) {
-		std_length = (std_length * samplerate)/1000;
+		std_length = (std_length * epContext->samplerate)/1000;
 		if (wav_scale == 0)
 			std_length *= 2;
 
@@ -271,13 +271,13 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 
 	if (which & 0x100) {
 		// mix this with synthesised wave
-		epContext->last_wcmdq = wcmdq_tail;
-		q = wcmdq[wcmdq_tail];
+		epContext->last_wcmdq = epContext->wcmdq_tail;
+		q = epContext->wcmdq[epContext->wcmdq_tail];
 		q[0] = WCMD_WAVE2;
 		q[1] = length | (wav_length << 16); // length in samples
-		q[2] = (intptr_t)(&wavefile_data[index]);
+		q[2] = (intptr_t)(&epContext->wavefile_data[index]);
 		q[3] = wav_scale + (amp << 8);
-		WcmdqInc();
+		WcmdqInc(epContext);
 		return length;
 	}
 
@@ -289,26 +289,26 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 		length = 0;
 	}
 
-	epContext->last_wcmdq = wcmdq_tail;
-	q = wcmdq[wcmdq_tail];
+	epContext->last_wcmdq = epContext->wcmdq_tail;
+	q = epContext->wcmdq[epContext->wcmdq_tail];
 	q[0] = WCMD_WAVE;
 	q[1] = x; // length in samples
-	q[2] = (intptr_t)(&wavefile_data[index]);
+	q[2] = (intptr_t)(&epContext->wavefile_data[index]);
 	q[3] = wav_scale + (amp << 8);
-	WcmdqInc();
+	WcmdqInc(epContext);
 
 	while (length > len4*3) {
 		x = len4;
 		if (wav_scale == 0)
 			x *= 2;
 
-		epContext->last_wcmdq = wcmdq_tail;
-		q = wcmdq[wcmdq_tail];
+		epContext->last_wcmdq = epContext->wcmdq_tail;
+		q = epContext->wcmdq[epContext->wcmdq_tail];
 		q[0] = WCMD_WAVE;
 		q[1] = len4*2; // length in samples
-		q[2] = (intptr_t)(&wavefile_data[index+x]);
+		q[2] = (intptr_t)(&epContext->wavefile_data[index+x]);
 		q[3] = wav_scale + (amp << 8);
-		WcmdqInc();
+		WcmdqInc(epContext);
 
 		length -= len4*2;
 	}
@@ -317,13 +317,13 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 		x = wav_length - length;
 		if (wav_scale == 0)
 			x *= 2;
-		epContext->last_wcmdq = wcmdq_tail;
-		q = wcmdq[wcmdq_tail];
+		epContext->last_wcmdq = epContext->wcmdq_tail;
+		q = epContext->wcmdq[epContext->wcmdq_tail];
 		q[0] = WCMD_WAVE;
 		q[1] = length; // length in samples
-		q[2] = (intptr_t)(&wavefile_data[index+x]);
+		q[2] = (intptr_t)(&epContext->wavefile_data[index+x]);
 		q[3] = wav_scale + (amp << 8);
-		WcmdqInc();
+		WcmdqInc(epContext);
 	}
 
 	return length;
@@ -373,7 +373,7 @@ static frame_t *AllocFrame(void)
 	return &frame_pool[ix];
 }
 
-static void set_frame_rms(frame_t *fr, int new_rms)
+static void set_frame_rms(EspeakProcessorContext* epContext, frame_t *fr, int new_rms)
 {
 	// Each frame includes its RMS amplitude value, so to set a new
 	// RMS just adjust the formant amplitudes by the appropriate ratio
@@ -397,7 +397,7 @@ static void set_frame_rms(frame_t *fr, int new_rms)
 		886, 889, 891, 893, 896, 898, 900, 902
 	};
 
-	if (voice->klattv[0]) {
+	if (epContext->voice->klattv[0]) {
 		if (new_rms == -1)
 			fr->klattp[KLATT_AV] = 50;
 		return;
@@ -416,10 +416,10 @@ static void set_frame_rms(frame_t *fr, int new_rms)
 	}
 }
 
-static void formants_reduce_hf(frame_t *fr, int level)
+static void formants_reduce_hf(EspeakProcessorContext* epContext, frame_t *fr, int level)
 {
 	// change height of peaks 2 to 8, percentage
-	if (voice->klattv[0])
+	if (epContext->voice->klattv[0])
 		return;
 
 	for (int ix = 2; ix < 8; ix++) {
@@ -460,11 +460,11 @@ static frame_t *DuplicateLastFrame(frameref_t *seq, int n_frames, int length)
 	return fr;
 }
 
-static void AdjustFormants(frame_t *fr, int target, int min, int max, int f1_adj, int f3_adj, int hf_reduce, int flags)
+static void AdjustFormants(EspeakProcessorContext* epContext, frame_t *fr, int target, int min, int max, int f1_adj, int f3_adj, int hf_reduce, int flags)
 {
 	int x;
 
-	target = (target * voice->formant_factor)/256;
+	target = (target * epContext->voice->formant_factor)/256;
 
 	x = (target - fr->ffreq[2]) / 2;
 	if (x > max) x = max;
@@ -497,7 +497,7 @@ static void AdjustFormants(frame_t *fr, int target, int min, int max, int f1_adj
 		fr->ffreq[1] += x;
 		fr->ffreq[0] += x;
 	}
-	formants_reduce_hf(fr, hf_reduce);
+	formants_reduce_hf(epContext, fr, hf_reduce);
 }
 
 static int VowelCloseness(frame_t *fr)
@@ -566,20 +566,20 @@ int FormantTransition2(EspeakProcessorContext* epContext, frameref_t *seq, int *
 
 		int next_rms = seq[1].frame->rms;
 
-		if (voice->klattv[0])
+		if (epContext->voice->klattv[0])
 			fr->klattp[KLATT_AV] = seq[1].frame->klattp[KLATT_AV] - 4;
 		if (f2 != 0) {
 			if (rms & 0x20)
-				set_frame_rms(fr, (next_rms * (rms & 0x1f))/30);
-			AdjustFormants(fr, f2, f2_min, f2_max, f1, f3_adj, f3_amp, flags);
+				set_frame_rms(epContext, fr, (next_rms * (rms & 0x1f))/30);
+			AdjustFormants(epContext, fr, f2, f2_min, f2_max, f1, f3_adj, f3_amp, flags);
 
 			if ((rms & 0x20) == 0)
-				set_frame_rms(fr, rms*2);
+				set_frame_rms(epContext, fr, rms*2);
 		} else {
 			if (flags & 8)
-				set_frame_rms(fr, (next_rms*24)/32);
+				set_frame_rms(epContext, fr, (next_rms*24)/32);
 			else
-				set_frame_rms(fr, RMS_START);
+				set_frame_rms(epContext, fr, RMS_START);
 		}
 
 		if (flags & 8)
@@ -602,10 +602,10 @@ int FormantTransition2(EspeakProcessorContext* epContext, frameref_t *seq, int *
 					seq_len_adjust += (len - 36);
 
 				if (f2 != 0)
-					AdjustFormants(fr, f2, f2_min, f2_max, f1, f3_adj, f3_amp, flags);
+					AdjustFormants(epContext, fr, f2, f2_min, f2_max, f1, f3_adj, f3_amp, flags);
 			}
 
-			set_frame_rms(fr, rms);
+			set_frame_rms(epContext, fr, rms);
 
 			if ((vcolour > 0) && (vcolour <= N_VCOLOUR)) {
 				for (int ix = 0; ix < *n_frames; ix++) {
@@ -661,7 +661,7 @@ static void SmoothSpect(EspeakProcessorContext* epContext)
 		return;
 	}
 
-	q = wcmdq[epContext->syllable_centre];
+	q = epContext->wcmdq[epContext->syllable_centre];
 	frame_centre = (frame_t *)q[2];
 
 	// backwards
@@ -669,7 +669,7 @@ static void SmoothSpect(EspeakProcessorContext* epContext)
 	frame = frame2 = frame_centre;
 	for (;;) {
 		if (ix < 0) ix = N_WCMDQ-1;
-		q = wcmdq[ix];
+	    q = epContext->wcmdq[ix];
 
 		if (q[0] == WCMD_PAUSE || q[0] == WCMD_WAVE)
 			break;
@@ -741,7 +741,7 @@ static void SmoothSpect(EspeakProcessorContext* epContext)
 
 	frame = NULL;
 	for (;;) {
-		q = wcmdq[ix];
+		q = epContext->wcmdq[ix];
 
 		if (q[0] == WCMD_PAUSE || q[0] == WCMD_WAVE)
 			break;
@@ -811,7 +811,7 @@ static void StartSyllable(EspeakProcessorContext* epContext)
 {
 	// start of syllable, if not already started
 	if (epContext->syllable_end == epContext->syllable_start)
-		epContext->syllable_end = wcmdq_tail;
+		epContext->syllable_end = epContext->wcmdq_tail;
 }
 
 int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,  PHONEME_LIST *plist, int modulation)
@@ -841,16 +841,16 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 	length_mod = plist->length;
 	if (length_mod == 0) length_mod = 256;
 
-	length_min = (samplerate/70); // greater than one cycle at low pitch (Hz)
+	length_min = (epContext->samplerate/70); // greater than one cycle at low pitch (Hz)
 	if (which == 2) {
-		if ((translator->langopts.param[LOPT_LONG_VOWEL_THRESHOLD] > 0) && ((this_ph->std_length >= translator->langopts.param[LOPT_LONG_VOWEL_THRESHOLD]) || (plist->synthflags & SFLAG_LENGTHEN) || (this_ph->phflags & phLONG)))
+		if ((epContext->translator->langopts.param[LOPT_LONG_VOWEL_THRESHOLD] > 0) && ((this_ph->std_length >= epContext->translator->langopts.param[LOPT_LONG_VOWEL_THRESHOLD]) || (plist->synthflags & SFLAG_LENGTHEN) || (this_ph->phflags & phLONG)))
 			length_min *= 2; // ensure long vowels are longer
 	}
 
 	if (which == 1) {
 		// limit the shortening of sonorants before shortened (eg. unstressed vowels)
 		if ((this_ph->type == phLIQUID) || (plist[-1].type == phLIQUID) || (plist[-1].type == phNASAL)) {
-			if (length_mod < (len = translator->langopts.param[LOPT_SONORANT_MIN]))
+			if (length_mod < (len = epContext->translator->langopts.param[LOPT_SONORANT_MIN]))
 				length_mod = len;
 		}
 	}
@@ -862,26 +862,26 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 
 	if (fmt_params->fmt_amp != epContext->fmt_amplitude) {
 		// an amplitude adjustment is specified for this sequence
-		q = wcmdq[wcmdq_tail];
+		q = epContext->wcmdq[epContext->wcmdq_tail];
 		q[0] = WCMD_FMT_AMPLITUDE;
 		q[1] = epContext->fmt_amplitude = fmt_params->fmt_amp;
-		WcmdqInc();
+		WcmdqInc(epContext);
 	}
 
 	frame1 = frames[0].frame;
-	if (voice->klattv[0])
+	if (epContext->voice->klattv[0])
 		wcmd_spect = WCMD_KLATT;
 
 	if (fmt_params->wav_addr == 0) {
 		if (wave_flag) {
 			// cancel any wavefile that was playing previously
 			wcmd_spect = WCMD_SPECT2;
-			if (voice->klattv[0])
+			if (epContext->voice->klattv[0])
 				wcmd_spect = WCMD_KLATT2;
 			wave_flag = 0;
 		} else {
 			wcmd_spect = WCMD_SPECT;
-			if (voice->klattv[0])
+			if (epContext->voice->klattv[0])
 				wcmd_spect = WCMD_KLATT;
 		}
 	}
@@ -890,7 +890,7 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 		if (((epContext->last_frame->length < 2) || (epContext->last_frame->frflags & FRFLAG_VOWEL_CENTRE))
 		    && !(epContext->last_frame->frflags & FRFLAG_BREAK)) {
 			// last frame of previous sequence was zero-length, replace with first of this sequence
-			wcmdq[epContext->last_wcmdq][3] = (intptr_t)frame1;
+			epContext->wcmdq[epContext->last_wcmdq][3] = (intptr_t)frame1;
 
 			if (epContext->last_frame->frflags & FRFLAG_BREAK_LF) {
 				// but flag indicates keep HF peaks in last segment
@@ -901,7 +901,7 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 						fr->ffreq[ix] = epContext->last_frame->ffreq[ix];
 					fr->fheight[ix] = epContext->last_frame->fheight[ix];
 				}
-				wcmdq[epContext->last_wcmdq][3] = (intptr_t)fr;
+				epContext->wcmdq[epContext->last_wcmdq][3] = (intptr_t)fr;
 			}
 		}
 	}
@@ -910,7 +910,7 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 		SmoothSpect(epContext); // process previous syllable
 
 		// remember the point in the output queue of the centre of the vowel
-		epContext->syllable_centre = wcmdq_tail;
+		epContext->syllable_centre = epContext->wcmdq_tail;
 	}
 
 	length_sum = 0;
@@ -922,7 +922,7 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 			length_factor = (length_mod*(256-speed.lenmod2_factor) + 256*speed.lenmod2_factor)/256;
 
 		int frame_length = frames[frameix-1].length;
-		len = (frame_length * samplerate)/1000;
+		len = (frame_length * epContext->samplerate)/1000;
 		len = (len * length_factor)/256;
 		length_sum += len;
 		frame_lengths[frameix] = len;
@@ -967,16 +967,16 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 			epContext->last_frame = NULL;
 			frame1 = frame2;
 		} else {
-			epContext->last_wcmdq = wcmdq_tail;
+			epContext->last_wcmdq = epContext->wcmdq_tail;
 
 			if (modulation >= 0) {
-				q = wcmdq[wcmdq_tail];
+				q = epContext->wcmdq[epContext->wcmdq_tail];
 				q[0] = wcmd_spect;
 				q[1] = len + (modulation << 16);
 				q[2] = (intptr_t)frame1;
 				q[3] = (intptr_t)frame2;
 
-				WcmdqInc();
+				WcmdqInc(epContext);
 			}
 			epContext->last_frame = frame1 = frame2;
 			total_len += len;
@@ -984,61 +984,61 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 	}
 
 	if ((which != 1) && (epContext->fmt_amplitude != 0)) {
-		q = wcmdq[wcmdq_tail];
+		q = epContext->wcmdq[epContext->wcmdq_tail];
 		q[0] = WCMD_FMT_AMPLITUDE;
 		q[1] = epContext->fmt_amplitude = 0;
-		WcmdqInc();
+		WcmdqInc(epContext);
 	}
 
 	return total_len;
 }
 
-void DoMarker(int type, int char_posn, int length, int value)
+void DoMarker(EspeakProcessorContext* epContext, int type, int char_posn, int length, int value)
 {
 	// This could be used to return an index to the word currently being spoken
 	// Type 1=word, 2=sentence, 3=named marker, 4=play audio, 5=end
 
-	if (WcmdqFree() > 5) {
-		wcmdq[wcmdq_tail][0] = WCMD_MARKER + (type << 8);
-		wcmdq[wcmdq_tail][1] = (char_posn & 0xffffff) | (length << 24);
-		wcmdq[wcmdq_tail][2] = value;
-		WcmdqInc();
+	if (WcmdqFree(epContext) > 5) {
+		epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_MARKER + (type << 8);
+		epContext->wcmdq[epContext->wcmdq_tail][1] = (char_posn & 0xffffff) | (length << 24);
+		epContext->wcmdq[epContext->wcmdq_tail][2] = value;
+		WcmdqInc(epContext);
 	}
 }
 
-void DoPhonemeMarker(int type, int char_posn, int length, char *name)
+void DoPhonemeMarker(EspeakProcessorContext* epContext, int type, int char_posn, int length, char *name)
 {
 	// This could be used to return an index to the word currently being spoken
 	// Type 7=phoneme
 
-	if (WcmdqFree() > 5) {
-		wcmdq[wcmdq_tail][0] = WCMD_MARKER + (type << 8);
-		wcmdq[wcmdq_tail][1] = (char_posn & 0xffffff) | (length << 24);
-		memcpy(&wcmdq[wcmdq_tail][2], name, 8); // up to 8 bytes of UTF8 characters
-		WcmdqInc();
+	if (WcmdqFree(epContext) > 5) {
+		epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_MARKER + (type << 8);
+		epContext->wcmdq[epContext->wcmdq_tail][1] = (char_posn & 0xffffff) | (length << 24);
+		memcpy(&epContext->wcmdq[epContext->wcmdq_tail][2], name, 8); // up to 8 bytes of UTF8 characters
+		WcmdqInc(epContext);
 	}
 }
 
 #if USE_LIBSONIC
-void DoSonicSpeed(int value)
+void DoSonicSpeed(EspeakProcessorContext* epContext, int value)
 {
 	// value, multiplier * 1024
-	wcmdq[wcmdq_tail][0] = WCMD_SONIC_SPEED;
-	wcmdq[wcmdq_tail][1] = value;
-	WcmdqInc();
+	epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_SONIC_SPEED;
+	epContext->wcmdq[epContext->wcmdq_tail][1] = value;
+	WcmdqInc(epContext);
 }
 #endif
 
-espeak_ng_STATUS DoVoiceChange(voice_t *v)
+espeak_ng_STATUS DoVoiceChange(EspeakProcessorContext* epContext, voice_t *v)
 {
 	// allocate memory for a copy of the voice data, and free it in wavegenfill()
 	voice_t *v2;
 	if ((v2 = (voice_t *)malloc(sizeof(voice_t))) == NULL)
 		return ENOMEM;
 	memcpy(v2, v, sizeof(voice_t));
-	wcmdq[wcmdq_tail][0] = WCMD_VOICE;
-	wcmdq[wcmdq_tail][2] = (intptr_t)v2;
-	WcmdqInc();
+	epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_VOICE;
+	epContext->wcmdq[epContext->wcmdq_tail][2] = (intptr_t)v2;
+	WcmdqInc(epContext);
 	return ENS_OK;
 }
 
@@ -1070,32 +1070,30 @@ void DoEmbedded(EspeakProcessorContext* epContext, int *embix, int sourceix)
 			if ((int)value < epContext->n_soundicon_tab) {
 				if (epContext->soundicon_tab[value].length != 0) {
 					DoPause(epContext, 10, 0); // ensure a break in the speech
-					wcmdq[wcmdq_tail][0] = WCMD_WAVE;
-					wcmdq[wcmdq_tail][1] = epContext->soundicon_tab[value].length;
-					wcmdq[wcmdq_tail][2] = (intptr_t)epContext->soundicon_tab[value].data + 44; // skip WAV header
-					wcmdq[wcmdq_tail][3] = 0x1500; // 16 bit data, amp=21
-					WcmdqInc();
+					epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_WAVE;
+					epContext->wcmdq[epContext->wcmdq_tail][1] = epContext->soundicon_tab[value].length;
+					epContext->wcmdq[epContext->wcmdq_tail][2] = (intptr_t)epContext->soundicon_tab[value].data + 44; // skip WAV header
+					epContext->wcmdq[epContext->wcmdq_tail][3] = 0x1500; // 16 bit data, amp=21
+					WcmdqInc(epContext);
 				}
 			}
 			break;
 		case EMBED_M: // named marker
-			DoMarker(espeakEVENT_MARK, (sourceix & 0x7ff) + clause_start_char, 0, value);
+			DoMarker(espeakEVENT_MARK, (sourceix & 0x7ff) + epContext->clause_start_char, 0, value);
 			break;
 		case EMBED_U: // play sound
-			DoMarker(espeakEVENT_PLAY, count_characters+1, 0, value); // always occurs at end of clause
+			DoMarker(espeakEVENT_PLAY, epContext->count_characters+1, 0, value); // always occurs at end of clause
 			break;
 		default:
 			DoPause(epContext, 10, 0); // ensure a break in the speech
-			wcmdq[wcmdq_tail][0] = WCMD_EMBEDDED;
-			wcmdq[wcmdq_tail][1] = command;
-			wcmdq[wcmdq_tail][2] = value;
-			WcmdqInc();
+			epContext->wcmdq[epContext->wcmdq_tail][0] = WCMD_EMBEDDED;
+			epContext->wcmdq[epContext->wcmdq_tail][1] = command;
+			epContext->wcmdq[epContext->wcmdq_tail][2] = value;
+			WcmdqInc(epContext);
 			break;
 		}
 	} while ((word & 0x80) == 0);
 }
-
-extern espeak_ng_OUTPUT_HOOKS* output_hooks;
 
 int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int *n_ph, bool resume)
 {
@@ -1124,7 +1122,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 	FMT_PARAMS fmtp;
 	static WORD_PH_DATA worddata;
 
-	if (option_phoneme_events & espeakINITIALIZE_PHONEME_IPA)
+	if (epContext->option_phoneme_events & espeakINITIALIZE_PHONEME_IPA)
 		use_ipa = 1;
 
 #if USE_MBROLA
@@ -1140,25 +1138,25 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 		epContext->amp_length = 0;
 		epContext->last_frame = NULL;
 		epContext->last_wcmdq = -1;
-		epContext->syllable_start = wcmdq_tail;
-		epContext->syllable_end = wcmdq_tail;
+		epContext->syllable_start = epContext->wcmdq_tail;
+		epContext->syllable_end = epContext->wcmdq_tail;
 		epContext->syllable_centre = -1;
 		epContext->last_pitch_cmd = -1;
 		memset(&worddata, 0, sizeof(worddata));
-		DoPause(0, 0); // isolate from the previous clause
+		DoPause(epContext, 0, 0); // isolate from the previous clause
 	}
 
 	while ((ix < (*n_ph)) && (ix < N_PHONEME_LIST-2)) {
 		p = &phoneme_list[ix];
 
-		if(output_hooks && output_hooks->outputPhoSymbol)
+		if(epContext->output_hooks && epContext->output_hooks->outputPhoSymbol)
 		{
 			char buf[30];
 			int dummy=0;
 			//WritePhMnemonic(buf, p->ph, p, 0, &dummy);
 			WritePhMnemonicWithStress(buf, p->ph, p, 0, &dummy);
 
-			DoPhonemeAlignment(strdup(buf),p->type);
+			DoPhonemeAlignment(epContext, strdup(buf),p->type);
 		}
 
 		if (p->type == phPAUSE)
@@ -1168,7 +1166,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 		else
 			free_min = MIN_WCMDQ;
 
-		if (WcmdqFree() <= free_min)
+		if (WcmdqFree(epContext) <= free_min)
 			return 1; // wait
 
 		PHONEME_LIST *prev;
@@ -1183,18 +1181,18 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			DoEmbedded(&embedded_ix, p->sourceix);
 
 		if (p->newword) {
-			if (((p->type == phVOWEL) && (translator->langopts.param[LOPT_WORD_MERGE] & 1)) ||
+			if (((p->type == phVOWEL) && (epContext->translator->langopts.param[LOPT_WORD_MERGE] & 1)) ||
 			    (p->ph->phflags & phNOPAUSE)) {
 			} else
 				epContext->last_frame = NULL;
 
-			sourceix = (p->sourceix & 0x7ff) + clause_start_char;
+			sourceix = (p->sourceix & 0x7ff) + epContext->clause_start_char;
 
 			if (p->newword & PHLIST_START_OF_SENTENCE)
-				DoMarker(espeakEVENT_SENTENCE, sourceix, 0, count_sentences); // start of sentence
+				DoMarker(espeakEVENT_SENTENCE, sourceix, 0, epContext->count_sentences); // start of sentence
 
 			if (p->newword & PHLIST_START_OF_WORD)
-				DoMarker(espeakEVENT_WORD, sourceix, p->sourceix >> 11, clause_start_word + word_count++); // NOTE, this count doesn't include multiple-word pronunciations in *_list. eg (of a)
+				DoMarker(espeakEVENT_WORD, sourceix, p->sourceix >> 11, epContext->clause_start_word + word_count++); // NOTE, this count doesn't include multiple-word pronunciations in *_list. eg (of a)
 		}
 
 		EndAmplitude(epContext);
@@ -1203,7 +1201,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			DoPause(epContext, p->prepause, 1);
 
 		bool done_phoneme_marker = false;
-		if (option_phoneme_events && (p->ph->code != phonEND_WORD)) {
+		if (epContext->option_phoneme_events && (p->ph->code != phonEND_WORD)) {
 			if ((p->type == phVOWEL) && (prev->type == phLIQUID || prev->type == phNASAL)) {
 				// For vowels following a liquid or nasal, do the phoneme event after the vowel-start
 			} else {
@@ -1472,7 +1470,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 				DoSpect2(ph, 1, &fmtp, p, modulation);
 			}
 
-			if ((option_phoneme_events) && (done_phoneme_marker == false)) {
+			if ((epContext->option_phoneme_events) && (done_phoneme_marker == false)) {
 				//WritePhMnemonic(phoneme_name, p->ph, p, use_ipa, NULL);
 				WritePhMnemonicWithStress(phoneme_name, p->ph, p, use_ipa, NULL);
 
@@ -1505,7 +1503,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 	}
 	EndPitch(epContext, 1);
 	if (*n_ph > 0) {
-		DoMarker(espeakEVENT_END, count_characters, 0, count_sentences); // end of clause
+		DoMarker(espeakEVENT_END, epContext->count_characters, 0, epContext->count_sentences); // end of clause
 		*n_ph = 0;
 	}
 
@@ -1528,35 +1526,35 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 	if (control == 2) {
 		// stop speaking
 		n_phoneme_list = 0;
-		WcmdqStop();
+		WcmdqStop(epContext);
 
 		return 0;
 	}
 
-	if (text_decoder_eof(p_decoder)) {
-		skipping_text = false;
+	if (text_decoder_eof(epContext->p_decoder)) {
+		epContext->skipping_text = false;
 		return 0;
 	}
 
-	SelectPhonemeTable(voice->phoneme_tab_ix);
+	SelectPhonemeTable(epContext->voice->phoneme_tab_ix);
 
 	// read the next clause from the input text file, translate it, and generate
 	// entries in the wavegen command queue
-	TranslateClause(translator, &clause_tone, &voice_change);
+	TranslateClause(epContext, epContext->translator, &clause_tone, &voice_change);
 
-	CalcPitches(epContext, translator, clause_tone);
-	CalcLengths(epContext, translator);
+	CalcPitches(epContext, epContext->translator, clause_tone);
+	CalcLengths(epContext, epContext->translator);
 
-	if ((option_phonemes & 0xf) || (phoneme_callback != NULL)) {
+	if ((epContext->option_phonemes & 0xf) || (phoneme_callback != NULL)) {
 		const char *phon_out;
-		phon_out = GetTranslatedPhonemeString(option_phonemes);
-		if (option_phonemes & 0xf)
+		phon_out = GetTranslatedPhonemeString(epContext->option_phonemes);
+		if (epContext->option_phonemes & 0xf)
 			fprintf(f_trans, "%s\n", phon_out);
 		if (phoneme_callback != NULL)
 			phoneme_callback(phon_out);
 	}
 
-	if (skipping_text) {
+	if (epContext->skipping_text) {
 		n_phoneme_list = 0;
 		return 1;
 	}
@@ -1565,13 +1563,13 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 
 	if (voice_change != NULL) {
 		// voice change at the end of the clause (i.e. clause was terminated by a voice change)
-		epContext->new_voice = LoadVoiceVariant(voice_change, 0); // add a Voice instruction to wavegen at the end of the clause
+		epContext->new_voice = LoadVoiceVariant(epContext, voice_change, 0); // add a Voice instruction to wavegen at the end of the clause
 	}
 
 	if (epContext->new_voice) {
 		// finished the current clause, now change the voice if there was an embedded
 		// change voice command at the end of it (i.e. clause was broken at the change voice command)
-		DoVoiceChange(voice);
+		DoVoiceChange(epContext->voice);
 		epContext->new_voice = NULL;
 	}
 

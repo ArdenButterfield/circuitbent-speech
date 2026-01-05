@@ -949,7 +949,7 @@ static int TranslateLetter(EspeakProcessorContext* epContext, Translator *tr, ch
 					LookupLetter(epContext, epContext->translator3, letter, word[n_bytes], &ph_buf[3], control & 1);
 				}
 
-				SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
+				SelectPhonemeTable(epContext->voice->phoneme_tab_ix); // revert to original phoneme table
 
 				if (ph_buf[3] != 0) {
 					ph_buf[0] = phonPAUSE;

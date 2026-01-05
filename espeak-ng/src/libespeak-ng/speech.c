@@ -260,7 +260,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_InitializeOutput(EspeakProcessorContext
 
 	// allocate 2 bytes per sample
 	// Always round up to the nearest sample and the nearest byte.
-	int millisamples = buffer_length * samplerate;
+	int millisamples = buffer_length * epContext->samplerate;
 	epContext->outbuf_size = (millisamples + 1000 - millisamples % 1000) / 500;
 	epContext->out_start = (unsigned char *)realloc(epContext->outbuf, epContext->outbuf_size);
 	if (epContext->out_start == NULL)
@@ -353,28 +353,28 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(EspeakProcessorContext* epCo
 	if (result != ENS_OK)
 		return result;
 
-	WavegenInit(srate, 0);
+	WavegenInit(epContext, srate, 0);
 	LoadConfig();
 
-	espeak_VOICE *current_voice_selected = espeak_GetCurrentVoice();
+	espeak_VOICE *current_voice_selected = espeak_GetCurrentVoice(epContext);
 	memset(current_voice_selected, 0, sizeof(espeak_VOICE));
 	SetVoiceStack(epContext, NULL, "");
 	SynthesizeInit();
 	InitNamedata(epContext);
 
-	VoiceReset(0);
+	VoiceReset(epContext, 0);
 
 	for (param = 0; param < N_SPEECH_PARAM; param++)
 		epContext->param_stack[0].parameter[param] = epContext->saved_parameters[param] = param_defaults[param];
 
 	SetParameter(espeakRATE, espeakRATE_NORMAL, 0);
 	SetParameter(espeakVOLUME, 100, 0);
-	SetParameter(espeakCAPITALS, option_capitals, 0);
-	SetParameter(espeakPUNCTUATION, option_punctuation, 0);
+	SetParameter(espeakCAPITALS, epContext->option_capitals, 0);
+	SetParameter(espeakPUNCTUATION, epContext->option_punctuation, 0);
 	SetParameter(espeakWORDGAP, 0, 0);
 
-	option_phonemes = 0;
-	option_phoneme_events = 0;
+	epContext->option_phonemes = 0;
+	epContext->option_phoneme_events = 0;
 
 	// Seed random generator
 	espeak_srand(time(NULL));
@@ -382,20 +382,20 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(EspeakProcessorContext* epCo
 	return ENS_OK;
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPhonemeEvents(int enable, int ipa) {
-	option_phoneme_events = 0;
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPhonemeEvents(EspeakProcessorContext* epContext, int enable, int ipa) {
+	epContext->option_phoneme_events = 0;
 	if (enable) {
-		option_phoneme_events |= espeakINITIALIZE_PHONEME_EVENTS;
+		epContext->option_phoneme_events |= espeakINITIALIZE_PHONEME_EVENTS;
 		if (ipa) {
-			option_phoneme_events |= espeakINITIALIZE_PHONEME_IPA;
+			epContext->option_phoneme_events |= espeakINITIALIZE_PHONEME_IPA;
 		}
 	}
 	return ENS_OK;
 }
 
-ESPEAK_NG_API int espeak_ng_GetSampleRate(void)
+ESPEAK_NG_API int espeak_ng_GetSampleRate(EspeakProcessorContext* epContext)
 {
-	return samplerate;
+	return epContext->samplerate;
 }
 
 #pragma GCC visibility pop
@@ -409,35 +409,35 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 	if ((epContext->outbuf == NULL) || (event_list == NULL))
 		return ENS_NOT_INITIALIZED;
 
-	option_ssml = flags & espeakSSML;
-	option_phoneme_input = flags & espeakPHONEMES;
-	option_endpause = flags & espeakENDPAUSE;
+	epContext->option_ssml = flags & espeakSSML;
+	epContext->option_phoneme_input = flags & espeakPHONEMES;
+	epContext->option_endpause = flags & espeakENDPAUSE;
 
 	epContext->count_samples = 0;
 
 	espeak_ng_STATUS status;
-	if (translator == NULL) {
+	if (epContext->translator == NULL) {
 		status = espeak_ng_SetVoiceByName(ESPEAKNG_DEFAULT_VOICE);
 		if (status != ENS_OK)
 			return status;
 	}
 
-	if (p_decoder == NULL)
-		p_decoder = create_text_decoder();
+	if (epContext->p_decoder == NULL)
+		epContext->p_decoder = create_text_decoder();
 
-	status = text_decoder_decode_string_multibyte(p_decoder, text, translator->encoding, flags);
+	status = text_decoder_decode_string_multibyte(epContext->p_decoder, text, epContext->translator->encoding, flags);
 	if (status != ENS_OK)
 		return status;
 
 	SpeakNextClause(0);
 
 	for (;;) {
-		out_ptr = epContext->outbuf;
-		out_end = &epContext->outbuf[epContext->outbuf_size];
+		epContext->out_ptr = epContext->outbuf;
+		epContext->out_end = &epContext->outbuf[epContext->outbuf_size];
 		epContext->event_list_ix = 0;
-		WavegenFill();
+		WavegenFill(epContext);
 
-		length = (out_ptr - epContext->outbuf)/2;
+		length = (epContext->out_ptr - epContext->outbuf)/2;
 		epContext->count_samples += length;
 		event_list[epContext->event_list_ix].type = espeakEVENT_LIST_TERMINATED; // indicates end of event list
 		event_list[epContext->event_list_ix].unique_identifier = unique_identifier;
@@ -455,7 +455,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 		}
 
 		if (Generate(phoneme_list, &n_phoneme_list, 1) == 0) {
-			if (WcmdqUsed() == 0) {
+			if (WcmdqUsed(epContext) == 0) {
 				// don't process the next clause until the previous clause has finished generating speech.
 				// This ensures that <audio> tag (which causes end-of-clause) is at a sound buffer boundary
 
@@ -501,12 +501,12 @@ void MarkerEvent(EspeakProcessorContext* epContext, int type, unsigned int char_
 	static const int mbrola_delay = 0;
 #endif
 
-	time = ((double)(epContext->count_samples + mbrola_delay + (out_ptr - epContext->out_start)/2)*1000.0)/samplerate;
+	time = ((double)(epContext->count_samples + mbrola_delay + (out_ptr - epContext->out_start)/2)*1000.0)/epContext->samplerate;
 	ep->audio_position = (int)time;
 	ep->sample = (epContext->count_samples + mbrola_delay + (out_ptr - epContext->out_start)/2);
 
 	if ((type == espeakEVENT_MARK) || (type == espeakEVENT_PLAY))
-		ep->id.name = &namedata[value];
+		ep->id.name = &epContext->namedata[value];
 	else if (type == espeakEVENT_PHONEME) {
 		int *p;
 		p = (int *)(ep->id.string);
@@ -521,7 +521,7 @@ espeak_ng_STATUS sync_espeak_Synth(EspeakProcessorContext* epContext,
                                    unsigned int position, espeak_POSITION_TYPE position_type,
                                    unsigned int end_position, unsigned int flags, void *user_data)
 {
-	InitText(flags);
+	InitText(epContext, flags);
 	epContext->my_unique_identifier = unique_identifier;
 	epContext->my_user_data = user_data;
 
@@ -531,20 +531,20 @@ espeak_ng_STATUS sync_espeak_Synth(EspeakProcessorContext* epContext,
 	switch (position_type)
 	{
 	case POS_CHARACTER:
-		skip_characters = position;
+		epContext->skip_characters = position;
 		break;
 	case POS_WORD:
-		skip_words = position;
+		epContext->skip_words = position;
 		break;
 	case POS_SENTENCE:
-		skip_sentences = position;
+		epContext->skip_sentences = position;
 		break;
 
 	}
-	if (skip_characters || skip_words || skip_sentences)
-		skipping_text = true;
+	if (epContext->skip_characters || epContext->skip_words || epContext->skip_sentences)
+		epContext->skipping_text = true;
 
-	end_character_position = end_position;
+	epContext->end_character_position = end_position;
 
 	espeak_ng_STATUS aStatus = Synthesize(unique_identifier, text, flags);
 #if USE_LIBPCAUDIO
@@ -566,17 +566,17 @@ espeak_ng_STATUS sync_espeak_Synth_Mark(EspeakProcessorContext* epContext, unsig
                                         const char *index_mark, unsigned int end_position,
                                         unsigned int flags, void *user_data)
 {
-	InitText(flags);
+	InitText(epContext, flags);
 
 	epContext->my_unique_identifier = unique_identifier;
 	epContext->my_user_data = user_data;
 
 	if (index_mark != NULL) {
-		strncpy0(skip_marker, index_mark, sizeof(skip_marker));
-		skipping_text = true;
+		strncpy0(epContext->skip_marker, index_mark, sizeof(epContext->skip_marker));
+		epContext->skipping_text = true;
 	}
 
-	end_character_position = end_position;
+	epContext->end_character_position = end_position;
 
 	return Synthesize(unique_identifier, text, flags | espeakSSML);
 }
@@ -613,10 +613,10 @@ void sync_espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wch
 	epContext->my_unique_identifier = 0;
 	epContext->my_user_data = NULL;
 
-	option_punctlist[0] = 0;
+	epContext->option_punctlist[0] = 0;
 	if (punctlist != NULL) {
-		wcsncpy(option_punctlist, punctlist, N_PUNCTLIST);
-		option_punctlist[N_PUNCTLIST-1] = 0;
+		wcsncpy(epContext->option_punctlist, punctlist, N_PUNCTLIST);
+		epContext->option_punctlist[N_PUNCTLIST-1] = 0;
 	}
 }
 
@@ -788,7 +788,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetParameter(espeak_PARAMETER parameter
 #endif
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPunctuationList(const wchar_t *punctlist)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist)
 {
 	// Set the list of punctuation which are spoken for "some".
 
@@ -804,7 +804,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetPunctuationList(const wchar_t *punct
 		delete_espeak_command(c);
 	return status;
 #else
-	sync_espeak_SetPunctuationList(punctlist);
+	sync_espeak_SetPunctuationList(epContext, punctlist);
 	return ENS_OK;
 #endif
 }
@@ -824,7 +824,7 @@ ESPEAK_API void espeak_SetPhonemeTrace(EspeakProcessorContext* epContext, int ph
 	   stream   output stream for the phoneme symbols (and trace).  If stream=NULL then it uses stdout.
 	*/
 
-	option_phonemes = phonememode;
+	epContext->option_phonemes = phonememode;
 	f_trans = stream;
 	if (stream == NULL)
 		f_trans = stderr;
@@ -838,14 +838,14 @@ ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(EspeakProcessorContex
 	    bits 8-23:  separator character, between phoneme names
 	 */
 
-	if (p_decoder == NULL)
-		p_decoder = create_text_decoder();
+	if (epContext->p_decoder == NULL)
+		epContext->p_decoder = create_text_decoder();
 
-	if (text_decoder_decode_string_multibyte(p_decoder, *textptr, translator->encoding, textmode) != ENS_OK)
+	if (text_decoder_decode_string_multibyte(epContext->p_decoder, *textptr, epContext->translator->encoding, textmode) != ENS_OK)
 		return NULL;
 
-	TranslateClauseWithTerminator(translator, NULL, NULL, terminator);
-	*textptr = text_decoder_get_buffer(p_decoder);
+	TranslateClauseWithTerminator(epContext, epContext->translator, NULL, NULL, terminator);
+	*textptr = text_decoder_get_buffer(epContext->p_decoder);
 
 	return GetTranslatedPhonemeString(phonememode);
 }
@@ -917,15 +917,15 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Terminate(EspeakProcessorContext* epCon
 	free(epContext->outbuf);
 	epContext->outbuf = NULL;
 
-	FreePhData();
-	FreeVoiceList();
+	FreePhData(epContext);
+	FreeVoiceList(epContext);
 
-	DeleteTranslator(translator);
-	translator = NULL;
+	DeleteTranslator(epContext->translator);
+	epContext->translator = NULL;
 
-	if (p_decoder != NULL) {
-		destroy_text_decoder(p_decoder);
-		p_decoder = NULL;
+	if (epContext->p_decoder != NULL) {
+		destroy_text_decoder(epContext->p_decoder);
+		epContext->p_decoder = NULL;
 	}
 
 	WavegenFini();

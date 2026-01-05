@@ -426,7 +426,7 @@ void SynthesizeInit(EspeakProcessorContext* epContext);
 int  Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int *n_ph, bool resume);
 int  SpeakNextClause(EspeakProcessorContext* epContext, int control);
 void SetSpeed(EspeakProcessorContext* epContext, int control);
-void SetEmbedded(int control, int value);
+void SetEmbedded(EspeakProcessorContext* epContext, int control, int value);
 int FormantTransition2(EspeakProcessorContext* epContext, frameref_t *seq, int *n_frames, unsigned int data1, unsigned int data2, PHONEME_TAB *other_ph, int which);
 
 void Write4Bytes(FILE *f, int value);

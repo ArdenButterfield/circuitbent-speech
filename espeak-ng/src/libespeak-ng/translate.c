@@ -217,7 +217,7 @@ static int SetAlternateTranslator(EspeakProcessorContext* epContext, const char 
 			strcpy(translator_language, new_language);
 
 			if (LoadDictionary(epContext, *translator, (*translator)->dictionary_name, 0) != 0) {
-				SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
+				SelectPhonemeTable(epContext->voice->phoneme_tab_ix); // revert to original phoneme table
 				new_phoneme_tab = -1;
 				translator_language[0] = 0;
 			}
@@ -394,11 +394,11 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 
 			if (switch_phonemes == -1) {
 				strcpy(epContext->dictionary_name, old_dictionary_name);
-				SelectPhonemeTable(voice->phoneme_tab_ix);
+				SelectPhonemeTable(epContext->voice->phoneme_tab_ix);
 
 				// leave switch_phonemes set, but use the original phoneme table number.
 				// This will suppress LOPT_REGRESSIVE_VOICING
-				switch_phonemes = voice->phoneme_tab_ix; // original phoneme table
+				switch_phonemes = epContext->voice->phoneme_tab_ix; // original phoneme table
 			}
 		}
 
@@ -596,9 +596,9 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 	if (switch_phonemes >= 0) {
 		// this word uses a different phoneme table, now switch back
 		strcpy(epContext->dictionary_name, old_dictionary_name);
-		SelectPhonemeTable(voice->phoneme_tab_ix);
+		SelectPhonemeTable(epContext->voice->phoneme_tab_ix);
 		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
-		epContext->ph_list2[epContext->n_ph_list2++].tone_ph = voice->phoneme_tab_ix; // original phoneme table number
+		epContext->ph_list2[epContext->n_ph_list2++].tone_ph = epContext->voice->phoneme_tab_ix; // original phoneme table number
 	}
 
 
