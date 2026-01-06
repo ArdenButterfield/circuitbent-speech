@@ -895,7 +895,7 @@ static int CompileVowelTransition(CompileContext *ctx, int which)
 	return 0;
 }
 
-static espeak_ng_STATUS LoadSpect(CompileContext *ctx, const char *path, int control, int *addr)
+static espeak_ng_STATUS LoadSpect(EspeakProcessorContext* epContext, CompileContext *ctx, const char *path, int control, int *addr)
 {
 	SpectSeq *spectseq;
 	int peak;
@@ -982,7 +982,7 @@ static espeak_ng_STATUS LoadSpect(CompileContext *ctx, const char *path, int con
 
 			fr_out->frflags = fr->markers | klatt_flag;
 
-			rms = (int)GetFrameRms(fr, spectseq->amplitude);
+			rms = (int)GetFrameRms(epContext, fr, spectseq->amplitude);
 			if (rms > 255) rms = 255;
 			fr_out->rms = rms;
 
@@ -1306,7 +1306,7 @@ static espeak_ng_STATUS LoadDataFile(EspeakProcessorContext* epContext, CompileC
 		espeak_ng_STATUS status = ENS_OK;
 		int type_code = ' ';
 		if (id == 0x43455053) {
-			status = LoadSpect(ctx, path, control, addr);
+			status = LoadSpect(epContext, ctx, path, control, addr);
 			type_code = 'S';
 		} else if (id == 0x46464952) {
 			*addr = LoadWavefile(epContext, ctx, f, path);
@@ -1348,7 +1348,7 @@ static espeak_ng_STATUS LoadDataFile(EspeakProcessorContext* epContext, CompileC
 	return ENS_OK;
 }
 
-static void CompileToneSpec(CompileContext *ctx)
+static void CompileToneSpec(EspeakProcessorContext* epContext, CompileContext *ctx)
 {
 	int pitch1 = 0;
 	int pitch2 = 0;
@@ -1360,12 +1360,12 @@ static void CompileToneSpec(CompileContext *ctx)
 
 	if (ctx->item_terminator == ',') {
 		NextItemBrackets(ctx, tSTRING, 3);
-		LoadDataFile(ctx, ctx->item_string, 0, &pitch_env);
+		LoadDataFile(epContext, ctx, ctx->item_string, 0, &pitch_env);
 	}
 
 	if (ctx->item_terminator == ',') {
 		NextItemBrackets(ctx, tSTRING, 1);
-		LoadDataFile(ctx, ctx->item_string, 0, &amp_env);
+		LoadDataFile(epContext, ctx, ctx->item_string, 0, &amp_env);
 	}
 
 	if (pitch1 < pitch2) {
@@ -1388,7 +1388,7 @@ static void CompileToneSpec(CompileContext *ctx)
 
 
 
-static void CompileSound(CompileContext *ctx, int keyword, int isvowel)
+static void CompileSound(EspeakProcessorContext* epContext, CompileContext *ctx, int keyword, int isvowel)
 {
 	int addr = 0;
 	int value = 0;
@@ -1416,7 +1416,7 @@ static void CompileSound(CompileContext *ctx, int keyword, int isvowel)
 			}
 		}
 	}
-	LoadDataFile(ctx, path, isvowel, &addr);
+	LoadDataFile(epContext, ctx, path, isvowel, &addr);
 	addr = addr / 4; // addr is words not bytes
 
 	*ctx->prog_out++ = sound_instns[keyword-kFMT] + ((value & 0xff) << 4) + ((addr >> 16) & 0xf);
@@ -1771,7 +1771,7 @@ static void DecThenCount(CompileContext *ctx)
 		ctx->then_count--;
 }
 
-static int CompilePhoneme(CompileContext *ctx, int compile_phoneme)
+static int CompilePhoneme(EspeakProcessorContext* epContext, CompileContext *ctx, int compile_phoneme)
 {
 	int endphoneme = 0;
 	int value;
@@ -2027,9 +2027,9 @@ static int CompilePhoneme(CompileContext *ctx, int compile_phoneme)
 				ctx->if_stack[ctx->if_level].returned = true;
 				DecThenCount(ctx);
 				if (ctx->phoneme_out->type == phVOWEL)
-					CompileSound(ctx, keyword, 1);
+					CompileSound(epContext, ctx, keyword, 1);
 				else
-					CompileSound(ctx, keyword, 0);
+					CompileSound(epContext, ctx, keyword, 0);
 				break;
 			case kWAV:
 				ctx->if_stack[ctx->if_level].returned = true;
@@ -2038,7 +2038,7 @@ static int CompilePhoneme(CompileContext *ctx, int compile_phoneme)
 			case kVOWELENDING:
 			case kANDWAV:
 				DecThenCount(ctx);
-				CompileSound(ctx, keyword, 0);
+				CompileSound(epContext, ctx, keyword, 0);
 				break;
 			case kVOWELIN:
 				DecThenCount(ctx);
@@ -2050,7 +2050,7 @@ static int CompilePhoneme(CompileContext *ctx, int compile_phoneme)
 				break;
 			case kTONESPEC:
 				DecThenCount(ctx);
-				CompileToneSpec(ctx);
+				CompileToneSpec(epContext, ctx);
 				break;
 			case kCONTINUE:
 				*ctx->prog_out++ = INSTN_CONTINUE;
@@ -2243,7 +2243,7 @@ static void StartPhonemeTable(CompileContext *ctx, const char *name)
 	ctx->n_phoneme_tabs++;
 }
 
-static void CompilePhonemeFiles(CompileContext *ctx)
+static void CompilePhonemeFiles(EspeakProcessorContext* epContext, CompileContext *ctx)
 {
 	FILE *f;
 	char buf[sizeof(path_home)+120];
@@ -2298,10 +2298,10 @@ static void CompilePhonemeFiles(CompileContext *ctx)
 				error(ctx, "phonemetable is missing");
 				return;
 			}
-			CompilePhoneme(ctx, 1);
+			CompilePhoneme(epContext, ctx, 1);
 			break;
 		case kPROCEDURE:
-			CompilePhoneme(ctx, 0);
+			CompilePhoneme(epContext, ctx, 0);
 			break;
 		default:
 			if (!feof(ctx->f_in))
@@ -2316,11 +2316,11 @@ static void CompilePhonemeFiles(CompileContext *ctx)
 #pragma GCC visibility push(default)
 
 espeak_ng_STATUS
-espeak_ng_CompilePhonemeData(long rate,
+espeak_ng_CompilePhonemeData(EspeakProcessorContext* epContext, long rate,
                              FILE *log,
                              espeak_ng_ERROR_CONTEXT *context)
 {
-	return espeak_ng_CompilePhonemeDataPath(rate, NULL, NULL, log, context);
+	return espeak_ng_CompilePhonemeDataPath(epContext, rate, NULL, NULL, log, context);
 }
 
 espeak_ng_STATUS
@@ -2351,14 +2351,14 @@ espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
 	}
 
 	epContext->samplerate = rate;
-	LoadPhData(NULL, NULL);
+	LoadPhData(epContext, NULL, NULL);
 	if (LoadVoice(epContext, "", 8/*compiling phonemes*/) == NULL) {
 		clean_context(ctx);
 		return ENS_VOICE_NOT_FOUND;
 	}
 
 	WavegenInit(epContext, rate, 0);
-	WavegenSetVoice(epContext, voice);
+	WavegenSetVoice(epContext, epContext->voice);
 
 	ctx->error_count = 0;
 	ctx->f_errors = log;
@@ -2442,7 +2442,7 @@ espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
 	MAKE_MEM_UNDEFINED(ctx->stack, sizeof(ctx->stack));
 
 	StartPhonemeTable(ctx, "base");
-	CompilePhonemeFiles(ctx);
+	CompilePhonemeFiles(epContext, ctx);
 
 	EndPhonemeTable(ctx);
 	WritePhonemeTables(ctx);
@@ -2457,7 +2457,7 @@ espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
 	if (ctx->f_prog_log != NULL)
 		fclose(ctx->f_prog_log);
 
-	LoadPhData(NULL, NULL);
+	LoadPhData(epContext, NULL, NULL);
 
 	WavegenFini();
 
@@ -2515,13 +2515,13 @@ static int LookupEnvelopeName(const char *name)
 
 #pragma GCC visibility push(default)
 
-espeak_ng_STATUS espeak_ng_CompileIntonation(FILE *log, espeak_ng_ERROR_CONTEXT *context)
+espeak_ng_STATUS espeak_ng_CompileIntonation(EspeakProcessorContext* epContext, FILE *log, espeak_ng_ERROR_CONTEXT *context)
 {
-	return espeak_ng_CompileIntonationPath(NULL, NULL, log, context);
+	return espeak_ng_CompileIntonationPath(epContext, NULL, NULL, log, context);
 }
 
 espeak_ng_STATUS
-espeak_ng_CompileIntonationPath(const char *source_path,
+espeak_ng_CompileIntonationPath(EspeakProcessorContext* epContext, const char *source_path,
                                 const char *destination_path,
                                 FILE *log,
                                 espeak_ng_ERROR_CONTEXT *context
@@ -2777,7 +2777,7 @@ espeak_ng_CompileIntonationPath(const char *source_path,
 
 	fprintf(log, "Compiled %d intonation tunes: %d errors.\n", n_tune_names, ctx->error_count);
 
-	LoadPhData(NULL, NULL);
+	LoadPhData(epContext, NULL, NULL);
 
 	int res = ctx->error_count > 0 ? ENS_COMPILE_ERROR : ENS_OK;
 	clean_context(ctx);

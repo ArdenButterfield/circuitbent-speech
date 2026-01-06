@@ -28,8 +28,8 @@ extern "C"
 {
 #endif
 
-void LoadLanguageOptions(Translator *translator, int key, char *keyValue);
-void LoadConfig(void);
+void LoadLanguageOptions(EspeakProcessorContext* epContext, Translator *translator, int key, char *keyValue);
+void LoadConfig(EspeakProcessorContext* epContext);
 
 #ifdef __cplusplus
 }

@@ -293,7 +293,7 @@ int HashDictionary(const char *string)
    outptr contains encoded phonemes, unrecognized phoneme stops the encoding
    bad_phoneme must point to char array of length 2 of more
  */
-const char *EncodePhonemes(const char *p, char *outptr, int *bad_phoneme)
+const char *EncodePhonemes(EspeakProcessorContext* epContext, const char *p, char *outptr, int *bad_phoneme)
 {
 	int ix;
 	unsigned char c;
@@ -332,7 +332,7 @@ const char *EncodePhonemes(const char *p, char *outptr, int *bad_phoneme)
 			max = -1;
 			max_ph = 0;
 
-			for (ix = 1; ix < n_phoneme_tab; ix++) {
+			for (ix = 1; ix < epContext->n_phoneme_tab; ix++) {
 				if (phoneme_tab[ix] == NULL)
 					continue;
 				if (phoneme_tab[ix]->type == phINVALID)
@@ -918,7 +918,7 @@ const char stress_phonemes[] = {
 	phonSTRESS_P, phonSTRESS_P2, phonSTRESS_TONIC
 };
 
-void SetWordStress(Translator *tr, char *output, unsigned int *dictionary_flags, int tonic, int control)
+void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *output, unsigned int *dictionary_flags, int tonic, int control)
 {
 	/* Guess stress pattern of word.  This is language specific
 
@@ -975,7 +975,7 @@ void SetWordStress(Translator *tr, char *output, unsigned int *dictionary_flags,
 	for (ix = 0; ix < N_WORD_PHONEMES; ix++) {
 		phonetic[ix] = output[ix];
 		// check for unknown phoneme codes
-		if (phonetic[ix] >= n_phoneme_tab)
+		if (phonetic[ix] >= epContext->n_phoneme_tab)
 			phonetic[ix] = phonSCHWA;
 		if (phonetic[ix] == 0)
 			break;
@@ -1443,7 +1443,7 @@ void SetWordStress(Translator *tr, char *output, unsigned int *dictionary_flags,
 	return;
 }
 
-void AppendPhonemes(Translator *tr, char *string, int size, const char *ph)
+void AppendPhonemes(EspeakProcessorContext* epContext, Translator *tr, char *string, int size, const char *ph)
 {
 	/* Add new phoneme string "ph" to "string"
 	    Keeps count of the number of vowel phonemes in the word, and whether these
@@ -1462,7 +1462,7 @@ void AppendPhonemes(Translator *tr, char *string, int size, const char *ph)
 	bool unstress_mark = false;
 	p = ph;
 	while ((c = *p++) != 0) {
-		if (c >= n_phoneme_tab) continue;
+		if (c >= epContext->n_phoneme_tab) continue;
 
 		if (!phoneme_tab[c]) continue;
 
@@ -2159,7 +2159,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 				strcat(buf, str_pause);
 				digit_count = 0;
 			}
-			AppendPhonemes(tr, phonemes, ph_size, buf);
+			AppendPhonemes(epContext, tr, phonemes, ph_size, buf);
 			p += wc_bytes;
 			continue;
 		} else {
@@ -2325,7 +2325,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 			}
 			if (match1.del_fwd != NULL)
 				*match1.del_fwd = REPLACED_E;
-			AppendPhonemes(tr, phonemes, ph_size, match1.phonemes);
+			AppendPhonemes(epContext, tr, phonemes, ph_size, match1.phonemes);
 		}
 	}
 

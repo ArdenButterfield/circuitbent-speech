@@ -47,6 +47,8 @@ TEST_CASE ("Basics of espeak", "[espeak]")
 
     EspeakProcessorContext epContext;
 
+    initEspeakContext(&epContext);
+
     auto fs = espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
     REQUIRE (fs > 0);
 
@@ -63,7 +65,7 @@ TEST_CASE ("Basics of espeak", "[espeak]")
 
     void* user_data = &samples;
     unsigned int *identifier = nullptr;
-    auto synthError = espeak_Synth(text, buflength, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
+    auto synthError = espeak_Synth(&epContext, text, buflength, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
 
     REQUIRE (synthError == EE_OK);
 

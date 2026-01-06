@@ -33,7 +33,6 @@ extern "C"
 
 #define espeakINITIALIZE_PHONEME_IPA 0x0002 // move this to speak_lib.h, after eSpeak version 1.46.02
 
-#define N_PHONEME_LIST 1000 // enough for source[N_TR_SOURCE] full of text, else it will truncate
 
 #define N_SEQ_FRAMES  25 // max frames in a spectrum sequence (real max is ablut 8)
 #define STEPSIZE      64 // 2.9mS at 22 kHz sample rate
@@ -75,8 +74,6 @@ extern "C"
 #define EMBED_B    12 // break
 #define EMBED_F    13 // emphasis
 
-#define N_EMBEDDED_VALUES    15
-extern int embedded_value[N_EMBEDDED_VALUES];
 extern const int embedded_default[N_EMBEDDED_VALUES];
 
 #define N_KLATTP   10 // this affects the phoneme data file format
@@ -94,21 +91,6 @@ extern const int embedded_default[N_EMBEDDED_VALUES];
 #define KLATT_FricBP  8
 #define KLATT_Turb    9
 
-typedef struct { // 64 bytes
-	short frflags;
-	short ffreq[7];
-	unsigned char length;
-	unsigned char rms;
-	unsigned char fheight[8];
-	unsigned char fwidth[6];   // width/4  f0-5
-	unsigned char fright[3];   // width/4  f0-2
-	unsigned char bw[4];       // Klatt bandwidth BNZ /2, f1,f2,f3
-	unsigned char klattp[5];   // AV, FNZ, Tilt, Aspr, Skew
-	unsigned char klattp2[5];  // continuation of klattp[],  Avp, Fric, FricBP, Turb
-	unsigned char klatt_ap[7]; // Klatt parallel amplitude
-	unsigned char klatt_bp[7]; // Klatt parallel bandwidth  /2
-	unsigned char spare;       // pad to multiple of 4 bytes
-} frame_t; // with extra Klatt parameters for parallel resonators
 
 typedef struct { // 44 bytes
 	short frflags;
@@ -122,34 +104,6 @@ typedef struct { // 44 bytes
 	unsigned char klattp[5];  // AV, FNZ, Tilt, Aspr, Skew
 } frame_t2; // without the extra Klatt parameters
 
-typedef struct {
-	const unsigned char *pitch_env;
-	int pitch;      // pitch Hz*256
-	int pitch_ix;   // index into pitch envelope (*256)
-	int pitch_inc;  // increment to pitch_ix
-	int pitch_base; // Hz*256 low, before modified by envelope
-	int pitch_range; // Hz*256 range of envelope
-
-	unsigned char *mix_wavefile; // wave file to be added to synthesis
-	int n_mix_wavefile; // length in bytes
-	int mix_wave_scale; // 0=2 byte samples
-	int mix_wave_amp;
-	int mix_wavefile_ix;
-	int mix_wavefile_max; // length of available WAV data (in bytes)
-	int mix_wavefile_offset;
-
-	int amplitude;
-	int amplitude_v;
-	int amplitude_fmt; // percentage amplitude adjustment for formant synthesis
-} WGEN_DATA;
-
-typedef struct {
-	double a;
-	double b;
-	double c;
-	double x1;
-	double x2;
-} RESONATOR;
 
 typedef struct {
 	short length_total; // not used
@@ -171,43 +125,12 @@ typedef struct {
 	frame_t *frame;
 } frameref_t;
 
-// a clause translated into phoneme codes (first stage)
-typedef struct {
-	unsigned short synthflags; // NOTE Put shorts on 32bit boundaries, because of RISC OS compiler bug?
-	unsigned char phcode;
-	unsigned char stresslevel;
-	unsigned short sourceix;  // ix into the original source text string, only set at the start of a word
-	unsigned char wordstress; // the highest level stress in this word
-	unsigned char tone_ph;    // tone phoneme to use with this vowel
-} PHONEME_LIST2;
 
 #define PHLIST_START_OF_WORD     1
 #define PHLIST_END_OF_CLAUSE     2
 #define PHLIST_START_OF_SENTENCE 4
 #define PHLIST_START_OF_CLAUSE   8
 
-typedef struct {
-	// The first section is a copy of PHONEME_LIST2
-	unsigned short synthflags;
-	unsigned char phcode;
-	unsigned char stresslevel;
-	unsigned short sourceix;  // ix into the original source text string, only set at the start of a word
-	unsigned char wordstress; // the highest level stress in this word
-	unsigned char tone_ph;    // tone phoneme to use with this vowel
-
-	PHONEME_TAB *ph;
-	unsigned int length;  // length_mod
-	unsigned char env;    // pitch envelope number
-	unsigned char type;
-	unsigned char prepause;
-	unsigned char amp;
-	unsigned char newword;   // bit flags, see PHLIST_(START|END)_OF_*
-	unsigned char pitch1;
-	unsigned char pitch2;
-	unsigned char std_length;
-	unsigned int phontab_addr;
-	int sound_param;
-} PHONEME_LIST;
 
 #define pd_FMT    0
 #define pd_WAV    1
@@ -330,60 +253,7 @@ typedef struct {
 
 #define LENGTH_MOD_LIMIT 10
 
-typedef struct {
-	int pause_factor;
-	int clause_pause_factor;
-	unsigned int min_pause;
-	int wav_factor;
-	int lenmod_factor;
-	int lenmod2_factor;
-	int min_sample_len;
-	int fast_settings;	// TODO: rename this variable to better explain the purpose, or delete if there is none
-} SPEED_FACTORS;
 
-typedef struct {
-	char name[12];
-	unsigned char flags[4];
-	signed char head_extend[8];
-
-	unsigned char prehead_start;
-	unsigned char prehead_end;
-	unsigned char stressed_env;
-	unsigned char stressed_drop;
-	unsigned char secondary_drop;
-	unsigned char unstressed_shape;
-
-	unsigned char onset;
-	unsigned char head_start;
-	unsigned char head_end;
-	unsigned char head_last;
-
-	unsigned char head_max_steps;
-	unsigned char n_head_extend;
-
-	signed char unstr_start[3]; // for: onset, head, last
-	signed char unstr_end[3];
-
-	unsigned char nucleus0_env; // pitch envelope, tonic syllable is at end, no tail
-	unsigned char nucleus0_max;
-	unsigned char nucleus0_min;
-
-	unsigned char nucleus1_env; // when followed by a tail
-	unsigned char nucleus1_max;
-	unsigned char nucleus1_min;
-	unsigned char tail_start;
-	unsigned char tail_end;
-
-	unsigned char split_nucleus_env;
-	unsigned char split_nucleus_max;
-	unsigned char split_nucleus_min;
-	unsigned char split_tail_start;
-	unsigned char split_tail_end;
-	unsigned char split_tune;
-
-	unsigned char spare[8];
-	int spare2; // the struct length should be a multiple of 4 bytes
-} TUNE;
 
 
 
@@ -415,12 +285,10 @@ extern const unsigned char env_fall[128];
 #define WCMD_SONIC_SPEED 15
 #define WCMD_PHONEME_ALIGNMENT 16
 
-#define N_WCMDQ   170
 #define MIN_WCMDQ  25   // need this many free entries before adding new phoneme
 
 void MarkerEvent(EspeakProcessorContext* epContext, int type, unsigned int char_position, int value, int value2, unsigned char *out_ptr);
 
-#define N_ECHO_BUF 5500   // max of 250mS at 22050 Hz
 
 void SynthesizeInit(EspeakProcessorContext* epContext);
 int  Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int *n_ph, bool resume);
@@ -432,7 +300,7 @@ int FormantTransition2(EspeakProcessorContext* epContext, frameref_t *seq, int *
 void Write4Bytes(FILE *f, int value);
 
 #if USE_LIBSONIC
-void DoSonicSpeed(int value);
+void DoSonicSpeed(EspeakProcessorContext* epContext, int value);
 #endif
 
 #define ENV_LEN  128    // length of pitch envelopes
@@ -448,8 +316,8 @@ extern espeak_EVENT *event_list;
 extern const int version_phdata;
 
 void DoEmbedded(EspeakProcessorContext* epContext, int *embix, int sourceix);
-void DoMarker(int type, int char_posn, int length, int value);
-void DoPhonemeMarker(int type, int char_posn, int length, char *name);
+void DoMarker(EspeakProcessorContext* epContext, int type, int char_posn, int length, int value);
+void DoPhonemeMarker(EspeakProcessorContext* epContext, int type, int char_posn, int length, char *name);
 int DoSample3(EspeakProcessorContext* epContext, PHONEME_DATA *phdata, int length_mod, int amp);
 int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,  PHONEME_LIST *plist, int modulation);
 int PauseLength(int pause, int control);

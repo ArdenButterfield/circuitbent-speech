@@ -23,7 +23,6 @@
 #include <espeak-ng/espeak_ng.h>
 
 #include "mnemonics.h"
-#include "translate.h"
 #include <espeak-ng/common.h>
 
 #ifdef __cplusplus
@@ -140,8 +139,8 @@ const char *SelectVoice(EspeakProcessorContext* epContext, espeak_VOICE *voice_s
 espeak_VOICE *SelectVoiceByName(EspeakProcessorContext* epContext, espeak_VOICE **voices, const char *name);
 voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *voice_name, int control);
 voice_t *LoadVoiceVariant(EspeakProcessorContext* epContext, const char *voice_name, int variant);
-espeak_ng_STATUS DoVoiceChange(voice_t *v);
-void WavegenSetVoice(voice_t *v);
+espeak_ng_STATUS DoVoiceChange(EspeakProcessorContext* epContext, voice_t *v);
+void WavegenSetVoice(EspeakProcessorContext* epContext, voice_t *v);
 void ReadNumbers(char *p, int *flags, int maxValue,  const MNEM_TAB *keyword_tab, int key);
 int Read8Numbers(char *data_in, int data[8]);
 void ReadTonePoints(char *string, int *tone_pts);

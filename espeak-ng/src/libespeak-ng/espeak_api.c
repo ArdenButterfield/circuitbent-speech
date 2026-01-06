@@ -52,7 +52,7 @@ ESPEAK_API int espeak_Initialize(EspeakProcessorContext* epContext, espeak_AUDIO
 {
 	espeak_ng_InitializePath(path);
 	espeak_ng_ERROR_CONTEXT context = NULL;
-	espeak_ng_STATUS result = espeak_ng_Initialize(&context);
+	espeak_ng_STATUS result = espeak_ng_Initialize(epContext, &context);
 	if (result != ENS_OK) {
 		espeak_ng_PrintStatusCodeMessage(result, stderr, context);
 		espeak_ng_ClearErrorContext(&context);
@@ -63,31 +63,31 @@ ESPEAK_API int espeak_Initialize(EspeakProcessorContext* epContext, espeak_AUDIO
 	switch (output_type)
 	{
 	case AUDIO_OUTPUT_PLAYBACK:
-		espeak_ng_InitializeOutput(ENOUTPUT_MODE_SPEAK_AUDIO, buf_length, NULL);
+		espeak_ng_InitializeOutput(epContext, ENOUTPUT_MODE_SPEAK_AUDIO, buf_length, NULL);
 		break;
 	case AUDIO_OUTPUT_RETRIEVAL:
-		espeak_ng_InitializeOutput(0, buf_length, NULL);
+		espeak_ng_InitializeOutput(epContext, 0, buf_length, NULL);
 		break;
 	case AUDIO_OUTPUT_SYNCHRONOUS:
-		espeak_ng_InitializeOutput(ENOUTPUT_MODE_SYNCHRONOUS, buf_length, NULL);
+		espeak_ng_InitializeOutput(epContext, ENOUTPUT_MODE_SYNCHRONOUS, buf_length, NULL);
 		break;
 	case AUDIO_OUTPUT_SYNCH_PLAYBACK:
-		espeak_ng_InitializeOutput(ENOUTPUT_MODE_SYNCHRONOUS | ENOUTPUT_MODE_SPEAK_AUDIO, buf_length, NULL);
+		espeak_ng_InitializeOutput(epContext, ENOUTPUT_MODE_SYNCHRONOUS | ENOUTPUT_MODE_SPEAK_AUDIO, buf_length, NULL);
 		break;
 	}
 
-	option_phoneme_events = (options & (espeakINITIALIZE_PHONEME_EVENTS | espeakINITIALIZE_PHONEME_IPA));
+	epContext->option_phoneme_events = (options & (espeakINITIALIZE_PHONEME_EVENTS | espeakINITIALIZE_PHONEME_IPA));
 
-	return espeak_ng_GetSampleRate();
+	return espeak_ng_GetSampleRate(epContext);
 }
 
-ESPEAK_API espeak_ERROR espeak_Synth(const void *text, size_t size,
+ESPEAK_API espeak_ERROR espeak_Synth(EspeakProcessorContext* epContext, const void *text, size_t size,
                                      unsigned int position,
                                      espeak_POSITION_TYPE position_type,
                                      unsigned int end_position, unsigned int flags,
                                      unsigned int *unique_identifier, void *user_data)
 {
-	return status_to_espeak_error(espeak_ng_Synthesize(text, size, position, position_type, end_position, flags, unique_identifier, user_data));
+	return status_to_espeak_error(espeak_ng_Synthesize(epContext, text, size, position, position_type, end_position, flags, unique_identifier, user_data));
 }
 
 ESPEAK_API espeak_ERROR espeak_Synth_Mark(EspeakProcessorContext* epContext,
@@ -98,63 +98,63 @@ ESPEAK_API espeak_ERROR espeak_Synth_Mark(EspeakProcessorContext* epContext,
                                           unsigned int *unique_identifier,
                                           void *user_data)
 {
-	return status_to_espeak_error(espeak_ng_SynthesizeMark(text, size, index_mark, end_position, flags, unique_identifier, user_data));
+	return status_to_espeak_error(espeak_ng_SynthesizeMark(epContext, text, size, index_mark, end_position, flags, unique_identifier, user_data));
 }
 
 ESPEAK_API espeak_ERROR espeak_Key(EspeakProcessorContext* epContext, const char *key_name)
 {
-	return status_to_espeak_error(espeak_ng_SpeakKeyName(key_name));
+	return status_to_espeak_error(espeak_ng_SpeakKeyName(epContext, key_name));
 }
 
 ESPEAK_API espeak_ERROR espeak_Char(EspeakProcessorContext* epContext, wchar_t character)
 {
-	return status_to_espeak_error(espeak_ng_SpeakCharacter(character));
+	return status_to_espeak_error(espeak_ng_SpeakCharacter(epContext, character));
 }
 
 ESPEAK_API espeak_ERROR espeak_SetParameter(EspeakProcessorContext* epContext, espeak_PARAMETER parameter, int value, int relative)
 {
-	return status_to_espeak_error(espeak_ng_SetParameter(parameter, value, relative));
+	return status_to_espeak_error(espeak_ng_SetParameter(epContext, parameter, value, relative));
 }
 
 ESPEAK_API espeak_ERROR espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist)
 {
-	return status_to_espeak_error(espeak_ng_SetPunctuationList(punctlist));
+	return status_to_espeak_error(espeak_ng_SetPunctuationList(epContext, punctlist));
 }
 
 ESPEAK_API espeak_ERROR espeak_SetVoiceByName(EspeakProcessorContext* epContext, const char *name)
 {
-	return status_to_espeak_error(espeak_ng_SetVoiceByName(name));
+	return status_to_espeak_error(espeak_ng_SetVoiceByName(epContext, name));
 }
 
 ESPEAK_API espeak_ERROR espeak_SetVoiceByFile(EspeakProcessorContext* epContext, const char *filename)
 {
-	return status_to_espeak_error(espeak_ng_SetVoiceByFile(filename));
+	return status_to_espeak_error(espeak_ng_SetVoiceByFile(epContext, filename));
 }
 
 ESPEAK_API espeak_ERROR espeak_SetVoiceByProperties(EspeakProcessorContext* epContext, espeak_VOICE *voice_selector)
 {
-	return status_to_espeak_error(espeak_ng_SetVoiceByProperties(voice_selector));
+	return status_to_espeak_error(espeak_ng_SetVoiceByProperties(epContext, voice_selector));
 }
 
 ESPEAK_API espeak_ERROR espeak_Cancel(EspeakProcessorContext* epContext)
 {
-	return status_to_espeak_error(espeak_ng_Cancel());
+	return status_to_espeak_error(espeak_ng_Cancel(epContext));
 }
 
 ESPEAK_API espeak_ERROR espeak_Synchronize(EspeakProcessorContext* epContext)
 {
-	return status_to_espeak_error(espeak_ng_Synchronize());
+	return status_to_espeak_error(espeak_ng_Synchronize(epContext));
 }
 
 ESPEAK_API espeak_ERROR espeak_Terminate(EspeakProcessorContext* epContext)
 {
-	return status_to_espeak_error(espeak_ng_Terminate());
+	return status_to_espeak_error(espeak_ng_Terminate(epContext));
 }
 
 ESPEAK_API void espeak_CompileDictionary(EspeakProcessorContext* epContext, const char *path, FILE *log, int flags)
 {
 	espeak_ng_ERROR_CONTEXT context = NULL;
-	espeak_ng_STATUS result = espeak_ng_CompileDictionary(path, epContext->dictionary_name, log, flags, &context);
+	espeak_ng_STATUS result = espeak_ng_CompileDictionary(epContext, path, epContext->dictionary_name, log, flags, &context);
 	if (result != ENS_OK) {
 		espeak_ng_PrintStatusCodeMessage(result, stderr, context);
 		espeak_ng_ClearErrorContext(&context);

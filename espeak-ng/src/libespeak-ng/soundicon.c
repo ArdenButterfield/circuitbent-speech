@@ -80,7 +80,7 @@ static espeak_ng_STATUS LoadSoundFile(EspeakProcessorContext* epContext, char *f
 			header[ix] = Read4Bytes(f);
 
 		// if the sound file is not mono, 16 bit signed, at the correct sample rate, then convert it
-		if ((header[0] != 0x10001) || (header[1] != samplerate) || (header[2] != samplerate*2)) {
+		if ((header[0] != 0x10001) || (header[1] != epContext->samplerate) || (header[2] != epContext->samplerate*2)) {
 			fclose(f);
 			f = NULL;
 
@@ -145,7 +145,7 @@ int LookupSoundicon(EspeakProcessorContext* epContext, int c)
 	for (ix = 0; ix < epContext->n_soundicon_tab; ix++) {
 		if (epContext->soundicon_tab[ix].name == c) {
 			if (epContext->soundicon_tab[ix].length == 0) { // not yet loaded, load now
-				if (LoadSoundFile(NULL, ix, NULL) != ENS_OK) {
+				if (LoadSoundFile(epContext, NULL, ix, NULL) != ENS_OK) {
 					return -1; // sound file is not available
 				}
 			}
@@ -166,7 +166,7 @@ int LoadSoundFile2(EspeakProcessorContext* epContext, const char *fname)
 		if (((epContext->soundicon_tab[ix].filename != NULL) && strcmp(fname, epContext->soundicon_tab[ix].filename) == 0)) {
 			// the file information is found. If length = 0 it needs to be loaded to memory
 			if (epContext->soundicon_tab[ix].length == 0) {
-				if (LoadSoundFile(NULL, ix, NULL) != ENS_OK)
+				if (LoadSoundFile(epContext, NULL, ix, NULL) != ENS_OK)
 					return -1; // sound file is not available
 			}
 			return ix; // sound file already loaded to memory
@@ -174,7 +174,7 @@ int LoadSoundFile2(EspeakProcessorContext* epContext, const char *fname)
 	}
 
 	// load the file into the current slot and increase index
-	if (LoadSoundFile(fname, epContext->n_soundicon_tab, NULL) != ENS_OK)
+	if (LoadSoundFile(epContext, fname, epContext->n_soundicon_tab, NULL) != ENS_OK)
 		return -1;
 
 	epContext->soundicon_tab[epContext->n_soundicon_tab].filename = (char *)realloc(epContext->soundicon_tab[epContext->n_soundicon_tab].filename, strlen(fname)+1);

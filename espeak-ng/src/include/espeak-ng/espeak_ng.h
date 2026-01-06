@@ -26,15 +26,6 @@ extern "C"
 {
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
-#ifdef LIBESPEAK_NG_EXPORT
-#define ESPEAK_NG_API __declspec(dllexport)
-#else
-#define ESPEAK_NG_API __declspec(dllimport)
-#endif
-#else
-#define ESPEAK_NG_API
-#endif
 
 #define ESPEAKNG_DEFAULT_VOICE "en"
 
@@ -68,10 +59,10 @@ ESPEAK_NG_API void
 espeak_ng_InitializePath(const char *path);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_Initialize(espeak_ng_ERROR_CONTEXT *context);
+espeak_ng_Initialize(EspeakProcessorContext* epContext, espeak_ng_ERROR_CONTEXT *context);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_InitializeOutput(espeak_ng_OUTPUT_MODE output_mode,
+espeak_ng_InitializeOutput(EspeakProcessorContext* epContext, espeak_ng_OUTPUT_MODE output_mode,
                            int buffer_length,
                            const char *device);
 
@@ -79,27 +70,27 @@ ESPEAK_NG_API int
 espeak_ng_GetSampleRate(EspeakProcessorContext* epContext);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetParameter(espeak_PARAMETER parameter,
+espeak_ng_SetParameter(EspeakProcessorContext* epContext, espeak_PARAMETER parameter,
                        int value,
                        int relative);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetPhonemeEvents(int enable, int ipa);
+espeak_ng_SetPhonemeEvents(EspeakProcessorContext* epContext, int enable, int ipa);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetPunctuationList(const wchar_t *punctlist);
+espeak_ng_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetVoiceByName(const char *name);
+espeak_ng_SetVoiceByName(EspeakProcessorContext* epContext, const char *name);
 
 ESPEAK_NG_API espeak_ng_STATUS
 espeak_ng_SetVoiceByFile(EspeakProcessorContext* epContext, const char *filename);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetVoiceByProperties(espeak_VOICE *voice_selector);
+espeak_ng_SetVoiceByProperties(EspeakProcessorContext* epContext, espeak_VOICE *voice_selector);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_Synthesize(const void *text,
+espeak_ng_Synthesize(EspeakProcessorContext* epContext, const void *text,
                      size_t size,
                      unsigned int position,
                      espeak_POSITION_TYPE position_type,
@@ -109,7 +100,7 @@ espeak_ng_Synthesize(const void *text,
                      void *user_data);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SynthesizeMark(const void *text,
+espeak_ng_SynthesizeMark(EspeakProcessorContext* epContext, const void *text,
                          size_t size,
                          const char *index_mark,
                          unsigned int end_position,
@@ -118,22 +109,22 @@ espeak_ng_SynthesizeMark(const void *text,
                          void *user_data);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SpeakKeyName(const char *key_name);
+espeak_ng_SpeakKeyName(EspeakProcessorContext* epContext, const char *key_name);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SpeakCharacter(wchar_t character);
+espeak_ng_SpeakCharacter(EspeakProcessorContext* epContext, wchar_t character);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_Cancel(void);
+espeak_ng_Cancel(EspeakProcessorContext* epContext);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_Synchronize(void);
+espeak_ng_Synchronize(EspeakProcessorContext* epContext);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_Terminate(void);
+espeak_ng_Terminate(EspeakProcessorContext* epContext);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_CompileDictionary(const char *dsource,
+espeak_ng_CompileDictionary(EspeakProcessorContext* epContext, const char *dsource,
                             const char *dict_name,
                             FILE *log,
                             int flags,
@@ -145,17 +136,17 @@ espeak_ng_CompileMbrolaVoice(const char *path,
                              espeak_ng_ERROR_CONTEXT *context);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_CompilePhonemeData(long rate,
+espeak_ng_CompilePhonemeData(EspeakProcessorContext* epContext, long rate,
                              FILE *log,
                              espeak_ng_ERROR_CONTEXT *context);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_CompileIntonation(FILE *log,
+espeak_ng_CompileIntonation(EspeakProcessorContext* epContext, FILE *log,
                             espeak_ng_ERROR_CONTEXT *context);
 
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_CompileIntonationPath(const char *source_path,
+espeak_ng_CompileIntonationPath(EspeakProcessorContext* epContext, const char *source_path,
                                 const char *destination_path,
                                 FILE *log,
                                 espeak_ng_ERROR_CONTEXT *context);
@@ -163,16 +154,16 @@ espeak_ng_CompileIntonationPath(const char *source_path,
 /* eSpeak NG 1.49.1 */
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_CompilePhonemeDataPath(long rate,
+espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
                                  const char *source_path,
                                  const char *destination_path,
                                  FILE *log,
                                  espeak_ng_ERROR_CONTEXT *context);
                                  
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetOutputHooks(espeak_ng_OUTPUT_HOOKS* hooks);
+espeak_ng_SetOutputHooks(EspeakProcessorContext* epContext, espeak_ng_OUTPUT_HOOKS* hooks);
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetConstF0(int f0);
+espeak_ng_SetConstF0(EspeakProcessorContext* epContext, int f0);
 
 ESPEAK_NG_API espeak_ng_STATUS
 espeak_ng_SetRandSeed(long seed);

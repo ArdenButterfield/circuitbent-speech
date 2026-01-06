@@ -207,7 +207,7 @@ static espeak_ng_STATUS LoadFrame(SpectFrame *frame, FILE *stream, int file_form
 	return ENS_OK;
 }
 
-double GetFrameRms(SpectFrame *frame, int seq_amplitude)
+double GetFrameRms(EspeakProcessorContext* epContext, SpectFrame *frame, int seq_amplitude)
 {
 	int h;
 	float total = 0;
@@ -225,7 +225,7 @@ double GetFrameRms(SpectFrame *frame, int seq_amplitude)
 		wpeaks[h].right = frame->peaks[h].pkright << 16;
 	}
 
-	maxh = PeaksToHarmspect(wpeaks, 90<<16, htab, 0);
+	maxh = PeaksToHarmspect(epContext, wpeaks, 90<<16, htab, 0);
 	for (h = 1; h < maxh; h++)
 		total += ((htab[h] * htab[h]) >> 10);
 	frame->rms = sqrt(total) / 7.25;

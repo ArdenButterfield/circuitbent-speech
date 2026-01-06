@@ -252,7 +252,7 @@ void WavegenInit(EspeakProcessorContext* epContext, int rate, int wavemult_fact)
 	epContext->wdata.amplitude_fmt = 100;
 
 	for (ix = 0; ix < N_EMBEDDED_VALUES; ix++)
-		embedded_value[ix] = embedded_default[ix];
+		epContext->embedded_value[ix] = embedded_default[ix];
 
 	// set up window to generate a spread of harmonics from a
 	// single peak for HF peaks
@@ -291,8 +291,8 @@ int GetAmplitude(EspeakProcessorContext* epContext)
 	// normal, none, reduced, moderate, strong
 	static const unsigned char amp_emphasis[5] = { 16, 16, 10, 16, 22 };
 
-	amp = (embedded_value[EMBED_A])*55/100;
-	epContext->general_amplitude = amp * amp_emphasis[embedded_value[EMBED_F]] / 16;
+	amp = (epContext->embedded_value[EMBED_A])*55/100;
+	epContext->general_amplitude = amp * amp_emphasis[epContext->embedded_value[EMBED_F]] / 16;
 	return epContext->general_amplitude;
 }
 
@@ -316,9 +316,9 @@ static void WavegenSetEcho(EspeakProcessorContext* epContext)
 	memset(epContext->echo_buf, 0, sizeof(epContext->echo_buf));
 	epContext->echo_tail = 0;
 
-	if (embedded_value[EMBED_H] > 0) {
+	if (epContext->embedded_value[EMBED_H] > 0) {
 		// set echo from an embedded command in the text
-		amp = embedded_value[EMBED_H];
+		amp = epContext->embedded_value[EMBED_H];
 		delay = 130;
 	}
 
@@ -550,7 +550,7 @@ void InitBreath(EspeakProcessorContext* epContext)
 	epContext->two_pi_t = -2.0 * epContext->minus_pi_t;
 
 	for (ix = 0; ix < N_PEAKS; ix++)
-		setresonator(&epContext->rbreath[ix], 2000, 200, 1);
+		setresonator(epContext, &epContext->rbreath[ix], 2000, 200, 1);
 }
 
 static void SetBreath(EspeakProcessorContext* epContext)
@@ -564,7 +564,7 @@ static void SetBreath(EspeakProcessorContext* epContext)
 		if (epContext->wvoice->breath[pk] != 0) {
 			// breath[0] indicates that some breath formants are needed
 			// set the freq from the current synthesis formant and the width from the voice data
-			setresonator(&epContext->rbreath[pk], epContext->peaks[pk].freq >> 16, epContext->wvoice->breathw[pk], 0);
+			setresonator(epContext, &epContext->rbreath[pk], epContext->peaks[pk].freq >> 16, epContext->wvoice->breathw[pk], 0);
 		}
 	}
 }
@@ -630,7 +630,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			if (epContext->samplecount == 0) {
 				epContext->hswitch = 0;
 				epContext->harmspect = epContext->hspect[0];
-				maxh2 = PeaksToHarmspect(epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[0], 0);
+				maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[0], 0);
 
 				// adjust amplitude to compensate for fewer harmonics at higher pitch
 				amplitude2 = (epContext->wdata.amplitude * (epContext->wdata.pitch >> 8) * epContext->wdata.amplitude_fmt)/(10000 << 3);
@@ -648,7 +648,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			maxh = maxh2;
 			epContext->harmspect = epContext->hspect[epContext->hswitch];
 			epContext->hswitch ^= 1;
-			maxh2 = PeaksToHarmspect(epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[epContext->hswitch], 1);
+			maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[epContext->hswitch], 1);
 
 			SetBreath(epContext);
 		} else if ((epContext->samplecount & 0x07) == 0) {
@@ -921,7 +921,7 @@ static void SetPitchFormants(EspeakProcessorContext* epContext)
 	int pitch_value;
 
 	// adjust formants to give better results for a different voice pitch
-	if ((pitch_value = embedded_value[EMBED_P]) > MAX_PITCH_VALUE)
+	if ((pitch_value = epContext->embedded_value[EMBED_P]) > MAX_PITCH_VALUE)
 		pitch_value = MAX_PITCH_VALUE;
 
 	if (pitch_value > 50) {
@@ -932,7 +932,7 @@ static void SetPitchFormants(EspeakProcessorContext* epContext)
 	for (ix = 0; ix <= 5; ix++)
 		epContext->wvoice->freq[ix] = (epContext->wvoice->freq2[ix] * factor)/256;
 
-	factor = embedded_value[EMBED_T]*3;
+	factor = epContext->embedded_value[EMBED_T]*3;
 	epContext->wvoice->height[0] = (epContext->wvoice->height2[0] * (256 - factor*2))/256;
 	epContext->wvoice->height[1] = (epContext->wvoice->height2[1] * (256 - factor))/256;
 }
@@ -951,10 +951,10 @@ void SetEmbedded(EspeakProcessorContext* epContext, int control, int value)
 
 	if (command < N_EMBEDDED_VALUES) {
 		if (sign == 0)
-			embedded_value[command] = value;
+			epContext->embedded_value[command] = value;
 		else
-			embedded_value[command] += (value * sign);
-		embedded_value[command] = SetWithRange0(epContext, embedded_value[command], embedded_max[command]);
+			epContext->embedded_value[command] += (value * sign);
+		epContext->embedded_value[command] = SetWithRange0(epContext, epContext->embedded_value[command], embedded_max[command]);
 	}
 
 	switch (command)
@@ -995,7 +995,7 @@ void WavegenSetVoice(EspeakProcessorContext* epContext, voice_t *v)
 	}
 	WavegenSetEcho(epContext);
 	SetPitchFormants(epContext);
-	MarkerEvent(espeakEVENT_SAMPLERATE, 0, epContext->wvoice->samplerate, 0, epContext->out_ptr);
+	MarkerEvent(epContext, espeakEVENT_SAMPLERATE, 0, epContext->wvoice->samplerate, 0, epContext->out_ptr);
 }
 
 static void SetAmplitude(EspeakProcessorContext* epContext, int length, unsigned char *amp_env, int value)
@@ -1015,7 +1015,7 @@ static void SetAmplitude(EspeakProcessorContext* epContext, int length, unsigned
 	epContext->amplitude_env = amp_env;
 }
 
-void SetPitch2(voice_t *voice, int pitch1, int pitch2, int *pitch_base, int *pitch_range)
+void SetPitch2(EspeakProcessorContext* epContext, voice_t *voice, int pitch1, int pitch2, int *pitch_base, int *pitch_range)
 {
 	int base;
 	int range;
@@ -1028,14 +1028,14 @@ void SetPitch2(voice_t *voice, int pitch1, int pitch2, int *pitch_base, int *pit
 		pitch2 = x;
 	}
 
-	if ((pitch_value = embedded_value[EMBED_P]) > MAX_PITCH_VALUE)
+	if ((pitch_value = epContext->embedded_value[EMBED_P]) > MAX_PITCH_VALUE)
 		pitch_value = MAX_PITCH_VALUE;
-	pitch_value -= embedded_value[EMBED_T]; // adjust tone for announcing punctuation
+	pitch_value -= epContext->embedded_value[EMBED_T]; // adjust tone for announcing punctuation
 	if (pitch_value < 0)
 		pitch_value = 0;
 
 	base = (voice->pitch_base * pitch_adjust_tab[pitch_value])/128;
-	range =  (voice->pitch_range * embedded_value[EMBED_R])/50;
+	range =  (voice->pitch_range * epContext->embedded_value[EMBED_R])/50;
 
 	// compensate for change in pitch when the range is narrowed or widened
 	base -= (range - voice->pitch_range)*18;
@@ -1060,7 +1060,7 @@ static void SetPitch(EspeakProcessorContext* epContext, int length, unsigned cha
 	else
 		epContext->wdata.pitch_inc = (256 * ENV_LEN * STEPSIZE)/length;
 
-	SetPitch2(epContext->wvoice, pitch1, pitch2, &epContext->wdata.pitch_base, &epContext->wdata.pitch_range);
+	SetPitch2(epContext, epContext->wvoice, pitch1, pitch2, &epContext->wdata.pitch_base, &epContext->wdata.pitch_range);
 	// set initial pitch
 	epContext->wdata.pitch = ((epContext->wdata.pitch_env[0] * epContext->wdata.pitch_range) >>8) + epContext->wdata.pitch_base; // Hz << 12
 
@@ -1241,29 +1241,29 @@ static int WavegenFill2(EspeakProcessorContext* epContext)
 			epContext->wdata.n_mix_wavefile = 0; // ... and drop through to WCMD_SPECT case
 		case WCMD_SPECT:
 			echo_complete = epContext->echo_length;
-			result = Wavegen(length & 0xffff, q[1] >> 16, resume, (frame_t *)q[2], (frame_t *)q[3], epContext->wvoice);
+			result = Wavegen(epContext, length & 0xffff, q[1] >> 16, resume, (frame_t *)q[2], (frame_t *)q[3], epContext->wvoice);
 			break;
 #if USE_KLATT
 		case WCMD_KLATT2: // as WCMD_SPECT but stop any concurrent wave file
 			epContext->wdata.n_mix_wavefile = 0; // ... and drop through to WCMD_SPECT case
 		case WCMD_KLATT:
 			echo_complete = epContext->echo_length;
-			result = Wavegen_Klatt(length & 0xffff, resume, (frame_t *)q[2], (frame_t *)q[3], &epContext->wdata, epContext->wvoice);
+			result = Wavegen_Klatt(epContext, length & 0xffff, resume, (frame_t *)q[2], (frame_t *)q[3], &epContext->wdata, epContext->wvoice);
 			break;
 #endif
 		case WCMD_MARKER:
 			marker_type = q[0] >> 8;
-			MarkerEvent(marker_type, q[1], * (int *) & q[2], * ((int *) & q[2] + 1), epContext->out_ptr);
+			MarkerEvent(epContext, marker_type, q[1], * (int *) & q[2], * ((int *) & q[2] + 1), epContext->out_ptr);
 			break;
 		case WCMD_AMPLITUDE:
 			SetAmplitude(epContext, length, (unsigned char *)q[2], q[3]);
 			break;
 		case WCMD_VOICE:
-			WavegenSetVoice((voice_t *)q[2]);
+			WavegenSetVoice(epContext, (voice_t *)q[2]);
 			free((voice_t *)q[2]);
 			break;
 		case WCMD_EMBEDDED:
-			SetEmbedded(q[1], q[2]);
+			SetEmbedded(epContext, q[1], q[2]);
 			break;
 #if USE_MBROLA
 		case WCMD_MBROLA_DATA:

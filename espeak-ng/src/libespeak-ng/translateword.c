@@ -46,7 +46,7 @@
 
 
 static void addPluralSuffixes(EspeakProcessorContext* epContext, int flags, Translator *tr, char last_char, char *word_phonemes);
-static void ApplySpecialAttribute2(Translator *tr, char *phonemes, int dict_flags);
+static void ApplySpecialAttribute2(EspeakProcessorContext* epContext, Translator *tr, char *phonemes, int dict_flags);
 static void ChangeWordStress(Translator *tr, char *word, int new_stress);
 static int CheckDottedAbbrev(EspeakProcessorContext* epContext, char *word1);
 static int NonAsciiNumber(int letter);
@@ -346,7 +346,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 					phonemes2[0] = 0;
 					end2 = TranslateRules(epContext, tr, wordx, phonemes2, N_WORD_PHONEMES, end_phonemes2, wflags|FLAG_NO_PREFIX|FLAG_NO_TRACE, dictionary_flags);
 					if (end2) {
-						RemoveEnding(tr, wordx, end2, word_copy);
+						RemoveEnding(epContext, tr, wordx, end2, word_copy);
 						end_type = TranslateRules(epContext, tr, wordx, phonemes, N_WORD_PHONEMES, end_phonemes, wflags|FLAG_NO_TRACE, dictionary_flags);
 						memcpy(wordx, word_copy, strlen(word_copy));
 						if ((end_type & SUFX_P) == 0) {
@@ -441,7 +441,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 				strcpy(phonemes2, phonemes);
 
 				// The word has a standard ending, re-translate without this ending
-				end_flags = RemoveEnding(tr, wordx, end_type, word_copy);
+				end_flags = RemoveEnding(epContext, tr, wordx, end_type, word_copy);
 				more_suffixes = true;
 
 				while (more_suffixes) {
@@ -501,7 +501,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 
 								if ((end_type != 0) && !(end_type & SUFX_P)) {
 									// there is another suffix
-									end_flags = RemoveEnding(tr, wordx, end_type, NULL);
+									end_flags = RemoveEnding(epContext, tr, wordx, end_type, NULL);
 									more_suffixes = true;
 								}
 							} else {
@@ -524,7 +524,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 
 				if ((end_type1 & SUFX_T) == 0) {
 					// the default is to add the suffix and then determine the word's stress pattern
-					AppendPhonemes(tr, phonemes, N_WORD_PHONEMES, end_phonemes);
+					AppendPhonemes(epContext, tr, phonemes, N_WORD_PHONEMES, end_phonemes);
 					end_phonemes[0] = 0;
 				}
 				memcpy(wordx, word_copy, strlen(word_copy));
@@ -552,7 +552,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 		if ((tr->langopts.param[LOPT_PREFIXES]) || (prefix_type & SUFX_T)) {
 			char *p;
 			// German, keep a secondary stress on the stem
-			SetWordStress(tr, phonemes, dictionary_flags, 3, 0);
+			SetWordStress(epContext, tr, phonemes, dictionary_flags, 3, 0);
 
 			// reduce all but the first primary stress
 			ix = 0;
@@ -567,15 +567,15 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 			snprintf(word_phonemes, size_word_phonemes, "%s%s%s", unpron_phonemes, prefix_phonemes, phonemes);
 
 			word_phonemes[N_WORD_PHONEMES-1] = 0;
-			SetWordStress(tr, word_phonemes, dictionary_flags, -1, 0);
+			SetWordStress(epContext, tr, word_phonemes, dictionary_flags, -1, 0);
 		} else {
 			// stress position affects the whole word, including prefix
 			snprintf(word_phonemes, size_word_phonemes, "%s%s%s", unpron_phonemes, prefix_phonemes, phonemes);
 			word_phonemes[N_WORD_PHONEMES-1] = 0;
-			SetWordStress(tr, word_phonemes, dictionary_flags, -1, 0);
+			SetWordStress(epContext, tr, word_phonemes, dictionary_flags, -1, 0);
 		}
 	} else {
-		SetWordStress(tr, phonemes, dictionary_flags, -1, add_suffix_phonemes);
+		SetWordStress(epContext, tr, phonemes, dictionary_flags, -1, add_suffix_phonemes);
 		snprintf(word_phonemes, size_word_phonemes, "%s%s%s", unpron_phonemes, prefix_phonemes, phonemes);
 		word_phonemes[N_WORD_PHONEMES-1] = 0;
 	}
@@ -663,7 +663,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 	}
 
 	if ((tr->langopts.param[LOPT_ALT] & 2) && ((dictionary_flags[0] & (FLAG_ALT_TRANS | FLAG_ALT2_TRANS)) != 0))
-		ApplySpecialAttribute2(tr, word_phonemes, dictionary_flags[0]);
+		ApplySpecialAttribute2(epContext, tr, word_phonemes, dictionary_flags[0]);
 
 	dictionary_flags[0] |= was_unpronouncable;
 	memcpy(word_start, word_copy2, word_copy_length);
@@ -671,7 +671,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 }
 
 
-void ApplySpecialAttribute2(Translator *tr, char *phonemes, int dict_flags)
+void ApplySpecialAttribute2(EspeakProcessorContext* epContext, Translator *tr, char *phonemes, int dict_flags)
 {
 	// apply after the translation is complete
 	int len;
@@ -685,15 +685,15 @@ void ApplySpecialAttribute2(Translator *tr, char *phonemes, int dict_flags)
 				char *p;
 				p = &phonemes[ix+1];
 				if ((dict_flags & FLAG_ALT2_TRANS) != 0) {
-					if (*p == PhonemeCode('E'))
-						*p = PhonemeCode('e');
-					if (*p == PhonemeCode('O'))
-						*p = PhonemeCode('o');
+					if (*p == PhonemeCode(epContext, 'E'))
+						*p = PhonemeCode(epContext, 'e');
+					if (*p == PhonemeCode(epContext, 'O'))
+						*p = PhonemeCode(epContext, 'o');
 				} else {
-					if (*p == PhonemeCode('e'))
-						*p = PhonemeCode('E');
-					if (*p == PhonemeCode('o'))
-						*p = PhonemeCode('O');
+					if (*p == PhonemeCode(epContext, 'e'))
+						*p = PhonemeCode(epContext, 'E');
+					if (*p == PhonemeCode(epContext, 'o'))
+						*p = PhonemeCode(epContext, 'O');
 				}
 				break;
 			}
@@ -939,7 +939,7 @@ static int TranslateLetter(EspeakProcessorContext* epContext, Translator *tr, ch
 					p3[7] = 0;
 					ph_buf[3] = 0;
 					TranslateRules(epContext, epContext->translator3, &hangul_buf[1], &ph_buf[3], sizeof(ph_buf)-3, NULL, 0, NULL);
-					SetWordStress(epContext->translator3, &ph_buf[3], NULL, -1, 0);
+					SetWordStress(epContext, epContext->translator3, &ph_buf[3], NULL, -1, 0);
 				} else
 					LookupLetter(epContext, epContext->translator3, letter, word[n_bytes], &ph_buf[3], control & 1);
 
@@ -949,7 +949,7 @@ static int TranslateLetter(EspeakProcessorContext* epContext, Translator *tr, ch
 					LookupLetter(epContext, epContext->translator3, letter, word[n_bytes], &ph_buf[3], control & 1);
 				}
 
-				SelectPhonemeTable(epContext->voice->phoneme_tab_ix); // revert to original phoneme table
+				SelectPhonemeTable(epContext, epContext->voice->phoneme_tab_ix); // revert to original phoneme table
 
 				if (ph_buf[3] != 0) {
 					ph_buf[0] = phonPAUSE;
@@ -974,7 +974,7 @@ static int TranslateLetter(EspeakProcessorContext* epContext, Translator *tr, ch
 				Lookup(epContext, epContext->translator, "_??", ph_buf);
 
 			if (ph_buf[0] == 0)
-				EncodePhonemes("l'et@", ph_buf, NULL);
+				EncodePhonemes(epContext, "l'et@", ph_buf, NULL);
 		}
 
 		if (!(control & 4) && (al_flags & AL_NOT_CODE)) {
@@ -1005,7 +1005,7 @@ static int TranslateLetter(EspeakProcessorContext* epContext, Translator *tr, ch
 				LookupLetter(epContext, epContext->translator, *p2, 0, pbuf, 1);
 				if (((pbuf[0] == 0) || (pbuf[0] == phonSWITCH)) && (*p2 >= 'a')) {
 					// This language has no translation for 'a' to 'f', speak English names using base phonemes
-					EncodePhonemes(hex_letters[*p2 - 'a'], pbuf, NULL);
+					EncodePhonemes(epContext, hex_letters[*p2 - 'a'], pbuf, NULL);
 				}
 			}
 			strcat(pbuf, pause_string);

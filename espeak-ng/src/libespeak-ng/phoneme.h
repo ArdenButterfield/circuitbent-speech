@@ -224,50 +224,14 @@ phoneme_feature_t phoneme_feature_from_string(const char *feature);
 #define phonPAUSE_CLAUSE 27
 #define phonVOWELTYPES   28  // 28 to 33
 
-#define N_PHONEME_TABS     150     // number of phoneme tables
-#define N_PHONEME_TAB      256     // max phonemes in a phoneme table
-#define N_PHONEME_TAB_NAME  32     // must be multiple of 4
 
 // main table of phonemes, index by phoneme number (1-254)
 
-typedef struct {
-	unsigned int mnemonic;       // Up to 4 characters.  The first char is in the l.s.byte
-	unsigned int phflags;        // bits 16-19 place of articulation
-	unsigned short program;      // index into phondata file
-	unsigned char code;          // the phoneme number
-	unsigned char type;          // phVOWEL, phPAUSE, phSTOP etc
-	unsigned char start_type;
-	unsigned char end_type;      // vowels: endtype; consonant: voicing switch
-	unsigned char std_length;    // for vowels, in mS/2;  for phSTRESS phonemes, this is the stress/tone type
-	unsigned char length_mod;    // a length_mod group number, used to access length_mod_tab
-} PHONEME_TAB;
 
 espeak_ng_STATUS
 phoneme_add_feature(PHONEME_TAB *phoneme,
                     phoneme_feature_t feature);
 
-// Several phoneme tables may be loaded into memory. phoneme_tab points to
-// one for the current voice
-extern int n_phoneme_tab;
-extern PHONEME_TAB *phoneme_tab[N_PHONEME_TAB];
-
-typedef struct {
-	char name[N_PHONEME_TAB_NAME];
-	PHONEME_TAB *phoneme_tab_ptr;
-	int n_phonemes;
-	int includes;            // also include the phonemes from this other phoneme table
-} PHONEME_TAB_LIST;
-
-// table of phonemes to be replaced with different phonemes, for the current voice
-#define N_REPLACE_PHONEMES   60
-typedef struct {
-	unsigned char old_ph;
-	unsigned char new_ph;
-	char type;   // 0=always replace, 1=only at end of word
-} REPLACE_PHONEMES;
-
-extern int n_replace_phonemes;
-extern REPLACE_PHONEMES replace_phonemes[N_REPLACE_PHONEMES];
 
 // Table of phoneme programs and lengths.  Used by MakeVowelLists
 typedef struct {
@@ -275,7 +239,7 @@ typedef struct {
 	unsigned int length;
 } PHONEME_PROG_LOG;
 
-#define PhonemeCode2(c1, c2) PhonemeCode((c2<<8)+c1)
+#define PhonemeCode2(epcontext, c1, c2) PhonemeCode(epcontext, (c2<<8)+c1)
 
 extern PHONEME_TAB_LIST phoneme_tab_list[N_PHONEME_TABS];
 extern int phoneme_tab_number;

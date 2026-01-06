@@ -301,7 +301,7 @@ void VoiceReset(EspeakProcessorContext* epContext, int tone_only)
 	epContext->voice->speedf3 = 232;
 
 	if (tone_only == 0) {
-		n_replace_phonemes = 0;
+		epContext->n_replace_phonemes = 0;
 #if USE_MBROLA
 		LoadMbrolaTable(NULL, NULL, 0);
 #endif
@@ -345,7 +345,7 @@ static void VoiceFormant(EspeakProcessorContext* epContext, char *p)
 		epContext->voice->width[0] = (epContext->voice->width[0] * 105)/100;
 }
 
-static void PhonemeReplacement(char *p)
+static void PhonemeReplacement(EspeakProcessorContext* epContext, char *p)
 {
 	int n;
 	int phon;
@@ -355,15 +355,15 @@ static void PhonemeReplacement(char *p)
 
 	strcpy(phon_string2, "NULL");
 	n = sscanf(p, "%d %s %s", &flags, phon_string1, phon_string2);
-	if ((n < 2) || (n_replace_phonemes >= N_REPLACE_PHONEMES))
+	if ((n < 2) || (epContext->n_replace_phonemes >= N_REPLACE_PHONEMES))
 		return;
 
-	if ((phon = LookupPhonemeString(phon_string1)) == 0)
+	if ((phon = LookupPhonemeString(epContext, phon_string1)) == 0)
 		return; // not recognised
 
-	replace_phonemes[n_replace_phonemes].old_ph = phon;
-	replace_phonemes[n_replace_phonemes].new_ph = LookupPhonemeString(phon_string2);
-	replace_phonemes[n_replace_phonemes++].type = flags;
+	epContext->replace_phonemes[epContext->n_replace_phonemes].old_ph = phon;
+	epContext->replace_phonemes[epContext->n_replace_phonemes].new_ph = LookupPhonemeString(epContext, phon_string2);
+	epContext->replace_phonemes[epContext->n_replace_phonemes++].type = flags;
 }
 
 int Read8Numbers(char *data_in, int data[8])
@@ -473,7 +473,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
 		if (control & 3)
 			return NULL; // can't open file
 
-		if (SelectPhonemeTableName(voicename) >= 0)
+		if (SelectPhonemeTableName(epContext, voicename) >= 0)
 			language_type = voicename;
 	}
 
@@ -513,7 +513,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
 		key = LookupMnem(langopts_tab, buf);
 
         if (key != 0) {
-            LoadLanguageOptions(epContext->translator, key, p);
+            LoadLanguageOptions(epContext, epContext->translator, key, p);
         } else {
             key = LookupMnem(keyword_tab, buf);
             switch (key)
@@ -549,7 +549,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
                     strcpy(translator_name, language_type);
                     strcpy(new_dictionary, language_type);
                     strcpy(phonemes_name, language_type);
-                    SelectPhonemeTableName(phonemes_name);
+                    SelectPhonemeTableName(epContext, phonemes_name);
 
                     epContext->translator = SelectTranslator(epContext, translator_name);
                     strncpy0(epContext->voice->language_name, language_name, sizeof(epContext->voice->language_name));
@@ -597,10 +597,10 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
             case V_REPLACE:
                 if (phonemes_set == false) {
                     // must set up a phoneme table before we can lookup phoneme mnemonics
-                    SelectPhonemeTableName(phonemes_name);
+                    SelectPhonemeTableName(epContext, phonemes_name);
                     phonemes_set = true;
                 }
-                PhonemeReplacement(p);
+                PhonemeReplacement(epContext, p);
                 break;
 
             case V_ECHO:
@@ -652,7 +652,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
                 break;
             case V_SPEED:
                 sscanf(p, "%d", &epContext->voice->speed_percent);
-                SetSpeed(3);
+                SetSpeed(epContext, 3);
                 break;
 #if USE_MBROLA
             case V_MBROLA:
@@ -689,7 +689,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
 #endif
             case V_FAST:
                 sscanf(p, "%d", &speed.fast_settings);
-                SetSpeed(3);
+                SetSpeed(epContext, 3);
                 break;
 
             case V_MAINTAINER:
@@ -718,7 +718,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
 				* not actually reading a potentially bogus phontab...
 				*/
 			ix = 0;
-		} else if ((ix = SelectPhonemeTableName(phonemes_name)) < 0) {
+		} else if ((ix = SelectPhonemeTableName(epContext, phonemes_name)) < 0) {
 			fprintf(stderr, "Unknown phoneme table: '%s'\n", phonemes_name);
 			ix = 0;
 		}
@@ -1099,7 +1099,7 @@ char const *SelectVoice(EspeakProcessorContext* epContext, espeak_VOICE *voice_s
 		strncpy0(buf, voice_select2.name, sizeof(buf));
 		variant_name = ExtractVoiceVariantName(buf, 0, 0);
 
-		vp = SelectVoiceByName(epContext->voices_list, buf);
+		vp = SelectVoiceByName(epContext, epContext->voices_list, buf);
 		if (vp != NULL) {
 			voice_select2.languages = &(vp->languages[1]);
 
@@ -1121,7 +1121,7 @@ char const *SelectVoice(EspeakProcessorContext* epContext, espeak_VOICE *voice_s
 	if (nv == 0) {
 		// no matching voice, choose the default
 		*found = 0;
-		if ((voices[0] = SelectVoiceByName(epContext->voices_list, ESPEAKNG_DEFAULT_VOICE)) != NULL)
+		if ((voices[0] = SelectVoiceByName(epContext, epContext->voices_list, ESPEAKNG_DEFAULT_VOICE)) != NULL)
 			nv = 1;
 	}
 
@@ -1273,7 +1273,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetVoiceByFile(EspeakProcessorContext* 
 		if (variant_name[0] != 0)
 			LoadVoice(epContext, variant_name, 2);
 
-		DoVoiceChange(epContext->voice);
+		DoVoiceChange(epContext, epContext->voice);
 		voice_selector.languages = epContext->voice->language_name;
 		SetVoiceStack(epContext, &voice_selector, variant_name);
 		return ENS_OK;
@@ -1310,7 +1310,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetVoiceByName(EspeakProcessorContext* 
 		if (variant_name[0] != 0)
 			LoadVoice(epContext, variant_name, 2);
 
-		DoVoiceChange(epContext->voice);
+		DoVoiceChange(epContext, epContext->voice);
 		voice_selector.languages = epContext->voice->language_name;
 		SetVoiceStack(epContext, &voice_selector, variant_name);
 		return ENS_OK;
@@ -1319,11 +1319,11 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetVoiceByName(EspeakProcessorContext* 
 	if (epContext->n_voices_list == 0)
 		espeak_ListVoices(epContext, NULL); // create the voices list
 
-	if ((v = SelectVoiceByName(epContext->voices_list, buf)) != NULL) {
+	if ((v = SelectVoiceByName(epContext, epContext->voices_list, buf)) != NULL) {
 		if (LoadVoice(epContext, v->identifier, 0) != NULL) {
 			if (variant_name[0] != 0)
 				LoadVoice(epContext, variant_name, 2);
-			DoVoiceChange(epContext->voice);
+			DoVoiceChange(epContext, epContext->voice);
 			voice_selector.languages = epContext->voice->language_name;
 			SetVoiceStack(epContext, &voice_selector, variant_name);
 			return ENS_OK;
@@ -1342,7 +1342,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetVoiceByProperties(EspeakProcessorCon
 		return ENS_VOICE_NOT_FOUND;
 
 	LoadVoiceVariant(epContext, voice_id, 0);
-	DoVoiceChange(epContext->voice);
+	DoVoiceChange(epContext, epContext->voice);
 	SetVoiceStack(epContext, voice_selector, "");
 
 	return ENS_OK;

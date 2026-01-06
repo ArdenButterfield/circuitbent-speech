@@ -40,9 +40,9 @@
 #include "voice.h"                    // for ReadNumbers, Read8Numbers, ...
 
 static int CheckTranslator(Translator *tr, const MNEM_TAB *keyword_tab, int key);
-static int LookupTune(const char *name);
+static int LookupTune(EspeakProcessorContext* epContext, const char *name);
 
-void LoadLanguageOptions(Translator *translator, int key, char *keyValue ) {
+void LoadLanguageOptions(EspeakProcessorContext* epContext, Translator *translator, int key, char *keyValue ) {
         if (CheckTranslator(translator, langopts_tab, key) != 0) {
 				return;
 			}
@@ -65,9 +65,9 @@ void LoadLanguageOptions(Translator *translator, int key, char *keyValue ) {
 				break;
 			}
 		case V_INTONATION: {
-			sscanf(keyValue, "%d", &option_tone_flags);
-			if ((option_tone_flags & 0xff) != 0) {
-				translator->langopts.intonation_group = option_tone_flags & 0xff;
+			sscanf(keyValue, "%d", &epContext->option_tone_flags);
+			if ((epContext->option_tone_flags & 0xff) != 0) {
+				translator->langopts.intonation_group = epContext->option_tone_flags & 0xff;
 			}
 			break;
 		}
@@ -157,7 +157,7 @@ void LoadLanguageOptions(Translator *translator, int key, char *keyValue ) {
                         continue;
 
 
-                    if ((value = LookupTune(names[ix])) < 0)
+                    if ((value = LookupTune(epContext, names[ix])) < 0)
                         fprintf(stderr, "Unknown tune '%s'\n", names[ix]);
                     else
                         translator->langopts.tunes[ix] = value;
@@ -178,7 +178,7 @@ void LoadLanguageOptions(Translator *translator, int key, char *keyValue ) {
 	}
 }
 
-void LoadConfig(void) {
+void LoadConfig(EspeakProcessorContext* epContext) {
 	// Load configuration file, if one exists
 	char buf[sizeof(path_home)+10];
 	FILE *f;
@@ -194,15 +194,15 @@ void LoadConfig(void) {
 		if (buf[0] == '/')  continue;
 
 		if (memcmp(buf, "tone", 4) == 0)
-			ReadTonePoints(&buf[5], tone_points);
+			ReadTonePoints(&buf[5], epContext->tone_points);
 		else if (memcmp(buf, "soundicon", 9) == 0) {
 			ix = sscanf(&buf[10], "_%c %s", &c1, string);
 			if (ix == 2) {
 				// add sound file information to soundicon array
 				// the file will be loaded to memory by LoadSoundFile2()
-				soundicon_tab[n_soundicon_tab].name = c1;
-				soundicon_tab[n_soundicon_tab].filename = strdup(string);
-				soundicon_tab[n_soundicon_tab++].length = 0;
+				epContext->soundicon_tab[epContext->n_soundicon_tab].name = c1;
+				epContext->soundicon_tab[epContext->n_soundicon_tab].filename = strdup(string);
+				epContext->soundicon_tab[epContext->n_soundicon_tab++].length = 0;
 			}
 		}
 	}
@@ -210,11 +210,11 @@ void LoadConfig(void) {
 }
 
 
-static int LookupTune(const char *name) {
+static int LookupTune(EspeakProcessorContext* epContext, const char *name) {
 	int ix;
 
-	for (ix = 0; ix < n_tunes; ix++) {
-		if (strcmp(name, tunes[ix].name) == 0)
+	for (ix = 0; ix < epContext->n_tunes; ix++) {
+		if (strcmp(name, epContext->tunes[ix].name) == 0)
 			return ix;
 	}
 	return -1;

@@ -47,7 +47,7 @@
 
 static int CalcWordLength(int source_index, int charix_top, short int *charix, WORD_TAB *words, int word_count);
 static void CombineFlag(EspeakProcessorContext* epContext, Translator *tr, WORD_TAB *wtab, char *word, int *flags, unsigned char *p, char *word_phonemes);
-static void SwitchLanguage(char *word, char *word_phonemes);
+static void SwitchLanguage(EspeakProcessorContext* epContext, char *word, char *word_phonemes);
 
 // other characters which break a word, but don't produce a pause
 static const unsigned short breaks[] = { '_', 0 };
@@ -87,7 +87,7 @@ int TranslateWord(EspeakProcessorContext* epContext, Translator *tr, char *word_
 	char *phonemes = words_phonemes;
 
 
-	int flags = TranslateWord3(tr, word_start, wtab, word_out, &epContext->any_stressed_words, epContext->current_alphabet, epContext->word_phonemes, sizeof(epContext->word_phonemes));
+	int flags = TranslateWord3(epContext, tr, word_start, wtab, word_out, &epContext->any_stressed_words, epContext->current_alphabet, epContext->word_phonemes, sizeof(epContext->word_phonemes));
 	if (flags & FLAG_TEXTMODE && word_out) {
 		// Ensure that start of word rules match with the replaced text,
 		// so that emoji and other characters are pronounced correctly.
@@ -113,7 +113,7 @@ int TranslateWord(EspeakProcessorContext* epContext, Translator *tr, char *word_
 			// However, dictionary_skipwords value is still needed outside this scope.
 			// So we backup and restore it at the end of this scope.
 			int skipwords = epContext->dictionary_skipwords;
-			TranslateWord3(tr, word_out, wtab, NULL, &epContext->any_stressed_words, epContext->current_alphabet, epContext->word_phonemes, sizeof(epContext->word_phonemes));
+			TranslateWord3(epContext, tr, word_out, wtab, NULL, &epContext->any_stressed_words, epContext->current_alphabet, epContext->word_phonemes, sizeof(epContext->word_phonemes));
 
 			int n;
 			if (first_word) {
@@ -205,7 +205,7 @@ static int SetAlternateTranslator(EspeakProcessorContext* epContext, const char 
 	// Set alternate translator to a second language
 	int new_phoneme_tab;
 
-	if ((new_phoneme_tab = SelectPhonemeTableName(new_language)) >= 0) {
+	if ((new_phoneme_tab = SelectPhonemeTableName(epContext, new_language)) >= 0) {
 		if ((*translator != NULL) && (strcmp(new_language, translator_language) != 0)) {
 			// we already have an alternative translator, but not for the required language, delete it
 			DeleteTranslator(*translator);
@@ -217,7 +217,7 @@ static int SetAlternateTranslator(EspeakProcessorContext* epContext, const char 
 			strcpy(translator_language, new_language);
 
 			if (LoadDictionary(epContext, *translator, (*translator)->dictionary_name, 0) != 0) {
-				SelectPhonemeTable(epContext->voice->phoneme_tab_ix); // revert to original phoneme table
+				SelectPhonemeTable(epContext, epContext->voice->phoneme_tab_ix); // revert to original phoneme table
 				new_phoneme_tab = -1;
 				translator_language[0] = 0;
 			}
@@ -285,7 +285,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 	if ((word[0] == 0) || (word_flags & FLAG_DELETE_WORD)) {
 		// nothing to translate.  Add a dummy phoneme to carry any embedded commands
 		if (epContext->embedded_flag) {
-			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonEND_WORD);
+			SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2], phonEND_WORD);
 			epContext->ph_list2[epContext->n_ph_list2].wordstress = 0;
 			epContext->n_ph_list2++;
 			epContext->embedded_flag = 0;
@@ -327,9 +327,9 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 		// The input is in phoneme mnemonics, not language text
 
 		if (memcmp(word, "_^_", 3) == 0) {
-			SwitchLanguage(word, epContext->word_phonemes);
+			SwitchLanguage(epContext, word, epContext->word_phonemes);
 		} else {
-			EncodePhonemes(word, epContext->word_phonemes, &bad_phoneme);
+			EncodePhonemes(epContext, word, epContext->word_phonemes, &bad_phoneme);
 		}
 
 		flags = FLAG_FOUND;
@@ -394,7 +394,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 
 			if (switch_phonemes == -1) {
 				strcpy(epContext->dictionary_name, old_dictionary_name);
-				SelectPhonemeTable(epContext->voice->phoneme_tab_ix);
+				SelectPhonemeTable(epContext, epContext->voice->phoneme_tab_ix);
 
 				// leave switch_phonemes set, but use the original phoneme table number.
 				// This will suppress LOPT_REGRESSIVE_VOICING
@@ -434,10 +434,10 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 		// add pause phonemes here. Either because of punctuation (brackets or quotes) in the
 		// text, or because the word is marked in the dictionary lookup as a conjunction
 		if (pre_pause > 1) {
-			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE);
+			SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE);
 			pre_pause -= 2;
 		} else {
-			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_NOLINK);
+			SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_NOLINK);
 			pre_pause--;
 		}
 		tr->end_stressed_vowel = 0; // forget about the previous word
@@ -449,12 +449,12 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 
 	// This may require up to 4 phonemes
 	if ((epContext->option_capitals == 1) && (word_flags & FLAG_FIRST_UPPER)) {
-		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_SHORT);
-		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonCAPITAL);
+		SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_SHORT);
+		SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonCAPITAL);
 		if ((word_flags & FLAG_ALL_UPPER) && IsAlpha(word[1])) {
 			// word > 1 letter and all capitals
-			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_SHORT);
-			SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonCAPITAL);
+			SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_SHORT);
+			SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonCAPITAL);
 		}
 	}
 
@@ -472,7 +472,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 				// previous phoneme is also a phonSWITCH, just change its phoneme table number
 				epContext->n_ph_list2--;
 			} else
-				SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
+				SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
 			epContext->ph_list2[epContext->n_ph_list2++].tone_ph = switch_phonemes; // temporary phoneme table number
 		}
 	}
@@ -507,7 +507,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 			epContext->ph_list2[epContext->n_ph_list2].sourceix = 0;
 			epContext->ph_list2[epContext->n_ph_list2].synthflags = 0;
 			epContext->ph_list2[epContext->n_ph_list2++].tone_ph = *p;
-			SelectPhonemeTable(*p);
+			SelectPhonemeTable(epContext, *p);
 			p++;
 		} else if (ph->type == phSTRESS) {
 			// don't add stress phonemes codes to the list, but give their stress
@@ -582,7 +582,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 
 	// This may require up to 1 phoneme
 	if (word_flags & FLAG_COMMA_AFTER)
-		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_CLAUSE);
+		SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2++], phonPAUSE_CLAUSE);
 
 	// don't set new-word if there is a hyphen before it
 	if ((word_flags & FLAG_HYPHEN) == 0)
@@ -596,8 +596,8 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 	if (switch_phonemes >= 0) {
 		// this word uses a different phoneme table, now switch back
 		strcpy(epContext->dictionary_name, old_dictionary_name);
-		SelectPhonemeTable(epContext->voice->phoneme_tab_ix);
-		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
+		SelectPhonemeTable(epContext, epContext->voice->phoneme_tab_ix);
+		SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2], phonSWITCH);
 		epContext->ph_list2[epContext->n_ph_list2++].tone_ph = epContext->voice->phoneme_tab_ix; // original phoneme table number
 	}
 
@@ -605,7 +605,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 	// This may require up to 1 phoneme
 	if (pitch_raised > 0) {
 		embedded_list[epContext->embedded_ix++] = EMBED_P+0x60+0x80 + (pitch_raised << 8); // lower pitch
-		SetPlist2(&epContext->ph_list2[epContext->n_ph_list2], phonPAUSE_SHORT);
+		SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2], phonPAUSE_SHORT);
 		epContext->ph_list2[epContext->n_ph_list2++].synthflags = SFLAG_EMBEDDED;
 	}
 
@@ -1699,7 +1699,7 @@ static void CombineFlag(EspeakProcessorContext* epContext, Translator *tr, WORD_
 	}
 }
 
-static void SwitchLanguage(char *word, char *word_phonemes) {
+static void SwitchLanguage(EspeakProcessorContext* epContext, char *word, char *word_phonemes) {
 	char lang_name[12];
 	int ix;
 
@@ -1714,8 +1714,8 @@ static void SwitchLanguage(char *word, char *word_phonemes) {
 	}
 	lang_name[ix] = 0;
 
-	if ((ix = LookupPhonemeTable(lang_name)) > 0) {
-		SelectPhonemeTable(ix);
+	if ((ix = LookupPhonemeTable(epContext, lang_name)) > 0) {
+		SelectPhonemeTable(epContext, ix);
 		word_phonemes[0] = phonSWITCH;
 		word_phonemes[1] = ix;
 		word_phonemes[2] = 0;

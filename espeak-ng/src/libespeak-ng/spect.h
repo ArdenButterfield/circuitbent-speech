@@ -85,7 +85,7 @@ typedef struct {
 	peak_t peaks[N_PEAKS];
 } SpectFrame;
 
-double GetFrameRms(SpectFrame *frame, int amp);
+double GetFrameRms(EspeakProcessorContext* epContext, SpectFrame *frame, int amp);
 
 typedef struct {
 	int numframes;

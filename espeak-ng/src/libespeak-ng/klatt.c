@@ -400,9 +400,9 @@ static int parwave(EspeakProcessorContext* epContext, klatt_frame_ptr frame, WGE
 				epContext->kt_globals.fadein = 0;
 		}
 
-		value = (int)temp + ((echo_buf[echo_tail++]*echo_amp) >> 8);
-		if (echo_tail >= N_ECHO_BUF)
-			echo_tail = 0;
+		value = (int)temp + ((epContext->echo_buf[epContext->echo_tail++]*epContext->echo_amp) >> 8);
+		if (epContext->echo_tail >= N_ECHO_BUF)
+			epContext->echo_tail = 0;
 
 		if (value < -32768)
 			value = -32768;
@@ -410,15 +410,15 @@ static int parwave(EspeakProcessorContext* epContext, klatt_frame_ptr frame, WGE
 		if (value > 32767)
 			value =  32767;
 
-		*out_ptr++ = value;
-		*out_ptr++ = value >> 8;
+		*epContext->out_ptr++ = value;
+		*epContext->out_ptr++ = value >> 8;
 
-		echo_buf[echo_head++] = value;
-		if (echo_head >= N_ECHO_BUF)
-			echo_head = 0;
+		epContext->echo_buf[epContext->echo_head++] = value;
+		if (epContext->echo_head >= N_ECHO_BUF)
+			epContext->echo_head = 0;
 
 		epContext->sample_count++;
-		if (out_ptr + 2 > out_end)
+		if (epContext->out_ptr + 2 > epContext->out_end)
 			return 1;
 	}
 	return 0;
@@ -856,7 +856,7 @@ int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, fra
 {
 #if USE_SPEECHPLAYER
 	if(wvoice->klattv[0] == 6)
-	return Wavegen_KlattSP(wdata, wvoice, length, resume, fr1, fr2);
+	return Wavegen_KlattSP(epContext, wdata, wvoice, length, resume, fr1, fr2);
 #endif
 
 	if (resume == 0)
@@ -870,7 +870,7 @@ int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, fra
 	if (resume == 0)
 		epContext->sample_count = 0;
 
-	while (epContext->sample_count < epContext->nsamples) {
+	while (epContext->sample_count < epContext->nsamples_klatt) {
 		epContext->kt_frame.F0hz10 = (wdata->pitch * 10) / 4096;
 
 		// formants F6,F7,F8 are fixed values for cascade resonators, set in KlattInit()
@@ -924,7 +924,7 @@ int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, fra
 		x = wdata->pitch_env[ix] * wdata->pitch_range;
 		wdata->pitch = (x>>8) + wdata->pitch_base;
 
-		epContext->kt_globals.nspfr = (epContext->nsamples - epContext->sample_count);
+		epContext->kt_globals.nspfr = (epContext->nsamples_klatt - epContext->sample_count);
 		if (epContext->kt_globals.nspfr > STEPSIZE)
 			epContext->kt_globals.nspfr = STEPSIZE;
 
@@ -971,15 +971,15 @@ static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_
 		end_wave = 1; // fadeout at the end
 	if (control & 1) {
 		end_wave = 1;
-		for (qix = wcmdq_head+1;; qix++) {
+		for (qix = epContext->wcmdq_head+1;; qix++) {
 			if (qix >= N_WCMDQ) qix = 0;
-			if (qix == wcmdq_tail) break;
+			if (qix == epContext->wcmdq_tail) break;
 
-			cmd = wcmdq[qix][0];
+			cmd = epContext->wcmdq[qix][0];
 			if (cmd == WCMD_KLATT) {
 				end_wave = 0; // next wave generation is from another spectrum
 
-				fr3 = (frame_t *)wcmdq[qix][2];
+				fr3 = (frame_t *)epContext->wcmdq[qix][2];
 				for (ix = 1; ix < 6; ix++) {
 					if (fr3->ffreq[ix] != fr2->ffreq[ix]) {
 						// there is a discontinuity in formants
@@ -1014,7 +1014,7 @@ static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_
 		}
 	}
 
-	epContext->nsamples = length;
+	epContext->nsamples_klatt = length;
 
 	for (ix = 1; ix < 6; ix++) {
 		peaks[ix].freq1 = (fr1->ffreq[ix] * wvoice->freq[ix] / 256.0) + wvoice->freqadd[ix];

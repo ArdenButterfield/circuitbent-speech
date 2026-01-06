@@ -349,17 +349,17 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(EspeakProcessorContext* epCo
 		}
 	}
 
-	espeak_ng_STATUS result = LoadPhData(&srate, context);
+	espeak_ng_STATUS result = LoadPhData(epContext, &srate, context);
 	if (result != ENS_OK)
 		return result;
 
 	WavegenInit(epContext, srate, 0);
-	LoadConfig();
+	LoadConfig(epContext);
 
 	espeak_VOICE *current_voice_selected = espeak_GetCurrentVoice(epContext);
 	memset(current_voice_selected, 0, sizeof(espeak_VOICE));
 	SetVoiceStack(epContext, NULL, "");
-	SynthesizeInit();
+	SynthesizeInit(epContext);
 	InitNamedata(epContext);
 
 	VoiceReset(epContext, 0);
@@ -367,11 +367,11 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(EspeakProcessorContext* epCo
 	for (param = 0; param < N_SPEECH_PARAM; param++)
 		epContext->param_stack[0].parameter[param] = epContext->saved_parameters[param] = param_defaults[param];
 
-	SetParameter(espeakRATE, espeakRATE_NORMAL, 0);
-	SetParameter(espeakVOLUME, 100, 0);
-	SetParameter(espeakCAPITALS, epContext->option_capitals, 0);
-	SetParameter(espeakPUNCTUATION, epContext->option_punctuation, 0);
-	SetParameter(espeakWORDGAP, 0, 0);
+	SetParameter(epContext, espeakRATE, espeakRATE_NORMAL, 0);
+	SetParameter(epContext, espeakVOLUME, 100, 0);
+	SetParameter(epContext, espeakCAPITALS, epContext->option_capitals, 0);
+	SetParameter(epContext, espeakPUNCTUATION, epContext->option_punctuation, 0);
+	SetParameter(epContext, espeakWORDGAP, 0, 0);
 
 	epContext->option_phonemes = 0;
 	epContext->option_phoneme_events = 0;
@@ -417,7 +417,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 
 	espeak_ng_STATUS status;
 	if (epContext->translator == NULL) {
-		status = espeak_ng_SetVoiceByName(ESPEAKNG_DEFAULT_VOICE);
+		status = espeak_ng_SetVoiceByName(epContext, ESPEAKNG_DEFAULT_VOICE);
 		if (status != ENS_OK)
 			return status;
 	}
@@ -429,7 +429,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 	if (status != ENS_OK)
 		return status;
 
-	SpeakNextClause(0);
+	SpeakNextClause(epContext, 0);
 
 	for (;;) {
 		epContext->out_ptr = epContext->outbuf;
@@ -444,17 +444,17 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 		event_list[epContext->event_list_ix].user_data = epContext->my_user_data;
 
 		if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
-			finished = create_events((short *)epContext->outbuf, length, event_list);
+			finished = create_events(epContext, (short *)epContext->outbuf, length, event_list);
 			if (finished < 0)
 				return ENS_AUDIO_ERROR;
 		} else if (epContext->synth_callback)
 			finished = epContext->synth_callback((short *)epContext->outbuf, length, event_list);
 		if (finished) {
-			SpeakNextClause(2); // stop
+			SpeakNextClause(epContext, 2); // stop
 			return ENS_SPEECH_STOPPED;
 		}
 
-		if (Generate(phoneme_list, &n_phoneme_list, 1) == 0) {
+		if (Generate(epContext, phoneme_list, &n_phoneme_list, 1) == 0) {
 			if (WcmdqUsed(epContext) == 0) {
 				// don't process the next clause until the previous clause has finished generating speech.
 				// This ensures that <audio> tag (which causes end-of-clause) is at a sound buffer boundary
@@ -463,7 +463,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 				event_list[0].unique_identifier = epContext->my_unique_identifier;
 				event_list[0].user_data = epContext->my_user_data;
 
-				if (SpeakNextClause(1) == 0) {
+				if (SpeakNextClause(epContext, 1) == 0) {
 					finished = 0;
 					if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
 						if (dispatch_audio(epContext, NULL, 0, NULL) < 0)
@@ -471,7 +471,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 					} else if (epContext->synth_callback)
 						finished = epContext->synth_callback(NULL, 0, event_list); // NULL buffer ptr indicates end of data
 					if (finished) {
-						SpeakNextClause(2); // stop
+						SpeakNextClause(epContext, 2); // stop
 						return ENS_SPEECH_STOPPED;
 					}
 					return ENS_OK;
@@ -546,7 +546,7 @@ espeak_ng_STATUS sync_espeak_Synth(EspeakProcessorContext* epContext,
 
 	epContext->end_character_position = end_position;
 
-	espeak_ng_STATUS aStatus = Synthesize(unique_identifier, text, flags);
+	espeak_ng_STATUS aStatus = Synthesize(epContext, unique_identifier, text, flags);
 #if USE_LIBPCAUDIO
 	if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
 		int error = (aStatus == ENS_SPEECH_STOPPED)
@@ -578,10 +578,10 @@ espeak_ng_STATUS sync_espeak_Synth_Mark(EspeakProcessorContext* epContext, unsig
 
 	epContext->end_character_position = end_position;
 
-	return Synthesize(unique_identifier, text, flags | espeakSSML);
+	return Synthesize(epContext, unique_identifier, text, flags | espeakSSML);
 }
 
-espeak_ng_STATUS sync_espeak_Key(EspeakProcessorContext* epContext, const char *key)
+espeak_ng_STATUS sync_e2speak_Key(EspeakProcessorContext* epContext, const char *key)
 {
 	// symbolic name, symbolicname_character  - is there a system resource of symbolic names per language?
 	int letter;
@@ -589,11 +589,11 @@ espeak_ng_STATUS sync_espeak_Key(EspeakProcessorContext* epContext, const char *
 
 	ix = utf8_in(&letter, key);
 	if (key[ix] == 0) // a single character
-		return sync_espeak_Char(letter);
+		return sync_espeak_Char(epContext, letter);
 
 	epContext->my_unique_identifier = 0;
 	epContext->my_user_data = NULL;
-	return Synthesize(0, key, 0); // speak key as a text string
+	return Synthesize(epContext, 0, key, 0); // speak key as a text string
 }
 
 espeak_ng_STATUS sync_espeak_Char(EspeakProcessorContext* epContext, wchar_t character)
@@ -604,7 +604,7 @@ espeak_ng_STATUS sync_espeak_Char(EspeakProcessorContext* epContext, wchar_t cha
 	epContext->my_user_data = NULL;
 
 	sprintf(buf, "<say-as interpret-as=\"tts:char\">&#%d;</say-as>", character);
-	return Synthesize(0, buf, espeakSSML);
+	return Synthesize(epContext, 0, buf, espeakSSML);
 }
 
 void sync_espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist)
@@ -646,7 +646,7 @@ espeak_ng_Synthesize(EspeakProcessorContext* epContext, const void *text, size_t
 	*unique_identifier = 0;
 
 	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
-		return sync_espeak_Synth(0, text, position, position_type, end_position, flags, user_data);
+		return sync_espeak_Synth(epContext, 0, text, position, position_type, end_position, flags, user_data);
 
 #if USE_ASYNC
 	// Create the text command
@@ -673,7 +673,7 @@ espeak_ng_Synthesize(EspeakProcessorContext* epContext, const void *text, size_t
 	delete_espeak_command(c2);
 	return ENOMEM;
 #else
-	return sync_espeak_Synth(0, text, position, position_type, end_position, flags, user_data);
+	return sync_espeak_Synth(epContext, 0, text, position, position_type, end_position, flags, user_data);
 #endif
 }
 
@@ -695,7 +695,7 @@ espeak_ng_SynthesizeMark(EspeakProcessorContext* epContext, const void *text,
 	*unique_identifier = 0;
 
 	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
-		return sync_espeak_Synth_Mark(0, text, index_mark, end_position, flags, user_data);
+		return sync_espeak_Synth_Mark(epContext, 0, text, index_mark, end_position, flags, user_data);
 
 #if USE_ASYNC
 	// Create the mark command
@@ -723,7 +723,7 @@ espeak_ng_SynthesizeMark(EspeakProcessorContext* epContext, const void *text,
 	delete_espeak_command(c2);
 	return ENOMEM;
 #else
-	return sync_espeak_Synth_Mark(0, text, index_mark, end_position, flags, user_data);
+	return sync_espeak_Synth_Mark(epContext, 0, text, index_mark, end_position, flags, user_data);
 #endif
 }
 
@@ -732,7 +732,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakKeyName(EspeakProcessorContext* ep
 	// symbolic name, symbolicname_character  - is there a system resource of symbolicnames per language
 
 	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
-		return sync_espeak_Key(key_name);
+		return sync_espeak_Key(epContext, key_name);
 
 #if USE_ASYNC
 	t_espeak_command *c = create_espeak_key(key_name, NULL);
@@ -741,11 +741,11 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakKeyName(EspeakProcessorContext* ep
 		delete_espeak_command(c);
 	return status;
 #else
-	return sync_espeak_Key(key_name);
+	return sync_espeak_Key(epContext, key_name);
 #endif
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakCharacter(wchar_t character)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakCharacter(EspeakProcessorContext* epContext, wchar_t character)
 {
 	// is there a system resource of character names per language?
 
@@ -759,7 +759,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SpeakCharacter(wchar_t character)
 		delete_espeak_command(c);
 	return status;
 #else
-	return sync_espeak_Char(character);
+	return sync_espeak_Char(epContext, character);
 #endif
 }
 
@@ -771,7 +771,7 @@ ESPEAK_API int espeak_GetParameter(EspeakProcessorContext* epContext, espeak_PAR
 	return param_defaults[parameter];
 }
 
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetParameter(espeak_PARAMETER parameter, int value, int relative)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetParameter(EspeakProcessorContext* epContext, espeak_PARAMETER parameter, int value, int relative)
 {
 #if USE_ASYNC
 	if (epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS)
@@ -784,7 +784,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetParameter(espeak_PARAMETER parameter
 		delete_espeak_command(c);
 	return status;
 #else
-	return SetParameter(parameter, value, relative);
+	return SetParameter(epContext, parameter, value, relative);
 #endif
 }
 
@@ -847,7 +847,7 @@ ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(EspeakProcessorContex
 	TranslateClauseWithTerminator(epContext, epContext->translator, NULL, NULL, terminator);
 	*textptr = text_decoder_get_buffer(epContext->p_decoder);
 
-	return GetTranslatedPhonemeString(phonememode);
+	return GetTranslatedPhonemeString(epContext, phonememode);
 }
 
 ESPEAK_API const char *espeak_TextToPhonemes(EspeakProcessorContext* epContext, const void **textptr, int textmode, int phonememode)
@@ -866,10 +866,10 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Cancel(EspeakProcessorContext* epContex
 	if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO)
 		audio_object_flush(my_audio);
 #endif
-	embedded_value[EMBED_T] = 0; // reset echo for pronunciation announcements
+	epContext->embedded_value[EMBED_T] = 0; // reset echo for pronunciation announcements
 
 	for (int i = 0; i < N_SPEECH_PARAM; i++)
-		SetParameter(i, epContext->saved_parameters[i], 0);
+		SetParameter(epContext, i, epContext->saved_parameters[i], 0);
 
 	return ENS_OK;
 }

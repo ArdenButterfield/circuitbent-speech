@@ -1063,8 +1063,8 @@ void DoEmbedded(EspeakProcessorContext* epContext, int *embix, int sourceix)
 		switch (command & 0x1f)
 		{
 		case EMBED_S: // speed
-			SetEmbedded((command & 0x60) + EMBED_S2, value); // adjusts embedded_value[EMBED_S2]
-			SetSpeed(2);
+			SetEmbedded(epContext, (command & 0x60) + EMBED_S2, value); // adjusts embedded_value[EMBED_S2]
+			SetSpeed(epContext, 2);
 			break;
 		case EMBED_I: // play dynamically loaded wav data (sound icon)
 			if ((int)value < epContext->n_soundicon_tab) {
@@ -1079,10 +1079,10 @@ void DoEmbedded(EspeakProcessorContext* epContext, int *embix, int sourceix)
 			}
 			break;
 		case EMBED_M: // named marker
-			DoMarker(espeakEVENT_MARK, (sourceix & 0x7ff) + epContext->clause_start_char, 0, value);
+			DoMarker(epContext, espeakEVENT_MARK, (sourceix & 0x7ff) + epContext->clause_start_char, 0, value);
 			break;
 		case EMBED_U: // play sound
-			DoMarker(espeakEVENT_PLAY, epContext->count_characters+1, 0, value); // always occurs at end of clause
+			DoMarker(epContext, espeakEVENT_PLAY, epContext->count_characters+1, 0, value); // always occurs at end of clause
 			break;
 		default:
 			DoPause(epContext, 10, 0); // ensure a break in the speech
@@ -1154,7 +1154,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			char buf[30];
 			int dummy=0;
 			//WritePhMnemonic(buf, p->ph, p, 0, &dummy);
-			WritePhMnemonicWithStress(buf, p->ph, p, 0, &dummy);
+			WritePhMnemonicWithStress(epContext, buf, p->ph, p, 0, &dummy);
 
 			DoPhonemeAlignment(epContext, strdup(buf),p->type);
 		}
@@ -1178,7 +1178,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 		next2 = &phoneme_list[ix+2];
 
 		if (p->synthflags & SFLAG_EMBEDDED)
-			DoEmbedded(&embedded_ix, p->sourceix);
+			DoEmbedded(epContext, &embedded_ix, p->sourceix);
 
 		if (p->newword) {
 			if (((p->type == phVOWEL) && (epContext->translator->langopts.param[LOPT_WORD_MERGE] & 1)) ||
@@ -1189,10 +1189,10 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			sourceix = (p->sourceix & 0x7ff) + epContext->clause_start_char;
 
 			if (p->newword & PHLIST_START_OF_SENTENCE)
-				DoMarker(espeakEVENT_SENTENCE, sourceix, 0, epContext->count_sentences); // start of sentence
+				DoMarker(epContext, espeakEVENT_SENTENCE, sourceix, 0, epContext->count_sentences); // start of sentence
 
 			if (p->newword & PHLIST_START_OF_WORD)
-				DoMarker(espeakEVENT_WORD, sourceix, p->sourceix >> 11, epContext->clause_start_word + word_count++); // NOTE, this count doesn't include multiple-word pronunciations in *_list. eg (of a)
+				DoMarker(epContext, espeakEVENT_WORD, sourceix, p->sourceix >> 11, epContext->clause_start_word + word_count++); // NOTE, this count doesn't include multiple-word pronunciations in *_list. eg (of a)
 		}
 
 		EndAmplitude(epContext);
@@ -1206,9 +1206,9 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 				// For vowels following a liquid or nasal, do the phoneme event after the vowel-start
 			} else {
 				//WritePhMnemonic(phoneme_name, p->ph, p, use_ipa, NULL);
-				WritePhMnemonicWithStress(phoneme_name, p->ph, p, use_ipa, NULL);
+				WritePhMnemonicWithStress(epContext, phoneme_name, p->ph, p, use_ipa, NULL);
 
-				DoPhonemeMarker(espeakEVENT_PHONEME, sourceix, 0, phoneme_name);
+				DoPhonemeMarker(epContext, espeakEVENT_PHONEME, sourceix, 0, phoneme_name);
 				done_phoneme_marker = true;
 			}
 		}
@@ -1242,19 +1242,19 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 					DoPitch(epContext, envelope_data[p->env], next->pitch1, next->pitch2);
 				}
 
-				DoSpect2(ph, 0, &fmtp, p, 0);
+				DoSpect2(epContext, ph, 0, &fmtp, p, 0);
 			}
 
 			InterpretPhoneme(epContext, NULL, 0, p, phoneme_list, &phdata, &worddata);
 			phdata.pd_control |= pd_DONTLENGTHEN;
-			DoSample3(&phdata, 0, 0);
+			DoSample3(epContext, &phdata, 0, 0);
 			break;
 		case phFRICATIVE:
 			InterpretPhoneme(epContext, NULL, 0, p, phoneme_list, &phdata, &worddata);
 
 			if (p->synthflags & SFLAG_LENGTHEN)
-				DoSample3(&phdata, p->length, 0); // play it twice for [s:] etc.
-			DoSample3(&phdata, p->length, 0);
+				DoSample3(epContext, &phdata, p->length, 0); // play it twice for [s:] etc.
+			DoSample3(epContext, &phdata, p->length, 0);
 			break;
 		case phVSTOP:
 			ph = p->ph;
@@ -1283,10 +1283,10 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 				fmtp.fmt_addr = phdata.sound_addr[pd_FMT];
 				fmtp.fmt_amp = phdata.sound_param[pd_FMT];
 
-				DoSpect2(ph, 0, &fmtp, p, 0);
+				DoSpect2(epContext, ph, 0, &fmtp, p, 0);
 				if (p->synthflags & SFLAG_LENGTHEN) {
 					DoPause(epContext, 25, 1);
-					DoSpect2(ph, 0, &fmtp, p, 0);
+					DoSpect2(epContext, ph, 0, &fmtp, p, 0);
 				}
 			} else {
 				if (p->synthflags & SFLAG_LENGTHEN)
@@ -1303,7 +1303,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			fmtp.fmt_amp = phdata.sound_param[pd_FMT];
 			fmtp.wav_addr = phdata.sound_addr[pd_ADDWAV];
 			fmtp.wav_amp = phdata.sound_param[pd_ADDWAV];
-			DoSpect2(ph, 0, &fmtp, p, 0);
+			DoSpect2(epContext, ph, 0, &fmtp, p, 0);
 
 			if ((p->newword == 0) && (next2->newword == 0)) {
 				if (next->type == phVFRICATIVE)
@@ -1339,8 +1339,8 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			fmtp.wav_amp = phdata.sound_param[pd_ADDWAV];
 
 			if (p->synthflags & SFLAG_LENGTHEN)
-				DoSpect2(p->ph, 0, &fmtp, p, 0);
-			DoSpect2(p->ph, 0, &fmtp, p, 0);
+				DoSpect2(epContext, p->ph, 0, &fmtp, p, 0);
+			DoSpect2(epContext, p->ph, 0, &fmtp, p, 0);
 			break;
 		case phNASAL:
 			memset(&fmtp, 0, sizeof(fmtp));
@@ -1359,12 +1359,12 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 
 			if (next->type == phVOWEL) {
 				StartSyllable(epContext);
-				DoSpect2(p->ph, 0, &fmtp, p, 0);
+				DoSpect2(epContext, p->ph, 0, &fmtp, p, 0);
 			} else if (prev->type == phVOWEL && (p->synthflags & SFLAG_SEQCONTINUE))
-				DoSpect2(p->ph, 0, &fmtp, p, 0);
+				DoSpect2(epContext, p->ph, 0, &fmtp, p, 0);
 			else {
 				epContext->last_frame = NULL; // only for nasal ?
-				DoSpect2(p->ph, 0, &fmtp, p, 0);
+				DoSpect2(epContext, p->ph, 0, &fmtp, p, 0);
 				epContext->last_frame = NULL;
 			}
 
@@ -1394,7 +1394,7 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			fmtp.fmt_amp = phdata.sound_param[pd_FMT];
 			fmtp.wav_addr = phdata.sound_addr[pd_ADDWAV];
 			fmtp.wav_amp = phdata.sound_param[pd_ADDWAV];
-			DoSpect2(p->ph, 0, &fmtp, p, modulation);
+			DoSpect2(epContext, p->ph, 0, &fmtp, p, modulation);
 			break;
 		case phVOWEL:
 			ph = p->ph;
@@ -1450,16 +1450,16 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			if (prev->type == phVSTOP || prev->type == phVFRICATIVE) {
 				DoAmplitude(epContext, p->amp, amp_env);
 				DoPitch(epContext, pitch_env, p->pitch1, p->pitch2); // don't use prevocalic rising tone
-				DoSpect2(ph, 1, &fmtp, p, modulation);
+				DoSpect2(epContext, ph, 1, &fmtp, p, modulation);
 			} else if (prev->type == phLIQUID || prev->type == phNASAL) {
 				DoAmplitude(epContext, p->amp, amp_env);
-				DoSpect2(ph, 1, &fmtp, p, modulation); // continue with pre-vocalic rising tone
+				DoSpect2(epContext, ph, 1, &fmtp, p, modulation); // continue with pre-vocalic rising tone
 				DoPitch(epContext, pitch_env, p->pitch1, p->pitch2);
 			} else if (vowelstart_prev) {
 				// VowelStart from the previous phoneme, but not phLIQUID or phNASAL
 				DoPitch(epContext, envelope_data[PITCHrise], p->pitch2 - 15, p->pitch2);
 				DoAmplitude(epContext, p->amp-1, amp_env);
-				DoSpect2(ph, 1, &fmtp, p, modulation); // continue with pre-vocalic rising tone
+				DoSpect2(epContext, ph, 1, &fmtp, p, modulation); // continue with pre-vocalic rising tone
 				DoPitch(epContext, pitch_env, p->pitch1, p->pitch2);
 			} else {
 				if (!(p->synthflags & SFLAG_SEQCONTINUE)) {
@@ -1467,14 +1467,14 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 					DoPitch(epContext, pitch_env, p->pitch1, p->pitch2);
 				}
 
-				DoSpect2(ph, 1, &fmtp, p, modulation);
+				DoSpect2(epContext, ph, 1, &fmtp, p, modulation);
 			}
 
 			if ((epContext->option_phoneme_events) && (done_phoneme_marker == false)) {
 				//WritePhMnemonic(phoneme_name, p->ph, p, use_ipa, NULL);
-				WritePhMnemonicWithStress(phoneme_name, p->ph, p, use_ipa, NULL);
+				WritePhMnemonicWithStress(epContext, phoneme_name, p->ph, p, use_ipa, NULL);
 
-				DoPhonemeMarker(espeakEVENT_PHONEME, sourceix, 0, phoneme_name);
+				DoPhonemeMarker(epContext, espeakEVENT_PHONEME, sourceix, 0, phoneme_name);
 			}
 
 			fmtp.fmt_addr = phdata.sound_addr[pd_FMT];
@@ -1496,14 +1496,14 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 					fmtp.fmt2_lenadj = phdata_next.sound_param[pd_VWLEND];
 			}
 
-			DoSpect2(ph, 2, &fmtp, p, modulation);
+			DoSpect2(epContext, ph, 2, &fmtp, p, modulation);
 			break;
 		}
 		ix++;
 	}
 	EndPitch(epContext, 1);
 	if (*n_ph > 0) {
-		DoMarker(espeakEVENT_END, epContext->count_characters, 0, epContext->count_sentences); // end of clause
+		DoMarker(epContext, espeakEVENT_END, epContext->count_characters, 0, epContext->count_sentences); // end of clause
 		*n_ph = 0;
 	}
 
@@ -1536,7 +1536,7 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 		return 0;
 	}
 
-	SelectPhonemeTable(epContext->voice->phoneme_tab_ix);
+	SelectPhonemeTable(epContext, epContext->voice->phoneme_tab_ix);
 
 	// read the next clause from the input text file, translate it, and generate
 	// entries in the wavegen command queue
@@ -1547,7 +1547,7 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 
 	if ((epContext->option_phonemes & 0xf) || (phoneme_callback != NULL)) {
 		const char *phon_out;
-		phon_out = GetTranslatedPhonemeString(epContext->option_phonemes);
+		phon_out = GetTranslatedPhonemeString(epContext, epContext->option_phonemes);
 		if (epContext->option_phonemes & 0xf)
 			fprintf(f_trans, "%s\n", phon_out);
 		if (phoneme_callback != NULL)
@@ -1559,7 +1559,7 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 		return 1;
 	}
 
-	Generate(phoneme_list, &n_phoneme_list, 0);
+	Generate(epContext, phoneme_list, &n_phoneme_list, 0);
 
 	if (voice_change != NULL) {
 		// voice change at the end of the clause (i.e. clause was terminated by a voice change)
@@ -1569,7 +1569,7 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 	if (epContext->new_voice) {
 		// finished the current clause, now change the voice if there was an embedded
 		// change voice command at the end of it (i.e. clause was broken at the change voice command)
-		DoVoiceChange(epContext->voice);
+		DoVoiceChange(epContext, epContext->voice);
 		epContext->new_voice = NULL;
 	}
 

@@ -39,11 +39,11 @@ static void mixWaveFile(WGEN_DATA *wdata, unsigned int maxNumSamples, sample* sa
 	}
 }
 
-static bool isKlattFrameFollowing(void) {
+static bool isKlattFrameFollowing(EspeakProcessorContext* epContext) {
 	// eSpeak implements its command queue with a circular buffer.
 	// Thus to walk it, we start from the head, walking to the tail, which may wrap around to the beginning of the buffer as it is circular.
-	for(int i=(wcmdq_head+1)%N_WCMDQ;i!=wcmdq_tail;i=(i+1)%N_WCMDQ) {
-		int cmd=wcmdq[i][0];
+	for(int i=(epContext->wcmdq_head+1)%N_WCMDQ;i!=epContext->wcmdq_tail;i=(i+1)%N_WCMDQ) {
+		int cmd=epContext->wcmdq[i][0];
 		if(cmd==WCMD_PAUSE||cmd==WCMD_WAVE) {
 			break;
 		}
@@ -122,7 +122,7 @@ int Wavegen_KlattSP(EspeakProcessorContext* epContext, WGEN_DATA *wdata, voice_t
 		int mainLength=length;
 		speechPlayer_queueFrame(speechPlayerHandle,&spFrame1,minFadeLength,minFadeLength,-1,false);
 		mainLength-=minFadeLength;
-		bool fadeOut=!isKlattFrameFollowing();
+		bool fadeOut=!isKlattFrameFollowing(epContext);
 		if(fadeOut) {
 			mainLength-=minFadeLength;
 		}

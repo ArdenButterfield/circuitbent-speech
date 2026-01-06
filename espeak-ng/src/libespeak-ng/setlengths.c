@@ -146,20 +146,20 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 	speed.lenmod_factor = 110; // controls the effect of FRFLAG_LEN_MOD reduce length change
 	speed.lenmod2_factor = 100;
 
-	wpm = embedded_value[EMBED_S];
+	wpm = epContext->embedded_value[EMBED_S];
 	if (control == 2)
-		wpm = embedded_value[EMBED_S2];
+		wpm = epContext->embedded_value[EMBED_S2];
 
 	speed.min_pause = 5;
 
 	#if USE_LIBSONIC
 	int wpm_value = wpm;
 
-	if (voice->speed_percent > 0)
-		wpm = (wpm * voice->speed_percent)/100;
+	if (epContext->voice->speed_percent > 0)
+		wpm = (wpm * epContext->voice->speed_percent)/100;
 
 	if (control & 2)
-		DoSonicSpeed(1 * 1024);
+		DoSonicSpeed(epContext, 1 * 1024);
 	if ((wpm_value > espeakRATE_MAXIMUM) || ((wpm_value > speed.fast_settings) && (wpm > 350))) {
 		int wpm2;
 		wpm2 = wpm;
@@ -169,14 +169,14 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 		// The eSpeak output will be speeded up by at least x2
 		x = 73;
 		if (control & 1) {
-			epContext->len_speeds[0] = (x * voice->speedf1)/256;
-			epContext->len_speeds[1] = (x * voice->speedf2)/256;
-			epContext->len_speeds[2] = (x * voice->speedf3)/256;
+			epContext->len_speeds[0] = (x * epContext->voice->speedf1)/256;
+			epContext->len_speeds[1] = (x * epContext->voice->speedf2)/256;
+			epContext->len_speeds[2] = (x * epContext->voice->speedf3)/256;
 		}
 		if (control & 2) {
 			double sonic;
 			sonic = ((double)wpm2)/wpm;
-			DoSonicSpeed((int)(sonic * 1024));
+			DoSonicSpeed(epContext, (int)(sonic * 1024));
 			speed.pause_factor = 85;
 			speed.clause_pause_factor = espeakRATE_MINIMUM;
 			speed.min_pause = 22;
@@ -196,11 +196,11 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 	SetSpeedMultiplier(&x, &wpm);
 
 	if (control & 1) {
-		SetSpeedFactors(voice, x, epContext->len_speeds);
+		SetSpeedFactors(epContext->voice, x, epContext->len_speeds);
 	}
 
 	if (control & 2) {
-		SetSpeedMods(&speed, voice->speedf1, wpm, x);
+		SetSpeedMods(&speed, epContext->voice->speedf1, wpm, x);
 	}
 }
 
@@ -305,33 +305,33 @@ espeak_ng_STATUS SetParameter(EspeakProcessorContext* epContext, int parameter, 
 	switch (parameter)
 	{
 	case espeakRATE:
-		embedded_value[EMBED_S] = new_value;
-		embedded_value[EMBED_S2] = new_value;
-		SetSpeed(3);
+		epContext->embedded_value[EMBED_S] = new_value;
+		epContext->embedded_value[EMBED_S2] = new_value;
+		SetSpeed(epContext, 3);
 		break;
 	case espeakVOLUME:
-		embedded_value[EMBED_A] = new_value;
-		GetAmplitude();
+		epContext->embedded_value[EMBED_A] = new_value;
+		GetAmplitude(epContext);
 		break;
 	case espeakPITCH:
 		if (new_value > 99) new_value = 99;
 		if (new_value < 0) new_value = 0;
-		embedded_value[EMBED_P] = new_value;
+		epContext->embedded_value[EMBED_P] = new_value;
 		break;
 	case espeakRANGE:
 		if (new_value > 99) new_value = 99;
-		embedded_value[EMBED_R] = new_value;
+		epContext->embedded_value[EMBED_R] = new_value;
 		break;
 	case espeakLINELENGTH:
-		option_linelength = new_value;
+		epContext->option_linelength = new_value;
 		break;
 	case espeakWORDGAP:
-		option_wordgap = new_value;
+		epContext->option_wordgap = new_value;
 		break;
 	case espeakINTONATION:
 		if ((new_value & 0xff) != 0)
-			translator->langopts.intonation_group = new_value & 0xff;
-		option_tone_flags = new_value;
+			epContext->translator->langopts.intonation_group = new_value & 0xff;
+		epContext->option_tone_flags = new_value;
 		break;
   case espeakSSML_BREAK_MUL:
     break;
@@ -341,7 +341,7 @@ espeak_ng_STATUS SetParameter(EspeakProcessorContext* epContext, int parameter, 
 	return ENS_OK;
 }
 
-static void DoEmbedded2(int *embix)
+static void DoEmbedded2(EspeakProcessorContext* epContext, int *embix)
 {
 	// There were embedded commands in the text at this point
 
@@ -352,8 +352,8 @@ static void DoEmbedded2(int *embix)
 
 		if ((word & 0x1f) == EMBED_S) {
 			// speed
-			SetEmbedded(word & 0x7f, word >> 8); // adjusts embedded_value[EMBED_S]
-			SetSpeed(1);
+			SetEmbedded(epContext, word & 0x7f, word >> 8); // adjusts embedded_value[EMBED_S]
+			SetSpeed(epContext, 1);
 		}
 	} while ((word & 0x80) == 0);
 }
@@ -401,7 +401,7 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 		next = &phoneme_list[ix+1];
 
 		if (p->synthflags & SFLAG_EMBEDDED)
-			DoEmbedded2(&embedded_ix);
+			DoEmbedded2(epContext, &embedded_ix);
 
 		int type;
 		type = p->type;
@@ -674,8 +674,8 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 			env2 = p->env + 1; // version for use with preceding semi-vowel
 
 			if (p->tone_ph != 0) {
-				InterpretPhoneme2(p->tone_ph, &phdata_tone);
-				pitch_env = GetEnvelope(phdata_tone.pitch_env);
+				InterpretPhoneme2(epContext, p->tone_ph, &phdata_tone);
+				pitch_env = GetEnvelope(epContext, phdata_tone.pitch_env);
 			} else
 				pitch_env = envelope_data[env2];
 

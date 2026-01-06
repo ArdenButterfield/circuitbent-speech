@@ -128,17 +128,17 @@ void process_espeak_command(t_espeak_command *the_command);
 
 int delete_espeak_command(t_espeak_command *the_command);
 
-espeak_ng_STATUS sync_espeak_Synth(unsigned int unique_identifier, const void *text,
+espeak_ng_STATUS sync_espeak_Synth(EspeakProcessorContext* epContext, unsigned int unique_identifier, const void *text,
                                    unsigned int position, espeak_POSITION_TYPE position_type,
                                    unsigned int end_position, unsigned int flags, void *user_data);
-espeak_ng_STATUS sync_espeak_Synth_Mark(unsigned int unique_identifier, const void *text,
+espeak_ng_STATUS sync_espeak_Synth_Mark(EspeakProcessorContext* epContext, unsigned int unique_identifier, const void *text,
                                         const char *index_mark, unsigned int end_position,
                                         unsigned int flags, void *user_data);
-espeak_ng_STATUS sync_espeak_Key(const char *key);
-espeak_ng_STATUS sync_espeak_Char(wchar_t character);
+espeak_ng_STATUS sync_espeak_Key(EspeakProcessorContext* epContext, const char *key);
+espeak_ng_STATUS sync_espeak_Char(EspeakProcessorContext* epContext, wchar_t character);
 void sync_espeak_SetPunctuationList(EspeakProcessorContext* epContext, const wchar_t *punctlist);
 void sync_espeak_SetParameter(espeak_PARAMETER parameter, int value, int relative);
-espeak_ng_STATUS SetParameter(int parameter, int value, int relative);
+espeak_ng_STATUS SetParameter(EspeakProcessorContext* epContext, int parameter, int value, int relative);
 
 int sync_espeak_terminated_msg(unsigned int unique_identifier, void *user_data);
 

@@ -656,7 +656,7 @@ static int calc_pitches2(EspeakProcessorContext* epContext, SYLLABLE *syllable_t
 	TUNE *tune;
 	int drop;
 
-	tune = &tunes[tune_number];
+	tune = &epContext->tunes[tune_number];
 	ix = start;
 
 	// vowels before the first primary stress
@@ -666,7 +666,7 @@ static int calc_pitches2(EspeakProcessorContext* epContext, SYLLABLE *syllable_t
 
 	// body of tonic segment
 
-	if (option_tone_flags & OPTION_EMPHASIZE_PENULTIMATE)
+	if (epContext->option_tone_flags & OPTION_EMPHASIZE_PENULTIMATE)
 		epContext->tone_posn = epContext->tone_posn2; // put tone on the penultimate stressed word
 	ix = SetHeadIntonation(syllable_tab, tune, ix, epContext->tone_posn);
 
@@ -722,7 +722,7 @@ static int calc_pitches(EspeakProcessorContext* epContext, SYLLABLE *syllable_ta
 
 	// body of tonic segment
 
-	if (option_tone_flags & OPTION_EMPHASIZE_PENULTIMATE)
+	if (epContext->option_tone_flags & OPTION_EMPHASIZE_PENULTIMATE)
 		epContext->tone_posn = epContext->tone_posn2; // put tone on the penultimate stressed word
 	ix = calc_pitch_segment(syllable_tab, ix, epContext->tone_posn, th, tn, PRIMARY, continuing);
 
@@ -755,7 +755,7 @@ static int calc_pitches(EspeakProcessorContext* epContext, SYLLABLE *syllable_ta
 	return epContext->tone_pitch_env;
 }
 
-static void CalcPitches_Tone(Translator *tr)
+static void CalcPitches_Tone(EspeakProcessorContext* epContext, Translator *tr)
 {
 	PHONEME_LIST *p;
 	int ix;
@@ -789,7 +789,7 @@ static void CalcPitches_Tone(Translator *tr)
 		// LANG=vi
 		p = &phoneme_list[final_stressed];
 		if (p->tone_ph == 0)
-			p->tone_ph = PhonemeCode('7'); // change default tone (tone 1) to falling tone at end of clause
+			p->tone_ph = PhonemeCode(epContext, '7'); // change default tone (tone 1) to falling tone at end of clause
 	}
 
 	pause = true;
@@ -821,7 +821,7 @@ static void CalcPitches_Tone(Translator *tr)
 					  tph->mnemonic == 0x36){
 					/* trigger the tone sandhi of the prev. syllable
 					   from 1st tone ->2nd tone */
-					prev_p->tone_ph = PhonemeCode('2'); 
+					prev_p->tone_ph = PhonemeCode(epContext, '2');
 				  }
 				}
 			  }
@@ -829,10 +829,10 @@ static void CalcPitches_Tone(Translator *tr)
 			if (tr->translator_name == L('z', 'h') || tr->translator_name == L3('c', 'm', 'n')) {
 				if (tone_ph == 0) {
 					if (pause || tone_promoted) {
-						tone_ph = PhonemeCode2('5', '5'); // no previous vowel, use tone 1
+						tone_ph = PhonemeCode2(epContext, '5', '5'); // no previous vowel, use tone 1
 						tone_promoted = true;
 					} else
-						tone_ph = PhonemeCode2('1', '1'); // default tone 5
+						tone_ph = PhonemeCode2(epContext, '1', '1'); // default tone 5
 
 					p->tone_ph = tone_ph;
 					tph = phoneme_tab[tone_ph];
@@ -848,21 +848,21 @@ static void CalcPitches_Tone(Translator *tr)
 
 				if (prevw_tph->mnemonic == 0x343132) { // [214]
 					if (tph->mnemonic == 0x343132) // [214]
-						prev_p->tone_ph = PhonemeCode2('3', '5');
+						prev_p->tone_ph = PhonemeCode2(epContext, '3', '5');
 					else
-						prev_p->tone_ph = PhonemeCode2('2', '1');
+						prev_p->tone_ph = PhonemeCode2(epContext, '2', '1');
 				}
 				if ((prev_tph->mnemonic == 0x3135)  && (tph->mnemonic == 0x3135)) // [51] + [51]
-					prev_p->tone_ph = PhonemeCode2('5', '3');
+					prev_p->tone_ph = PhonemeCode2(epContext, '5', '3');
 
 				if (tph->mnemonic == 0x3131) { // [11] Tone 5
 					// tone 5, change its level depending on the previous tone (across word boundaries)
 					if (prevw_tph->mnemonic == 0x3535)
-						p->tone_ph = PhonemeCode2('2', '2');
+						p->tone_ph = PhonemeCode2(epContext, '2', '2');
 					if (prevw_tph->mnemonic == 0x3533)
-						p->tone_ph = PhonemeCode2('3', '3');
+						p->tone_ph = PhonemeCode2(epContext, '3', '3');
 					if (prevw_tph->mnemonic == 0x343132)
-						p->tone_ph = PhonemeCode2('4', '4');
+						p->tone_ph = PhonemeCode2(epContext, '4', '4');
 
 					// tone 5 is unstressed (shorter)
 					p->stresslevel = 0; // diminished stress
@@ -946,7 +946,7 @@ void CalcPitches(EspeakProcessorContext* epContext, Translator *tr, int clause_t
 		return; // nothing to do
 
 	if (tr->langopts.tone_language == 1) {
-		CalcPitches_Tone(tr);
+		CalcPitches_Tone(epContext, tr);
 		return;
 	}
 

@@ -159,11 +159,11 @@ void FreePhData(EspeakProcessorContext* epContext)
 	epContext->current_phoneme_table = -1;
 }
 
-int PhonemeCode(unsigned int mnem)
+int PhonemeCode(EspeakProcessorContext* epContext, unsigned int mnem)
 {
 	int ix;
 
-	for (ix = 0; ix < n_phoneme_tab; ix++) {
+	for (ix = 0; ix < epContext->n_phoneme_tab; ix++) {
 		if (phoneme_tab[ix] == NULL)
 			continue;
 		if (phoneme_tab[ix]->mnemonic == mnem)
@@ -172,7 +172,7 @@ int PhonemeCode(unsigned int mnem)
 	return 0;
 }
 
-int LookupPhonemeString(const char *string)
+int LookupPhonemeString(EspeakProcessorContext* epContext, const char *string)
 {
 	int ix;
 	unsigned int mnem;
@@ -185,7 +185,7 @@ int LookupPhonemeString(const char *string)
 		mnem |= (c << (ix*8));
 	}
 
-	return PhonemeCode(mnem);
+	return PhonemeCode(epContext, mnem);
 }
 
 frameref_t *LookupSpect(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,  int *n_frames, PHONEME_LIST *plist)
@@ -237,7 +237,7 @@ frameref_t *LookupSpect(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph,
 
 	// do we need to modify a frame for blending with a consonant?
 	if ((this_ph->type == phVOWEL) && (fmt_params->fmt2_addr == 0) && (fmt_params->use_vowelin))
-		epContext->seq_len_adjust += FormantTransition2(frames, &nf, fmt_params->transition0, fmt_params->transition1, NULL, which);
+		epContext->seq_len_adjust += FormantTransition2(epContext, frames, &nf, fmt_params->transition0, fmt_params->transition1, NULL, which);
 
 	length1 = 0;
 	nf1 = nf - 1;
@@ -321,7 +321,7 @@ const unsigned char *GetEnvelope(EspeakProcessorContext* epContext, int index)
 	return (unsigned char *)&epContext->phondata_ptr[index];
 }
 
-static void SetUpPhonemeTable(int number)
+static void SetUpPhonemeTable(EspeakProcessorContext* epContext, int number)
 {
 	int ix;
 	int includes;
@@ -329,7 +329,7 @@ static void SetUpPhonemeTable(int number)
 
 	if ((includes = phoneme_tab_list[number].includes) > 0) {
 		// recursively include base phoneme tables
-		SetUpPhonemeTable(includes - 1);
+		SetUpPhonemeTable(epContext, includes - 1);
 	}
 
 	// now add the phonemes from this table
@@ -337,9 +337,9 @@ static void SetUpPhonemeTable(int number)
 	for (ix = 0; ix < phoneme_tab_list[number].n_phonemes; ix++) {
 		int ph_code = phtab[ix].code;
 		phoneme_tab[ph_code] = &phtab[ix];
-		if (ph_code > n_phoneme_tab) {
-			memset(&phoneme_tab[n_phoneme_tab+1], 0, (ph_code - (n_phoneme_tab+1)) * sizeof(*phoneme_tab));
-			n_phoneme_tab = ph_code;
+		if (ph_code > epContext->n_phoneme_tab) {
+			memset(&phoneme_tab[epContext->n_phoneme_tab+1], 0, (ph_code - (epContext->n_phoneme_tab+1)) * sizeof(*phoneme_tab));
+			epContext->n_phoneme_tab = ph_code;
 		}
 	}
 }
@@ -347,10 +347,10 @@ static void SetUpPhonemeTable(int number)
 void SelectPhonemeTable(EspeakProcessorContext* epContext, int number)
 {
 	if (epContext->current_phoneme_table == number) return;
-	n_phoneme_tab = 0;
+	epContext->n_phoneme_tab = 0;
 	MAKE_MEM_UNDEFINED(&phoneme_tab, sizeof(phoneme_tab));
-	SetUpPhonemeTable(number); // recursively for included phoneme tables
-	n_phoneme_tab++;
+	SetUpPhonemeTable(epContext, number); // recursively for included phoneme tables
+	epContext->n_phoneme_tab++;
 	epContext->current_phoneme_table = number;
 }
 
@@ -370,16 +370,16 @@ int LookupPhonemeTable(EspeakProcessorContext* epContext, const char *name)
 	return ix;
 }
 
-int SelectPhonemeTableName(const char *name)
+int SelectPhonemeTableName(EspeakProcessorContext* epContext, const char *name)
 {
 	// Look up a phoneme set by name, and select it if it exists
 	// Returns the phoneme table number
 	int ix;
 
-	if ((ix = LookupPhonemeTable(name)) == -1)
+	if ((ix = LookupPhonemeTable(epContext, name)) == -1)
 		return -1;
 
-	SelectPhonemeTable(ix);
+	SelectPhonemeTable(epContext, ix);
 	return ix;
 }
 

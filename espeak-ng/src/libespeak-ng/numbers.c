@@ -499,12 +499,12 @@ void LookupLetter(EspeakProcessorContext* epContext, Translator *tr, unsigned in
 		if (tr->translator_name == L('e', 'n'))
 			return; // we are already using English
 
-		SetTranslator3(ESPEAKNG_DEFAULT_VOICE);
-		if (Lookup(epContext, translator3, &single_letter[2], ph_buf3) != 0) {
+		SetTranslator3(epContext, ESPEAKNG_DEFAULT_VOICE);
+		if (Lookup(epContext, epContext->translator3, &single_letter[2], ph_buf3) != 0) {
 			// yes, switch to English and re-translate the word
 			sprintf(ph_buf1, "%c", phonSWITCH);
 		}
-		SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
+		SelectPhonemeTable(epContext, epContext->voice->phoneme_tab_ix); // revert to original phoneme table
 		return;
 	}
 
@@ -539,7 +539,7 @@ void LookupLetter(EspeakProcessorContext* epContext, Translator *tr, unsigned in
 
 	dict_flags[0] = 0;
 	dict_flags[1] = 0;
-	SetWordStress(tr, ph_buf1, dict_flags, -1, control & 1);
+	SetWordStress(epContext, tr, ph_buf1, dict_flags, -1, control & 1);
 }
 
 
@@ -686,7 +686,7 @@ void SetSpellingStress(Translator *tr, char *phonemes, int control, int n_chars)
 static char ph_ordinal2[12];
 static char ph_ordinal2x[12];
 
-static int CheckDotOrdinal(Translator *tr, char *word, char *word_end, WORD_TAB *wtab, int roman)
+static int CheckDotOrdinal(EspeakProcessorContext* epContext, Translator *tr, char *word, char *word_end, WORD_TAB *wtab, int roman)
 {
 	int ordinal = 0;
 	int c2;
@@ -711,7 +711,7 @@ static int CheckDotOrdinal(Translator *tr, char *word, char *word_end, WORD_TAB 
 					// lang=hu don't treat dot as ordinal indicator if the next word is a month name ($alt). It may have a suffix.
 					nextflags = 0;
 					if (IsAlpha(c2))
-						nextflags = TranslateWord(tr, &word_end[2], NULL, NULL);
+						nextflags = TranslateWord(epContext, tr, &word_end[2], NULL, NULL);
 
 					if ((tr->prev_dict_flags[0] & FLAG_ALT_TRANS) && ((c2 == 0) || (wtab[0].flags & FLAG_COMMA_AFTER) || iswdigit(c2)))
 						ordinal = 0; // TEST  09.02.10
@@ -841,7 +841,7 @@ int TranslateRoman(EspeakProcessorContext* epContext, Translator *tr, char *word
 		return 0;
 	}
 
-	if (CheckDotOrdinal(tr, word_start, word, wtab, 1))
+	if (CheckDotOrdinal(epContext, tr, word_start, word, wtab, 1))
 		wtab[0].flags |= FLAG_ORDINAL;
 
 	if (tr->langopts.numbers & NUM_ROMAN_ORDINAL) {
@@ -867,7 +867,7 @@ int TranslateRoman(EspeakProcessorContext* epContext, Translator *tr, char *word
 	return 1;
 }
 
-static const char *M_Variant(int value)
+static const char *M_Variant(EspeakProcessorContext* epContext, int value)
 {
 	// returns M, or perhaps MA or MB for some cases
 
@@ -876,7 +876,7 @@ static const char *M_Variant(int value)
 	if (((value % 100) > 10) && ((value % 100) < 20))
 		teens = true;
 
-	switch (translator->langopts.numbers2 & NUM2_THOUSANDS_VAR_BITS)
+	switch (epContext->translator->langopts.numbers2 & NUM2_THOUSANDS_VAR_BITS)
 	{
 	case NUM2_THOUSANDS_VAR1: // lang=ru
 		if (teens == false) {
@@ -957,22 +957,22 @@ static int LookupThousands(EspeakProcessorContext* epContext, Translator *tr, in
 		if (thousands_exact & 1) {
 			if (thousands_exact & 2) {
 				// ordinal number
-				sprintf(string, "_%s%do", M_Variant(value), thousandplex);
+				sprintf(string, "_%s%do", M_Variant(epContext, value), thousandplex);
 				found = Lookup(epContext, tr, string, ph_thousands);
 			}
 			if (!found && (epContext->number_control & 1)) {
 				// look for the 'e' variant
-				sprintf(string, "_%s%de", M_Variant(value), thousandplex);
+				sprintf(string, "_%s%de", M_Variant(epContext, value), thousandplex);
 				found = Lookup(epContext, tr, string, ph_thousands);
 			}
 			if (!found) {
 				// is there a different pronunciation if there are no hundreds,tens,or units ?
-				sprintf(string, "_%s%dx", M_Variant(value), thousandplex);
+				sprintf(string, "_%s%dx", M_Variant(epContext, value), thousandplex);
 				found = Lookup(epContext, tr, string, ph_thousands);
 			}
 		}
 		if (found == 0) {
-			sprintf(string, "_%s%d", M_Variant(value), thousandplex);
+			sprintf(string, "_%s%d", M_Variant(epContext, value), thousandplex);
 
 			if (Lookup(epContext, tr, string, ph_thousands) == 0) {
 				if (thousandplex > 3) {
@@ -1537,7 +1537,7 @@ static int TranslateNumber_1(EspeakProcessorContext* epContext, Translator *tr, 
 
 	if (prev_thousands || (word[0] != '0')) {
 		// don't check for ordinal if the number has a leading zero
-		ordinal = CheckDotOrdinal(tr, word, &word[ix], wtab, 0);
+		ordinal = CheckDotOrdinal(epContext, tr, word, &word[ix], wtab, 0);
 	}
 
 	if ((word[ix] == '.') && !IsDigit09(word[ix+1]) && !IsDigit09(word[ix+2]) && !(wtab[1].flags & FLAG_NOSPACE)) {
@@ -1860,7 +1860,7 @@ stop:
 
 int TranslateNumber(EspeakProcessorContext* epContext, Translator *tr, char *word1, char *ph_out, char *ph_out_end, unsigned int *flags, WORD_TAB *wtab, int control)
 {
-	if ((option_sayas == SAYAS_DIGITS1) || (wtab[0].flags & FLAG_INDIVIDUAL_DIGITS))
+	if ((epContext->option_sayas == SAYAS_DIGITS1) || (wtab[0].flags & FLAG_INDIVIDUAL_DIGITS))
 		return 0; // speak digits individually
 
 	if (tr->langopts.numbers != 0)

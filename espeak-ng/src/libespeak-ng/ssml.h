@@ -31,18 +31,7 @@ extern "C"
 {
 #endif
 
-// stack for language and voice properties
-// frame 0 is for the defaults, before any ssml tags.
-typedef struct {
-        int tag_type;
-        int voice_variant_number;
-        int voice_gender;
-        int voice_age;
-        char voice_name[40];
-        char language[20];
-} SSML_STACK;
 
-#define N_PARAM_STACK  20
 
 #define SSML_SPEAK        1
 #define SSML_VOICE        2

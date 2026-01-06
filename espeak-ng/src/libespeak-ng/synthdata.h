@@ -43,18 +43,18 @@ void InterpretPhoneme2(EspeakProcessorContext* epContext, int phcode,
 
 void FreePhData(EspeakProcessorContext* epContext);
 const unsigned char *GetEnvelope(EspeakProcessorContext* epContext, int index);
-espeak_ng_STATUS LoadPhData(int *srate, espeak_ng_ERROR_CONTEXT *context);
-int LookupPhonemeString(const char *string);
-int LookupPhonemeTable(const char *name);
+espeak_ng_STATUS LoadPhData(EspeakProcessorContext* epContext, int *srate, espeak_ng_ERROR_CONTEXT *context);
+int LookupPhonemeString(EspeakProcessorContext* epContext, const char *string);
+int LookupPhonemeTable(EspeakProcessorContext* epContext, const char *name);
 frameref_t *LookupSpect(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph,
 		int which,
 		FMT_PARAMS *fmt_params,
 		int *n_frames,
 		PHONEME_LIST *plist);
 
-int PhonemeCode(unsigned int mnem);
-void SelectPhonemeTable(int number);
-int  SelectPhonemeTableName(const char *name);
+int PhonemeCode(EspeakProcessorContext* epContext, unsigned int mnem);
+void SelectPhonemeTable(EspeakProcessorContext* epContext, int number);
+int  SelectPhonemeTableName(EspeakProcessorContext* epContext, const char *name);
 
 #ifdef __cplusplus
 }

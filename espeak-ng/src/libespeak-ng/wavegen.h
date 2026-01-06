@@ -35,7 +35,7 @@ int PeaksToHarmspect(EspeakProcessorContext* epContext, wavegen_peaks_t *peaks,
 		int *htab,
 		int control);
 
-void SetPitch2(voice_t *voice,
+void SetPitch2(EspeakProcessorContext* epContext, voice_t *voice,
 		int pitch1,
 		int pitch2,
 		int *pitch_base,

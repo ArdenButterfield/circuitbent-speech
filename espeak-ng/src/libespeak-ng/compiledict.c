@@ -391,7 +391,7 @@ char *DecodeRule(const char *group_chars, int group_length, char *rule, int cont
 	return output;
 }
 
-static int compile_line(CompileContext *ctx, char *linebuf, char *dict_line, int n_dict_line, int *hash)
+static int compile_line(EspeakProcessorContext* epContext, CompileContext *ctx, char *linebuf, char *dict_line, int n_dict_line, int *hash)
 {
 	// Compile a line in the language_list file
 	unsigned char c;
@@ -566,7 +566,7 @@ static int compile_line(CompileContext *ctx, char *linebuf, char *dict_line, int
 
 			// PROBLEM  vowel reductions are not applied to the translated phonemes
 			// condition rules are not applied
-			TranslateWord(translator, phonetic, NULL, NULL);
+			TranslateWord(epContext, epContext->translator, phonetic, NULL, NULL);
 			text_not_phonemes = false;
 			strncpy0(encoded_ph, ctx->word_phonemes, N_WORD_BYTES-4);
 
@@ -579,7 +579,7 @@ static int compile_line(CompileContext *ctx, char *linebuf, char *dict_line, int
 			// this is replacement text, so don't encode as phonemes. Restrict the length of the replacement word
 			strncpy0(encoded_ph, phonetic, N_WORD_BYTES-4);
 	} else {
-		EncodePhonemes(phonetic, encoded_ph, &bad_phoneme);
+		EncodePhonemes(epContext, phonetic, encoded_ph, &bad_phoneme);
 		if (strchr(encoded_ph, phonSWITCH) != 0)
 			flag_codes[n_flag_codes++] = BITNUM_FLAG_ONLY_S;  // don't match on suffixes (except 's') when switching languages
 
@@ -592,7 +592,7 @@ static int compile_line(CompileContext *ctx, char *linebuf, char *dict_line, int
 		}
 	}
 
-	if (text_not_phonemes != translator->langopts.textmode)
+	if (text_not_phonemes != epContext->translator->langopts.textmode)
 		flag_codes[n_flag_codes++] = BITNUM_FLAG_TEXTMODE;
 
 	if (sscanf(word, "U+%x", &wc) == 1) {
@@ -611,7 +611,7 @@ static int compile_line(CompileContext *ctx, char *linebuf, char *dict_line, int
 			if (c2 == 0)
 				break;
 			if (iswupper(c2))
-				utf8_out(towlower2(c2, translator), p);
+				utf8_out(towlower2(c2, epContext->translator), p);
 			else
 				all_upper_case = false;
 			p += ix;
@@ -622,8 +622,8 @@ static int compile_line(CompileContext *ctx, char *linebuf, char *dict_line, int
 
 	len_word = strlen(word);
 
-	if (translator->transpose_min > 0)
-		len_word = TransposeAlphabet(translator, word);
+	if (epContext->translator->transpose_min > 0)
+		len_word = TransposeAlphabet(epContext->translator, word);
 
 	*hash = HashDictionary(word);
 	len_phonetic = strlen(encoded_ph);
@@ -709,7 +709,7 @@ static void compile_dictlist_end(CompileContext *ctx, FILE *f_out)
 	}
 }
 
-static int compile_dictlist_file(CompileContext *ctx, const char *path, const char *filename)
+static int compile_dictlist_file(EspeakProcessorContext* epContext, CompileContext *ctx, const char *path, const char *filename)
 {
 	int length;
 	int hash;
@@ -738,7 +738,7 @@ static int compile_dictlist_file(CompileContext *ctx, const char *path, const ch
 	while (fgets(buf, sizeof(buf), f_in) != NULL) {
 		ctx->linenum++;
 
-		length = compile_line(ctx, buf, dict_line, sizeof(dict_line), &hash);
+		length = compile_line(epContext, ctx, buf, dict_line, sizeof(dict_line), &hash);
 		if (length == 0)  continue; // blank line
 
 		p = (char *)malloc(length+sizeof(char *));
@@ -1019,7 +1019,7 @@ static void copy_rule_string(CompileContext *ctx, char *string, int *state_out)
 	*state_out = next_state[state];
 }
 
-static char *compile_rule(CompileContext *ctx, char *input)
+static char *compile_rule(EspeakProcessorContext* epContext, CompileContext *ctx, char *input)
 {
 	int ix;
 	unsigned char c;
@@ -1101,7 +1101,7 @@ static char *compile_rule(CompileContext *ctx, char *input)
 		return NULL;
 	}
 
-	EncodePhonemes(ctx->rule_phonemes, buf, &bad_phoneme);
+	EncodePhonemes(epContext, ctx->rule_phonemes, buf, &bad_phoneme);
 	if (bad_phoneme != 0) {
 		bad_phoneme_str[utf8_out(bad_phoneme, bad_phoneme_str)] = 0;
 		fprintf(ctx->f_log, "%5d: Bad phoneme [%s] (U+%x) in: %s\n", ctx->linenum, bad_phoneme_str, bad_phoneme, input);
@@ -1333,7 +1333,7 @@ static void free_rules(char **rules, int n_rules)
 	}
 }
 
-static espeak_ng_STATUS compile_dictrules(CompileContext *ctx, FILE *f_in, FILE *f_out)
+static espeak_ng_STATUS compile_dictrules(EspeakProcessorContext* epContext, CompileContext *ctx, FILE *f_in, FILE *f_out)
 {
 	char *prule;
 	unsigned char *p;
@@ -1429,9 +1429,9 @@ static espeak_ng_STATUS compile_dictrules(CompileContext *ctx, FILE *f_in, FILE 
 					*p++ = char_code;
 					*p = 0;
 				} else {
-					if (translator->letter_bits_offset > 0) {
+					if (epContext->translator->letter_bits_offset > 0) {
 						utf8_in(&wc, ctx->group_name);
-						if (((ix = (wc - translator->letter_bits_offset)) >= 0) && (ix < 128))
+						if (((ix = (wc - epContext->translator->letter_bits_offset)) >= 0) && (ix < 128))
 							ctx->group3_ix = ix+1; // not zero
 					}
 				}
@@ -1452,7 +1452,7 @@ static espeak_ng_STATUS compile_dictrules(CompileContext *ctx, FILE *f_in, FILE 
 		switch (compile_mode)
 		{
 		case 1: //  .group
-			prule = compile_rule(ctx, buf);
+			prule = compile_rule(epContext, ctx, buf);
 			if (prule != NULL) {
 				if (n_rules < N_RULES)
 					rules[n_rules++] = prule;
@@ -1522,10 +1522,10 @@ static espeak_ng_STATUS compile_dictrules(CompileContext *ctx, FILE *f_in, FILE 
 }
 
 #pragma GCC visibility push(default)
-ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(const char *dsource, const char *dict_name, FILE *log, int flags, espeak_ng_ERROR_CONTEXT *context)
+ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(EspeakProcessorContext* epContext, const char *dsource, const char *dict_name, FILE *log, int flags, espeak_ng_ERROR_CONTEXT *context)
 {
 	if (!log) log = stderr;
-	if (!dict_name) dict_name = dictionary_name;
+	if (!dict_name) dict_name = epContext->dictionary_name;
 
 	// fname:  space to write the filename in case of error
 	// flags: bit 0:  include source line number information, for debug purposes.
@@ -1579,23 +1579,23 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(const char *dsource, 
 	compile_dictlist_start(ctx);
 
 	fprintf(ctx->f_log, "Using phonemetable: '%s'\n", phoneme_tab_list[phoneme_tab_number].name);
-	compile_dictlist_file(ctx, path, "roots");
-	if (translator->langopts.listx) {
-		compile_dictlist_file(ctx, path, "list");
-		compile_dictlist_file(ctx, path, "listx");
+	compile_dictlist_file(epContext, ctx, path, "roots");
+	if (epContext->translator->langopts.listx) {
+		compile_dictlist_file(epContext, ctx, path, "list");
+		compile_dictlist_file(epContext, ctx, path, "listx");
 	} else {
-		compile_dictlist_file(ctx, path, "listx");
-		compile_dictlist_file(ctx, path, "list");
+		compile_dictlist_file(epContext, ctx, path, "listx");
+		compile_dictlist_file(epContext, ctx, path, "list");
 	}
-	compile_dictlist_file(ctx, path, "emoji");
-	compile_dictlist_file(ctx, path, "extra");
+	compile_dictlist_file(epContext, ctx, path, "emoji");
+	compile_dictlist_file(epContext, ctx, path, "extra");
 
 	compile_dictlist_end(ctx, f_out);
 	offset_rules = ftell(f_out);
 
 	fprintf(ctx->f_log, "Compiling: '%s'\n", fname_in);
 
-	espeak_ng_STATUS status = compile_dictrules(ctx, f_in, f_out);
+	espeak_ng_STATUS status = compile_dictrules(epContext, ctx, f_in, f_out);
 	fclose(f_in);
 
 	fseek(f_out, 4, SEEK_SET);
@@ -1608,7 +1608,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(const char *dsource, 
 		return status;
 	}
 
-	LoadDictionary(translator, dict_name, 0);
+	LoadDictionary(epContext, epContext->translator, dict_name, 0);
 
 	status = ctx->error_count > 0 ? ENS_COMPILE_ERROR : ENS_OK;
 	clean_context(ctx);

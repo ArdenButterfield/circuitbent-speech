@@ -18,6 +18,7 @@
 #define ESPEAK_NG_ENCODING_H
 
 #include <stdint.h>
+#include <espeak-ng/common.h>
 
 #ifdef __cplusplus
 extern "C"

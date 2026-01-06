@@ -25,12 +25,13 @@
 /*                                                           */
 /*************************************************************/
 
+
+
 #include "encoding.h"
-#include "synthesize.h"
 #include <stddef.h>
 #include <stdio.h>
+#include <stdbool.h>
 
-#include "ssml.h"                 // for SSML_STACK, ProcessSsmlTag, N_PARAM...
 #include <espeak-ng/common.h>
 
 #if USE_LIBSONIC
@@ -340,7 +341,7 @@ ESPEAK_API void espeak_SetPhonemeCallback(EspeakProcessorContext* epContext, int
 #ifdef __cplusplus
 extern "C"
 #endif
-ESPEAK_API espeak_ERROR espeak_Synth(const void *text,
+ESPEAK_API espeak_ERROR espeak_Synth(EspeakProcessorContext* epContext, const void *text,
 	size_t size,
 	unsigned int position,
 	espeak_POSITION_TYPE position_type,
@@ -469,10 +470,10 @@ typedef enum {
   espeakSSML_BREAK_MUL=10,
 
   espeakRESERVED2=11,
-  espeakEMPHASIS,   /* internal use */
-  espeakLINELENGTH, /* internal use */
-  espeakVOICETYPE,  // internal, 1=mbrola
-  N_SPEECH_PARAM    /* last enum */
+  espeakEMPHASIS=12,   /* internal use */
+  espeakLINELENGTH=13, /* internal use */
+  espeakVOICETYPE=14,  // internal, 1=mbrola
+  N_SPEECH_PARAM=15    /* last enum */
 } espeak_PARAMETER;
 
 typedef enum {
@@ -728,7 +729,6 @@ ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char
 /* Returns the version number string.
    path_data  returns the path to espeak_data
 */
-#endif
 
 typedef struct esb
 {
@@ -775,7 +775,7 @@ struct epc
     // klatt.c
     unsigned char *out_ptr;
     unsigned char *out_end;
-    int nsamples;
+    int nsamples_klatt;
     int sample_count;
 
     klatt_frame_t kt_frame;
@@ -1049,7 +1049,7 @@ struct epc
 
     // the presets are for 22050 Hz sample rate.
     // A different rate will need to recalculate the presets in WavegenInit()
-    static unsigned char wavemult[N_WAVEMULT];
+    unsigned char wavemult[N_WAVEMULT];
 
 };
 
@@ -1107,7 +1107,7 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->my_mode = ENOUTPUT_MODE_SYNCHRONOUS;
     epContext->out_samplerate = 0;
     epContext->voice_samplerate = 22050;
-    epContext->err = 0;
+    epContext->err = ENS_OK;
     epContext->synth_callback = NULL;
     epContext->n_soundicon_tab = 0;
 
@@ -1124,16 +1124,16 @@ void initEspeakContext(EspeakProcessorContext* epContext)
     epContext->new_voice = NULL;
 
     epContext->option_linelength = 0;
-    epContext->option_punctuation = {0};
+    epContext->option_punctuation = 0;
     epContext->max_clause_pause = 0;
     epContext->embedded_flag = 0;
     epContext->word_emphasis = 0;
 
     epContext->translator= NULL; // the main translator
     epContext->translator2= NULL; // secondary translator for certain words
-    epContext->translator2_language= { 0 };
+    epContext->translator2_language[0] =  0 ;
     epContext->translator3 = NULL; // tertiary translator for certain words
-    epContext->translator3_language = { 0 };
+    epContext->translator3_language[0] = 0 ;
     epContext->f_trans = NULL; // phoneme output text
     epContext->option_tone_flags = 0; // bit 8=emphasize allcaps, bit 9=emphasize penultimate stress
     epContext->option_phonemes = 0;
@@ -1184,3 +1184,5 @@ void initEspeakContext(EspeakProcessorContext* epContext)
         epContext->wavemult[i] = defaultWavemult[i];
     }
 }
+
+#endif
