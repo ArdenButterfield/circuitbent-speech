@@ -333,13 +333,13 @@ const char *EncodePhonemes(EspeakProcessorContext* epContext, const char *p, cha
 			max_ph = 0;
 
 			for (ix = 1; ix < epContext->n_phoneme_tab; ix++) {
-				if (phoneme_tab[ix] == NULL)
+				if (epContext->phoneme_tab[ix] == NULL)
 					continue;
-				if (phoneme_tab[ix]->type == phINVALID)
+				if (epContext->phoneme_tab[ix]->type == phINVALID)
 					continue; // this phoneme is not defined for this language
 
 				count = 0;
-				mnemonic_word = phoneme_tab[ix]->mnemonic;
+				mnemonic_word = epContext->phoneme_tab[ix]->mnemonic;
 
 				while (((c = p[count]) > ' ') && (count < 4) &&
 				       (c == ((mnemonic_word >> (count*8)) & 0xff)))
@@ -348,7 +348,7 @@ const char *EncodePhonemes(EspeakProcessorContext* epContext, const char *p, cha
 				if ((count > max) &&
 				    ((count == 4) || (((mnemonic_word >> (count*8)) & 0xff) == 0))) {
 					max = count;
-					max_ph = phoneme_tab[ix]->code;
+					max_ph = epContext->phoneme_tab[ix]->code;
 				}
 			}
 
@@ -389,7 +389,7 @@ const char *EncodePhonemes(EspeakProcessorContext* epContext, const char *p, cha
 	return p;
 }
 
-void DecodePhonemes(const char *inptr, char *outptr)
+void DecodePhonemes(EspeakProcessorContext* epContext, const char *inptr, char *outptr)
 {
 	// Translate from internal phoneme codes into phoneme mnemonics
 	unsigned char phcode;
@@ -402,7 +402,7 @@ void DecodePhonemes(const char *inptr, char *outptr)
 	while ((phcode = *inptr++) > 0) {
 		if (phcode == 255)
 			continue; // indicates unrecognised phoneme
-		if ((ph = phoneme_tab[phcode]) == NULL)
+		if ((ph = epContext->phoneme_tab[phcode]) == NULL)
 			continue;
 
 		if ((ph->type == phSTRESS) && (ph->std_length <= 4) && (ph->program == 0)) {
@@ -456,7 +456,7 @@ char *WritePhMnemonic(EspeakProcessorContext* epContext, char *phon_out, PHONEME
 
 	if (ph->code == phonSWITCH) {
 		// the tone_ph field contains a phoneme table number
-		p = phoneme_tab_list[plist->tone_ph].name;
+		p = epContext->phoneme_tab_list[plist->tone_ph].name;
 		sprintf(phon_out, "(%s)", p);
 		return phon_out + strlen(phon_out);
 	}
@@ -604,10 +604,10 @@ const char *GetTranslatedPhonemeString(EspeakProcessorContext* epContext, int ph
 		use_tie = 0;
 	}
 
-	for (ix = 1; ix < (n_phoneme_list-2); ix++) {
+	for (ix = 1; ix < (epContext->n_phoneme_list-2); ix++) {
 		buf = phon_buf;
 
-		plist = &phoneme_list[ix];
+		plist = &epContext->phoneme_list[ix];
 
 		WritePhMnemonic(epContext, phon_buf2, plist->ph, plist, use_ipa, &flags);
 		if (plist->newword & PHLIST_START_OF_WORD && !(plist->newword & (PHLIST_START_OF_SENTENCE | PHLIST_START_OF_CLAUSE)))
@@ -653,13 +653,13 @@ const char *GetTranslatedPhonemeString(EspeakProcessorContext* epContext, int ph
 
 		if (plist->ph->code != phonSWITCH) {
 			if (plist->synthflags & SFLAG_LENGTHEN)
-				buf = WritePhMnemonic(epContext, buf, phoneme_tab[phonLENGTHEN], plist, use_ipa, NULL);
+				buf = WritePhMnemonic(epContext, buf, epContext->phoneme_tab[phonLENGTHEN], plist, use_ipa, NULL);
 			if ((plist->synthflags & SFLAG_SYLLABLE) && (plist->type != phVOWEL)) {
 				// syllablic consonant
-				buf = WritePhMnemonic(epContext, buf, phoneme_tab[phonSYLLABIC], plist, use_ipa, NULL);
+				buf = WritePhMnemonic(epContext, buf, epContext->phoneme_tab[phonSYLLABIC], plist, use_ipa, NULL);
 			}
 			if (plist->tone_ph > 0)
-				buf = WritePhMnemonic(epContext, buf, phoneme_tab[plist->tone_ph], plist, use_ipa, NULL);
+				buf = WritePhMnemonic(epContext, buf, epContext->phoneme_tab[plist->tone_ph], plist, use_ipa, NULL);
 		}
 
 		len = buf - phon_buf;
@@ -801,7 +801,7 @@ int IsVowel(Translator *tr, int letter)
 	return IsLetter(tr, letter, LETTERGP_VOWEL2);
 }
 
-int GetVowelStress(Translator *tr, unsigned char *phonemes, signed char *vowel_stress, int *vowel_count, int *stressed_syllable, int control)
+int GetVowelStress(EspeakProcessorContext* epContext, Translator *tr, unsigned char *phonemes, signed char *vowel_stress, int *vowel_count, int *stressed_syllable, int control)
 {
 	// control = 1, set stress to 1 for forced unstressed vowels
 	unsigned char phcode;
@@ -816,7 +816,7 @@ int GetVowelStress(Translator *tr, unsigned char *phonemes, signed char *vowel_s
 
 	vowel_stress[0] = STRESS_IS_UNSTRESSED;
 	while (((phcode = *phonemes++) != 0) && (count < (N_WORD_PHONEMES/2)-1)) {
-		if ((ph = phoneme_tab[phcode]) == NULL)
+		if ((ph = epContext->phoneme_tab[phcode]) == NULL)
 			continue;
 
 		if ((ph->type == phSTRESS) && (ph->program == 0)) {
@@ -996,21 +996,21 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 		unstressed_word = true;
 	}
 
-	max_stress = max_stress_input = GetVowelStress(tr, phonetic, vowel_stress, &vowel_count, &stressed_syllable, 1);
+	max_stress = max_stress_input = GetVowelStress(epContext, tr, phonetic, vowel_stress, &vowel_count, &stressed_syllable, 1);
 	if ((max_stress < 0) && dictionary_flags)
 		max_stress = STRESS_IS_DIMINISHED;
 
 	// heavy or light syllables
 	ix = 1;
 	for (p = phonetic; *p != 0; p++) {
-		if ((phoneme_tab[p[0]]->type == phVOWEL) && !(phoneme_tab[p[0]]->phflags & phNONSYLLABIC)) {
+		if ((epContext->phoneme_tab[p[0]]->type == phVOWEL) && !(epContext->phoneme_tab[p[0]]->phflags & phNONSYLLABIC)) {
 			int weight = 0;
 			bool lengthened = false;
 
-			if (phoneme_tab[p[1]]->code == phonLENGTHEN)
+			if (epContext->phoneme_tab[p[1]]->code == phonLENGTHEN)
 				lengthened = true;
 
-			if (lengthened || (phoneme_tab[p[0]]->phflags & phLONG)) {
+			if (lengthened || (epContext->phoneme_tab[p[0]]->phflags & phLONG)) {
 				// long vowel, increase syllable weight
 				weight++;
 			}
@@ -1018,7 +1018,7 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 
 			if (lengthened) p++; // advance over phonLENGTHEN
 
-			if (consonant_types[phoneme_tab[p[1]]->type] && ((phoneme_tab[p[2]]->type != phVOWEL) || (phoneme_tab[p[1]]->phflags & phLONG))) {
+			if (consonant_types[epContext->phoneme_tab[p[1]]->type] && ((epContext->phoneme_tab[p[2]]->type != phVOWEL) || (epContext->phoneme_tab[p[1]]->phflags & phLONG))) {
 				// followed by two consonants, a long consonant, or consonant and end-of-word
 				weight++;
 			}
@@ -1056,19 +1056,19 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 
 				if (stressflags & S_FINAL_SPANISH) {
 					// LANG=Spanish, stress on last vowel if the word ends in a consonant other than 'n' or 's'
-					if (phoneme_tab[final_ph]->type != phVOWEL) {
-						mnem = phoneme_tab[final_ph]->mnemonic;
+					if (epContext->phoneme_tab[final_ph]->type != phVOWEL) {
+						mnem = epContext->phoneme_tab[final_ph]->mnemonic;
 
 						if ((tr->translator_name == L('a', 'n')) || (tr->translator_name == L('c', 'a'))) {
-							if (((mnem != 's') && (mnem != 'n')) || phoneme_tab[final_ph2]->type != phVOWEL)
+							if (((mnem != 's') && (mnem != 'n')) || epContext->phoneme_tab[final_ph2]->type != phVOWEL)
 								stressed_syllable = vowel_count - 1; // stress on last syllable
 						} else if (tr->translator_name == L('i', 'a')) {
-							if ((mnem != 's') || phoneme_tab[final_ph2]->type != phVOWEL)
+							if ((mnem != 's') || epContext->phoneme_tab[final_ph2]->type != phVOWEL)
 								stressed_syllable = vowel_count - 1; // stress on last syllable
 						} else {
-							if ((mnem == 's') && (phoneme_tab[final_ph2]->type == phNASAL)) {
+							if ((mnem == 's') && (epContext->phoneme_tab[final_ph2]->type == phNASAL)) {
 								// -ns  stress remains on penultimate syllable
-							} else if (((phoneme_tab[final_ph]->type != phNASAL) && (mnem != 's')) || (phoneme_tab[final_ph2]->type != phVOWEL))
+							} else if (((epContext->phoneme_tab[final_ph]->type != phNASAL) && (mnem != 's')) || (epContext->phoneme_tab[final_ph2]->type != phVOWEL))
 								stressed_syllable = vowel_count - 1;
 						}
 					}
@@ -1136,9 +1136,9 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 
 			stressed_syllable = vowel_count - 3;
 			if (vowel_count < 16) {
-				if (phoneme_tab[final_ph]->type == phVOWEL)
+				if (epContext->phoneme_tab[final_ph]->type == phVOWEL)
 					stressed_syllable = guess_ru_v[vowel_count];
-				else if (phoneme_tab[final_ph]->type == phSTOP)
+				else if (epContext->phoneme_tab[final_ph]->type == phSTOP)
 					stressed_syllable = guess_ru_t[vowel_count];
 				else
 					stressed_syllable = guess_ru[vowel_count];
@@ -1250,7 +1250,7 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 	if ((stressflags & S_FINAL_VOWEL_UNSTRESSED) && ((control & 2) == 0) && (vowel_count > 2) && (max_stress_input < STRESS_IS_SECONDARY) && (vowel_stress[vowel_count - 1] == STRESS_IS_PRIMARY)) {
 		// Don't allow stress on a word-final vowel
 		// Only do this if there is no suffix phonemes to be added, and if a stress position was not given explicitly
-		if (phoneme_tab[final_ph]->type == phVOWEL) {
+		if (epContext->phoneme_tab[final_ph]->type == phVOWEL) {
 			vowel_stress[vowel_count - 1] = STRESS_IS_UNSTRESSED;
 			vowel_stress[vowel_count - 2] = STRESS_IS_PRIMARY;
 		}
@@ -1359,10 +1359,10 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 	p = phonetic;
 	v = 1;
 
-	if (!(control & 1) && ((ph = phoneme_tab[*p]) != NULL)) {
+	if (!(control & 1) && ((ph = epContext->phoneme_tab[*p]) != NULL)) {
 		while ((ph->type == phSTRESS) || (*p == phonEND_WORD)) {
 			p++;
-			ph = phoneme_tab[p[0]];
+			ph = epContext->phoneme_tab[p[0]];
 		}
 
 		if ((tr->langopts.vowel_pause & 0x30) && (ph->type == phVOWEL)) {
@@ -1378,7 +1378,7 @@ void SetWordStress(EspeakProcessorContext* epContext, Translator *tr, char *outp
 	p = phonetic;
 	/* Note: v progression has to strictly follow the vowel_stress production in GetVowelStress */
 	while (((phcode = *p++) != 0) && (output < max_output)) {
-		if ((ph = phoneme_tab[phcode]) == NULL)
+		if ((ph = epContext->phoneme_tab[phcode]) == NULL)
 			continue;
 
 		if (ph->type == phPAUSE)
@@ -1464,14 +1464,14 @@ void AppendPhonemes(EspeakProcessorContext* epContext, Translator *tr, char *str
 	while ((c = *p++) != 0) {
 		if (c >= epContext->n_phoneme_tab) continue;
 
-		if (!phoneme_tab[c]) continue;
+		if (!epContext->phoneme_tab[c]) continue;
 
-		if (phoneme_tab[c]->type == phSTRESS) {
-			if (phoneme_tab[c]->std_length < 4)
+		if (epContext->phoneme_tab[c]->type == phSTRESS) {
+			if (epContext->phoneme_tab[c]->std_length < 4)
 				unstress_mark = true;
 		} else {
-			if (phoneme_tab[c]->type == phVOWEL) {
-				if (((phoneme_tab[c]->phflags & phUNSTRESSED) == 0) &&
+			if (epContext->phoneme_tab[c]->type == phVOWEL) {
+				if (((epContext->phoneme_tab[c]->phflags & phUNSTRESSED) == 0) &&
 				    (unstress_mark == false)) {
 					tr->word_stressed_count++;
 				}
@@ -2059,7 +2059,7 @@ static void MatchRule(EspeakProcessorContext* epContext, Translator *tr, char *w
 					pts = match.points;
 					if (group_length > 1)
 						pts += 35; // to account for an extra letter matching
-					DecodePhonemes(match.phonemes, decoded_phonemes);
+					DecodePhonemes(epContext, match.phonemes, decoded_phonemes);
 					fprintf(f_trans, "%3d\t%s [%s]\n", pts, DecodeRule(group_chars, group_length, rule_start, word_flags, output), decoded_phonemes);
 				}
 			}
@@ -2670,7 +2670,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 			char ph_decoded[N_WORD_PHONEMES];
 			bool textmode;
 
-			DecodePhonemes(phonetic, ph_decoded);
+			DecodePhonemes(epContext, phonetic, ph_decoded);
 
 			if ((dictionary_flags & FLAG_TEXTMODE) == 0)
 				textmode = false;
@@ -2854,8 +2854,6 @@ int LookupDictList(EspeakProcessorContext* epContext, Translator *tr, char **wor
 	ph_out[0] = 0;
 	return 0;
 }
-
-extern char word_phonemes[N_WORD_PHONEMES]; // a word translated into phoneme codes
 
 int Lookup(EspeakProcessorContext* epContext, Translator *tr, const char *word, char *ph_out)
 {

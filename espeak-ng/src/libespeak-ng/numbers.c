@@ -1201,17 +1201,17 @@ static int LookupNum2(EspeakProcessorContext* epContext, Translator *tr, int val
 			if (tr->langopts.numbers & NUM_SINGLE_VOWEL) {
 				// remove vowel from the end of tens if units starts with a vowel (LANG=Italian)
 				if (((ix = strlen(ph_tens)-1) >= 0) && (ph_digits[0] != 0)) {
-					if ((next_phtype = phoneme_tab[(unsigned int)(ph_digits[0])]->type) == phSTRESS)
-						next_phtype = phoneme_tab[(unsigned int)(ph_digits[1])]->type;
+					if ((next_phtype = epContext->phoneme_tab[(unsigned int)(ph_digits[0])]->type) == phSTRESS)
+						next_phtype = epContext->phoneme_tab[(unsigned int)(ph_digits[1])]->type;
 
-					if ((phoneme_tab[(unsigned int)(ph_tens[ix])]->type == phVOWEL) && (next_phtype == phVOWEL))
+					if ((epContext->phoneme_tab[(unsigned int)(ph_tens[ix])]->type == phVOWEL) && (next_phtype == phVOWEL))
 						ph_tens[ix] = 0;
 				}
 			}
 
 			if ((tr->langopts.numbers2 & NUM2_ORDINAL_DROP_VOWEL) && (ph_ordinal[0] != 0)) {
 				ix = sprintf(ph_out, "%s%s", ph_tens, ph_digits);
-				if ((ix > 0) && (phoneme_tab[(unsigned char)(ph_out[ix-1])]->type == phVOWEL))
+				if ((ix > 0) && (epContext->phoneme_tab[(unsigned char)(ph_out[ix-1])]->type == phVOWEL))
 					ix--;
 				sprintf(&ph_out[ix], "%s", ph_ordinal);
 			} else

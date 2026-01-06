@@ -1,5 +1,3 @@
-#include <espeak-ng/espeak_ng.h>
-#include <espeak-ng/speak_lib.h>
 #include "sPlayer.h"
 
 static speechPlayer_handle_t speechPlayerHandle=NULL;

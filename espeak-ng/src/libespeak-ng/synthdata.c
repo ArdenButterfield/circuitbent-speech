@@ -129,17 +129,17 @@ espeak_ng_STATUS LoadPhData(EspeakProcessorContext* epContext, int *srate, espea
 
 	for (ix = 0; ix < epContext->n_phoneme_tables; ix++) {
 		int n_phonemes = p[0];
-		phoneme_tab_list[ix].n_phonemes = p[0];
-		phoneme_tab_list[ix].includes = p[1];
+		epContext->phoneme_tab_list[ix].n_phonemes = p[0];
+		epContext->phoneme_tab_list[ix].includes = p[1];
 		p += 4;
-		memcpy(phoneme_tab_list[ix].name, p, N_PHONEME_TAB_NAME);
+		memcpy(epContext->phoneme_tab_list[ix].name, p, N_PHONEME_TAB_NAME);
 		p += N_PHONEME_TAB_NAME;
-		phoneme_tab_list[ix].phoneme_tab_ptr = (PHONEME_TAB *)p;
+		epContext->phoneme_tab_list[ix].phoneme_tab_ptr = (PHONEME_TAB *)p;
 		p += (n_phonemes * sizeof(PHONEME_TAB));
 	}
 
-	if (phoneme_tab_number >= epContext->n_phoneme_tables)
-		phoneme_tab_number = 0;
+	if (epContext->phoneme_tab_number >= epContext->n_phoneme_tables)
+		epContext->phoneme_tab_number = 0;
 
 	if (srate != NULL)
 		*srate = rate;
@@ -164,10 +164,10 @@ int PhonemeCode(EspeakProcessorContext* epContext, unsigned int mnem)
 	int ix;
 
 	for (ix = 0; ix < epContext->n_phoneme_tab; ix++) {
-		if (phoneme_tab[ix] == NULL)
+		if (epContext->phoneme_tab[ix] == NULL)
 			continue;
-		if (phoneme_tab[ix]->mnemonic == mnem)
-			return phoneme_tab[ix]->code;
+		if (epContext->phoneme_tab[ix]->mnemonic == mnem)
+			return epContext->phoneme_tab[ix]->code;
 	}
 	return 0;
 }
@@ -277,7 +277,7 @@ frameref_t *LookupSpect(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph,
 			if (length_std < 10)
 				length_std = 10;
 			if (plist->synthflags & SFLAG_LENGTHEN)
-				length_std += (phoneme_tab[phonLENGTHEN]->std_length * 2); // phoneme was followed by an extra : symbol
+				length_std += (epContext->phoneme_tab[phonLENGTHEN]->std_length * 2); // phoneme was followed by an extra : symbol
 
 			// can adjust vowel length for stressed syllables here
 
@@ -327,18 +327,18 @@ static void SetUpPhonemeTable(EspeakProcessorContext* epContext, int number)
 	int includes;
 	PHONEME_TAB *phtab;
 
-	if ((includes = phoneme_tab_list[number].includes) > 0) {
+	if ((includes = epContext->phoneme_tab_list[number].includes) > 0) {
 		// recursively include base phoneme tables
 		SetUpPhonemeTable(epContext, includes - 1);
 	}
 
 	// now add the phonemes from this table
-	phtab = phoneme_tab_list[number].phoneme_tab_ptr;
-	for (ix = 0; ix < phoneme_tab_list[number].n_phonemes; ix++) {
+	phtab = epContext->phoneme_tab_list[number].phoneme_tab_ptr;
+	for (ix = 0; ix < epContext->phoneme_tab_list[number].n_phonemes; ix++) {
 		int ph_code = phtab[ix].code;
-		phoneme_tab[ph_code] = &phtab[ix];
+		epContext->phoneme_tab[ph_code] = &phtab[ix];
 		if (ph_code > epContext->n_phoneme_tab) {
-			memset(&phoneme_tab[epContext->n_phoneme_tab+1], 0, (ph_code - (epContext->n_phoneme_tab+1)) * sizeof(*phoneme_tab));
+			memset(&epContext->phoneme_tab[epContext->n_phoneme_tab+1], 0, (ph_code - (epContext->n_phoneme_tab+1)) * sizeof(*epContext->phoneme_tab));
 			epContext->n_phoneme_tab = ph_code;
 		}
 	}
@@ -348,7 +348,7 @@ void SelectPhonemeTable(EspeakProcessorContext* epContext, int number)
 {
 	if (epContext->current_phoneme_table == number) return;
 	epContext->n_phoneme_tab = 0;
-	MAKE_MEM_UNDEFINED(&phoneme_tab, sizeof(phoneme_tab));
+	MAKE_MEM_UNDEFINED(&epContext->phoneme_tab, sizeof(epContext->phoneme_tab));
 	SetUpPhonemeTable(epContext, number); // recursively for included phoneme tables
 	epContext->n_phoneme_tab++;
 	epContext->current_phoneme_table = number;
@@ -359,8 +359,8 @@ int LookupPhonemeTable(EspeakProcessorContext* epContext, const char *name)
 	int ix;
 
 	for (ix = 0; ix < epContext->n_phoneme_tables; ix++) {
-		if (strcmp(name, phoneme_tab_list[ix].name) == 0) {
-			phoneme_tab_number = ix;
+		if (strcmp(name, epContext->phoneme_tab_list[ix].name) == 0) {
+			epContext->phoneme_tab_number = ix;
 			break;
 		}
 	}
@@ -389,17 +389,17 @@ static void InvalidInstn(PHONEME_TAB *ph, int instn)
 	fprintf(stderr, "Invalid instruction %.4x for phoneme '%s'\n", instn, WordToString(buf, ph->mnemonic));
 }
 
-static bool StressCondition(Translator *tr, PHONEME_LIST *plist, int condition, int control)
+static bool StressCondition(EspeakProcessorContext* epContext, Translator *tr, PHONEME_LIST *plist, int condition, int control)
 {
 	int stress_level;
 	PHONEME_LIST *pl;
 	static const int condition_level[4] = { 1, 2, 4, 15 };
 
-	if (phoneme_tab[plist[0].phcode]->type == phVOWEL)
+	if (epContext->phoneme_tab[plist[0].phcode]->type == phVOWEL)
 		pl = plist;
 	else {
 		// consonant, get stress from the following vowel
-		if (phoneme_tab[plist[1].phcode]->type == phVOWEL)
+		if (epContext->phoneme_tab[plist[1].phcode]->type == phVOWEL)
 			pl = &plist[1];
 		else
 			return false; // no stress elevel for this consonant
@@ -517,7 +517,7 @@ static bool InterpretCondition(EspeakProcessorContext* epContext, Translator *tr
 			for (which = 1;; which++) {
 				if (plist[which].sourceix)
 					return false;
-				if (phoneme_tab[plist[which].phcode]->type == phVOWEL) {
+				if (epContext->phoneme_tab[plist[which].phcode]->type == phVOWEL) {
 					plist = &plist[which];
 					break;
 				}
@@ -557,14 +557,14 @@ static bool InterpretCondition(EspeakProcessorContext* epContext, Translator *tr
 
 		if (control & 0x100) {
 			// "change phonemes" pass
-			plist->ph = phoneme_tab[plist->phcode];
+			plist->ph = epContext->phoneme_tab[plist->phcode];
 		}
 		PHONEME_TAB *ph;
 		ph = plist->ph;
 
 		if (instn2 < 7) {
 			// 'data' is a phoneme number
-			if ((phoneme_tab[data]->mnemonic == ph->mnemonic) == true)
+			if ((epContext->phoneme_tab[data]->mnemonic == ph->mnemonic) == true)
 				return true;
 
 			//  not an exact match, check for a vowel type (eg. #i )
@@ -591,7 +591,7 @@ static bool InterpretCondition(EspeakProcessorContext* epContext, Translator *tr
 			case STRESS_IS_NOT_STRESSED:
 			case STRESS_IS_SECONDARY:
 			case STRESS_IS_PRIMARY:
-				return StressCondition(tr, plist, data, 0);
+				return StressCondition(epContext, tr, plist, data, 0);
 			case isBreak:
 				return (ph->type == phPAUSE) || (plist_this->synthflags & SFLAG_NEXT_PAUSE);
 			case isWordStart:
@@ -785,7 +785,7 @@ void InterpretPhoneme(EspeakProcessorContext* epContext, Translator *tr, int con
 					break;
 				}
 			} else if (instn2 == i_APPEND_IFNEXTVOWEL) {
-				if (phoneme_tab[plist[1].phcode]->type == phVOWEL)
+				if (epContext->phoneme_tab[plist[1].phcode]->type == phVOWEL)
 					phdata->pd_param[i_APPEND_PHONEME] = data;
 			} else if (instn2 == i_ADD_LENGTH) {
 				if (data & 0x80) {
@@ -816,7 +816,7 @@ void InterpretPhoneme(EspeakProcessorContext* epContext, Translator *tr, int con
 
 			if (instn2 < 8) {
 				// ChangeIf
-				if (StressCondition(tr, plist, instn2 & 7, 1) == true) {
+				if (StressCondition(epContext, tr, plist, instn2 & 7, 1) == true) {
 					phdata->pd_param[i_CHANGE_PHONEME] = instn & 0xff;
 					end_flag = 1; // change phoneme, exit
 				}
@@ -969,11 +969,11 @@ void InterpretPhoneme2(EspeakProcessorContext* epContext, int phcode, PHONEME_DA
 
 	for (ix = 0; ix < 4; ix++) {
 		plist[ix].phcode = phonPAUSE;
-		plist[ix].ph = phoneme_tab[phonPAUSE];
+		plist[ix].ph = epContext->phoneme_tab[phonPAUSE];
 	}
 
 	plist[1].phcode = phcode;
-	plist[1].ph = phoneme_tab[phcode];
+	plist[1].ph = epContext->phoneme_tab[phcode];
 	plist[2].sourceix = 1;
 
 	InterpretPhoneme(epContext, NULL, 0, &plist[1], plist, phdata, NULL);

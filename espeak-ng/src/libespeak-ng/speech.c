@@ -454,7 +454,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 			return ENS_SPEECH_STOPPED;
 		}
 
-		if (Generate(epContext, phoneme_list, &n_phoneme_list, 1) == 0) {
+		if (Generate(epContext, epContext->phoneme_list, &epContext->n_phoneme_list, 1) == 0) {
 			if (WcmdqUsed(epContext) == 0) {
 				// don't process the next clause until the previous clause has finished generating speech.
 				// This ensures that <audio> tag (which causes end-of-clause) is at a sound buffer boundary

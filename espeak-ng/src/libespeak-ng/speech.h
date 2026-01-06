@@ -61,8 +61,6 @@ extern "C"
 
 void cancel_audio(void);
 
-extern char path_home[N_PATH_HOME];    // this is the espeak-ng-data directory
-
 #ifdef __cplusplus
 }
 #endif

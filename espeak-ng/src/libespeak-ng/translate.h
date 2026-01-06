@@ -555,8 +555,6 @@ void TranslateClauseWithTerminator(EspeakProcessorContext* epContext, Translator
 
 void SetVoiceStack(EspeakProcessorContext* epContext, espeak_VOICE *v, const char *variant_name);
 
-extern FILE *f_trans; // for logging
-
 #ifdef __cplusplus
 }
 #endif

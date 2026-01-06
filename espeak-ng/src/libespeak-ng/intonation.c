@@ -775,19 +775,19 @@ static void CalcPitches_Tone(EspeakProcessorContext* epContext, Translator *tr)
 	int pitch_high = 0;      // then reset to this
 
 	// count number of stressed syllables
-	p = &phoneme_list[0];
-	for (ix = 0; ix < n_phoneme_list; ix++, p++) {
+	p = &epContext->phoneme_list[0];
+	for (ix = 0; ix < epContext->n_phoneme_list; ix++, p++) {
 		if ((p->type == phVOWEL) && (p->stresslevel >= 4)) {
 			final_stressed = ix;
 		}
 	}
 
-	phoneme_list[final_stressed].stresslevel = 7;
+	epContext->phoneme_list[final_stressed].stresslevel = 7;
 
 	// language specific, changes to tones
 	if (tr->translator_name == L('v', 'i')) {
 		// LANG=vi
-		p = &phoneme_list[final_stressed];
+		p = &epContext->phoneme_list[final_stressed];
 		if (p->tone_ph == 0)
 			p->tone_ph = PhonemeCode(epContext, '7'); // change default tone (tone 1) to falling tone at end of clause
 	}
@@ -795,22 +795,22 @@ static void CalcPitches_Tone(EspeakProcessorContext* epContext, Translator *tr)
 	pause = true;
 	tone_promoted = false;
 
-	prev_p = p = &phoneme_list[0];
-	prev_tph = prevw_tph = phoneme_tab[phonPAUSE];
+	prev_p = p = &epContext->phoneme_list[0];
+	prev_tph = prevw_tph = epContext->phoneme_tab[phonPAUSE];
 
 	// perform tone sandhi
-	for (ix = 0; ix < n_phoneme_list; ix++, p++) {
+	for (ix = 0; ix < epContext->n_phoneme_list; ix++, p++) {
 		if ((p->type == phPAUSE) && (p->ph->std_length > 50)) {
 			pause = true; // there is a pause since the previous vowel
-			prevw_tph = phoneme_tab[phonPAUSE]; // forget previous tone
+			prevw_tph = epContext->phoneme_tab[phonPAUSE]; // forget previous tone
 		}
 
 		if (p->newword)
-			prev_tph = phoneme_tab[phonPAUSE]; // forget across word boundaries
+			prev_tph = epContext->phoneme_tab[phonPAUSE]; // forget across word boundaries
 
 		if (p->synthflags & SFLAG_SYLLABLE) {
 			tone_ph = p->tone_ph;
-			tph = phoneme_tab[tone_ph];
+			tph = epContext->phoneme_tab[tone_ph];
 			
 			/* Hakka
 			ref.:https://en.wikipedia.org/wiki/Sixian_dialect#Tone_sandhi */
@@ -835,14 +835,14 @@ static void CalcPitches_Tone(EspeakProcessorContext* epContext, Translator *tr)
 						tone_ph = PhonemeCode2(epContext, '1', '1'); // default tone 5
 
 					p->tone_ph = tone_ph;
-					tph = phoneme_tab[tone_ph];
+					tph = epContext->phoneme_tab[tone_ph];
 				} else
 					tone_promoted = false;
 
 				if (ix == final_stressed) {
 					if ((tph->mnemonic == 0x3535 ) || (tph->mnemonic == 0x3135)) {
 						// change sentence final tone 1 or 4 to stress 6, not 7
-						phoneme_list[final_stressed].stresslevel = 6;
+						epContext->phoneme_list[final_stressed].stresslevel = 6;
 					}
 				}
 
@@ -876,8 +876,8 @@ static void CalcPitches_Tone(EspeakProcessorContext* epContext, Translator *tr)
 	}
 
 	// convert tone numbers to pitch
-	p = &phoneme_list[0];
-	for (ix = 0; ix < n_phoneme_list; ix++, p++) {
+	p = &epContext->phoneme_list[0];
+	for (ix = 0; ix < epContext->n_phoneme_list; ix++, p++) {
 		if (p->synthflags & SFLAG_SYLLABLE) {
 			tone_ph = p->tone_ph;
 
@@ -896,8 +896,8 @@ static void CalcPitches_Tone(EspeakProcessorContext* epContext, Translator *tr)
 				tone_ph = phonDEFAULTTONE; // no tone specified, use default tone 1
 				p->tone_ph = tone_ph;
 			}
-			p->pitch1 = pitch_adjust + phoneme_tab[tone_ph]->start_type;
-			p->pitch2 = pitch_adjust + phoneme_tab[tone_ph]->end_type;
+			p->pitch1 = pitch_adjust + epContext->phoneme_tab[tone_ph]->start_type;
+			p->pitch2 = pitch_adjust + epContext->phoneme_tab[tone_ph]->end_type;
 		}
 	}
 }
@@ -922,17 +922,17 @@ void CalcPitches(EspeakProcessorContext* epContext, Translator *tr, int clause_t
 	int n_primary;
 	int count_primary;
 	PHONEME_TAB *ph;
-	int ph_end = n_phoneme_list;
+	int ph_end = epContext->n_phoneme_list;
 
 	SYLLABLE syllable_tab[N_PHONEME_LIST];
 	n_st = 0;
 	n_primary = 0;
-	for (ix = 0; ix < (n_phoneme_list-1); ix++) {
-		p = &phoneme_list[ix];
+	for (ix = 0; ix < (epContext->n_phoneme_list-1); ix++) {
+		p = &epContext->phoneme_list[ix];
 		syllable_tab[ix].flags = 0;
 		if (p->synthflags & SFLAG_SYLLABLE) {
 			syllable_tab[n_st].env = PITCHfall;
-			syllable_tab[n_st].nextph_type = phoneme_list[ix+1].type;
+			syllable_tab[n_st].nextph_type = epContext->phoneme_list[ix+1].type;
 			syllable_tab[n_st++].stress = p->stresslevel;
 
 			if (p->stresslevel >= 4)
@@ -1047,7 +1047,7 @@ void CalcPitches(EspeakProcessorContext* epContext, Translator *tr, int clause_t
 	// unpack pitch data
 	st_ix = 0;
 	for (ix = ph_start; ix < ph_end; ix++) {
-		p = &phoneme_list[ix];
+		p = &epContext->phoneme_list[ix];
 		p->stresslevel = syllable_tab[st_ix].stress;
 
 		if (p->synthflags & SFLAG_SYLLABLE) {
@@ -1070,7 +1070,7 @@ void CalcPitches(EspeakProcessorContext* epContext, Translator *tr, int clause_t
 			}
 
 			if (p->tone_ph) {
-				ph = phoneme_tab[p->tone_ph];
+				ph = epContext->phoneme_tab[p->tone_ph];
 				x = (p->pitch1 + p->pitch2)/2;
 				p->pitch2 = x + ph->end_type;
 				p->pitch1 = x + ph->start_type;

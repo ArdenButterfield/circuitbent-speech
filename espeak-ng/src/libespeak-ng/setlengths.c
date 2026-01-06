@@ -348,7 +348,7 @@ static void DoEmbedded2(EspeakProcessorContext* epContext, int *embix)
 	unsigned int word;
 
 	do {
-		word = embedded_list[(*embix)++];
+		word = epContext->embedded_list[(*embix)++];
 
 		if ((word & 0x1f) == EMBED_S) {
 			// speed
@@ -389,16 +389,16 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 	PHONEME_DATA phdata_tone;
 
 
-	for (ix = 1; ix < n_phoneme_list; ix++) {
+	for (ix = 1; ix < epContext->n_phoneme_list; ix++) {
 		int stress;
 		int emphasized;
 
-		prev = &phoneme_list[ix-1];
-		p = &phoneme_list[ix];
+		prev = &epContext->phoneme_list[ix-1];
+		p = &epContext->phoneme_list[ix];
 		stress = p->stresslevel & 0x7;
 		emphasized = p->stresslevel & 0x8;
 
-		next = &phoneme_list[ix+1];
+		next = &epContext->phoneme_list[ix+1];
 
 		if (p->synthflags & SFLAG_EMBEDDED)
 			DoEmbedded2(epContext, &embedded_ix);
@@ -527,9 +527,9 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 					if (next->type == phVFRICATIVE)
 						p->length = (p->length * 120)/100;
 				} else {
-					for (ix2 = ix; ix2 < n_phoneme_list; ix2++) {
-						if (phoneme_list[ix2].type == phVOWEL) {
-							p->pitch2 = phoneme_list[ix2].pitch2;
+					for (ix2 = ix; ix2 < epContext->n_phoneme_list; ix2++) {
+						if (epContext->phoneme_list[ix2].type == phVOWEL) {
+							p->pitch2 = epContext->phoneme_list[ix2].pitch2;
 							break;
 						}
 					}
@@ -544,8 +544,8 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 			break;
 		case phVOWEL:
 			min_drop = 0;
-			next2 = &phoneme_list[ix+2];
-			next3 = &phoneme_list[ix+3];
+			next2 = &epContext->phoneme_list[ix+2];
+			next3 = &epContext->phoneme_list[ix+3];
 
 			if (stress > 7) stress = 7;
 
@@ -559,7 +559,7 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 			if (emphasized)
 				p->amp = 25;
 
-			if (ix >= (n_phoneme_list-3)) {
+			if (ix >= (epContext->n_phoneme_list-3)) {
 				// last phoneme of a clause, limit its amplitude
 				if (p->amp > tr->langopts.param[LOPT_MAXAMP_EOC])
 					p->amp = tr->langopts.param[LOPT_MAXAMP_EOC];
@@ -586,7 +586,7 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 				// if PAUSE_VSHORT is followed by a pause, then use that
 				next = next2;
 				next2 = next3;
-				next3 = &phoneme_list[ix+4];
+				next3 = &epContext->phoneme_list[ix+4];
 			}
 
 			next2type = next2->ph->length_mod;
@@ -637,7 +637,7 @@ void CalcLengths(EspeakProcessorContext* epContext, Translator *tr)
 			length_mod = length_mod * len;
 
 			if (p->tone_ph != 0) {
-				if ((tone_mod = phoneme_tab[p->tone_ph]->std_length) > 0) {
+				if ((tone_mod = epContext->phoneme_tab[p->tone_ph]->std_length) > 0) {
 					// a tone phoneme specifies a percentage change to the length
 					length_mod = (length_mod * tone_mod) / 100;
 				}

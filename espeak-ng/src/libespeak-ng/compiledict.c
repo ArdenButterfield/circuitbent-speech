@@ -1578,7 +1578,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(EspeakProcessorContex
 
 	compile_dictlist_start(ctx);
 
-	fprintf(ctx->f_log, "Using phonemetable: '%s'\n", phoneme_tab_list[phoneme_tab_number].name);
+	fprintf(ctx->f_log, "Using phonemetable: '%s'\n", epContext->phoneme_tab_list[epContext->phoneme_tab_number].name);
 	compile_dictlist_file(epContext, ctx, path, "roots");
 	if (epContext->translator->langopts.listx) {
 		compile_dictlist_file(epContext, ctx, path, "list");

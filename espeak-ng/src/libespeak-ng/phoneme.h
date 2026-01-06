@@ -241,9 +241,6 @@ typedef struct {
 
 #define PhonemeCode2(epcontext, c1, c2) PhonemeCode(epcontext, (c2<<8)+c1)
 
-extern PHONEME_TAB_LIST phoneme_tab_list[N_PHONEME_TABS];
-extern int phoneme_tab_number;
-
 #ifdef __cplusplus
 }
 #endif

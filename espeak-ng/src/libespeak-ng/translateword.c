@@ -47,7 +47,7 @@
 
 static void addPluralSuffixes(EspeakProcessorContext* epContext, int flags, Translator *tr, char last_char, char *word_phonemes);
 static void ApplySpecialAttribute2(EspeakProcessorContext* epContext, Translator *tr, char *phonemes, int dict_flags);
-static void ChangeWordStress(Translator *tr, char *word, int new_stress);
+static void ChangeWordStress(EspeakProcessorContext* epContext, Translator *tr, char *word, int new_stress);
 static int CheckDottedAbbrev(EspeakProcessorContext* epContext, char *word1);
 static int NonAsciiNumber(int letter);
 static char *SpeakIndividualLetters(EspeakProcessorContext* epContext, Translator *tr, char *word, char *phonemes, int spell_word, const ALPHABET *current_alphabet, char word_phonemes[]);
@@ -356,7 +356,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 							strcpy(phonemes, phonemes2);
 							strcpy(end_phonemes, end_phonemes2);
 							if (epContext->option_phonemes & espeakPHONEMES_TRACE) {
-								DecodePhonemes(end_phonemes, end_phonemes2);
+								DecodePhonemes(epContext, end_phonemes, end_phonemes2);
 								fprintf(f_trans, "  suffix [%s]\n\n", end_phonemes2);
 							}
 						}
@@ -594,20 +594,20 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 	}
 
 	if ((wflags & FLAG_HYPHEN) && (tr->langopts.stress_flags & S_HYPEN_UNSTRESS))
-		ChangeWordStress(tr, word_phonemes, 3);
+		ChangeWordStress(epContext, tr, word_phonemes, 3);
 	else if (wflags & FLAG_EMPHASIZED2) {
 		// A word is indicated in the source text as stressed
 		// Give it stress level 6 (for the intonation module)
-		ChangeWordStress(tr, word_phonemes, 6);
+		ChangeWordStress(epContext, tr, word_phonemes, 6);
 
 		if (wflags & FLAG_EMPHASIZED)
 			dictionary_flags[0] |= FLAG_PAUSE1; // precede by short pause
 	} else if (wtab[epContext->dictionary_skipwords].flags & FLAG_LAST_WORD) {
 		// the word has attribute to stress or unstress when at end of clause
 		if (dictionary_flags[0] & (FLAG_STRESS_END | FLAG_STRESS_END2))
-			ChangeWordStress(tr, word_phonemes, 4);
+			ChangeWordStress(epContext, tr, word_phonemes, 4);
 		else if ((dictionary_flags[0] & FLAG_UNSTRESS_END) && (any_stressed_words))
-			ChangeWordStress(tr, word_phonemes, 3);
+			ChangeWordStress(epContext, tr, word_phonemes, 3);
 	}
 
 	// dictionary flags for this word give a clue about which alternative pronunciations of
@@ -702,7 +702,7 @@ void ApplySpecialAttribute2(EspeakProcessorContext* epContext, Translator *tr, c
 }
 
 
-static void ChangeWordStress(Translator *tr, char *word, int new_stress)
+static void ChangeWordStress(EspeakProcessorContext* epContext, Translator *tr, char *word, int new_stress)
 {
 	int ix;
 	unsigned char *p;
@@ -713,7 +713,7 @@ static void ChangeWordStress(Translator *tr, char *word, int new_stress)
 	signed char vowel_stress[N_WORD_PHONEMES/2];
 
 	strcpy((char *)phonetic, word);
-	max_stress = GetVowelStress(tr, phonetic, vowel_stress, &vowel_count, &stressed_syllable, 0);
+	max_stress = GetVowelStress(epContext, tr, phonetic, vowel_stress, &vowel_count, &stressed_syllable, 0);
 
 	if (new_stress >= STRESS_IS_PRIMARY) {
 		// promote to primary stress
@@ -735,7 +735,7 @@ static void ChangeWordStress(Translator *tr, char *word, int new_stress)
 	ix = 1;
 	p = phonetic;
 	while (*p != 0) {
-		if ((phoneme_tab[*p]->type == phVOWEL) && !(phoneme_tab[*p]->phflags & phNONSYLLABIC)) {
+		if ((epContext->phoneme_tab[*p]->type == phVOWEL) && !(epContext->phoneme_tab[*p]->phflags & phNONSYLLABIC)) {
 			if ((vowel_stress[ix] == STRESS_IS_DIMINISHED) || (vowel_stress[ix] > STRESS_IS_UNSTRESSED))
 				*word++ = stress_phonemes[(unsigned char)vowel_stress[ix]];
 

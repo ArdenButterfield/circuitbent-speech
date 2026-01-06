@@ -70,7 +70,7 @@ static int SubstitutePhonemes(EspeakProcessorContext* epContext, PHONEME_LIST *p
 		// don't do any substitution if the language has been temporarily changed
 		if (!(plist2->synthflags & SFLAG_SWITCHED_LANG)) {
 			if (ix < (epContext->n_ph_list2 -1))
-				next = phoneme_tab[epContext->ph_list2[ix+1].phcode];
+				next = epContext->phoneme_tab[epContext->ph_list2[ix+1].phcode];
 
 			word_end = false;
 			if (ix == epContext->n_ph_list2 -1 || (plist2+1)->sourceix || ((next != 0) && (next->type == phPAUSE)))
@@ -92,7 +92,7 @@ static int SubstitutePhonemes(EspeakProcessorContext* epContext, PHONEME_LIST *p
 
 					// substitute the replacement phoneme
 					plist2->phcode = epContext->replace_phonemes[k].new_ph;
-					if ((plist2->stresslevel > 1) && (phoneme_tab[plist2->phcode]->phflags & phUNSTRESSED))
+					if ((plist2->stresslevel > 1) && (epContext->phoneme_tab[plist2->phcode]->phflags & phUNSTRESSED))
 						plist2->stresslevel = 0; // the replacement must be unstressed
 					break;
 				}
@@ -106,7 +106,7 @@ static int SubstitutePhonemes(EspeakProcessorContext* epContext, PHONEME_LIST *p
 
 		// copy phoneme into the output list
 		memcpy(&plist_out[n_plist_out], plist2, sizeof(PHONEME_LIST2));
-		plist_out[n_plist_out].ph = phoneme_tab[plist2->phcode];
+		plist_out[n_plist_out].ph = epContext->phoneme_tab[plist2->phcode];
 		plist_out[n_plist_out].type = plist_out[n_plist_out].ph->type;
 		n_plist_out++;
 	}
@@ -142,9 +142,9 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 
 	memset(&worddata, 0, sizeof(worddata));
 	plist2 = epContext->ph_list2;
-	phlist = phoneme_list;
+	phlist = epContext->phoneme_list;
 	end_sourceix = plist2[epContext->n_ph_list2-1].sourceix;
-	MAKE_MEM_UNDEFINED(&phoneme_list, sizeof(phoneme_list));
+	MAKE_MEM_UNDEFINED(&epContext->phoneme_list, sizeof(epContext->phoneme_list));
 
 	// is the last word of the clause unstressed ?
 	max_stress = 0;
@@ -237,7 +237,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 	}
 
 	// transfer all the phonemes of the clause into phoneme_list
-	ph = phoneme_tab[phonPAUSE];
+	ph = epContext->phoneme_tab[phonPAUSE];
 	ph_list3[0].ph = ph;
 	word_start = 1;
 
@@ -249,7 +249,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 		bool deleted = false;
 		if (insert_ph != 0) {
 			// we have a (linking) phoneme which we need to insert here
-			next = phoneme_tab[plist3->phcode];      // this phoneme, i.e. after the insert
+			next = epContext->phoneme_tab[plist3->phcode];      // this phoneme, i.e. after the insert
 
 			// re-use the previous entry for the inserted phoneme.
 			// That's OK because we don't look backwards from plist3   *** but CountVowelPosition() and isAfterStress does !!!
@@ -268,7 +268,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 			}
 			memset(&plist3[0], 0, sizeof(*plist3));
 			plist3->phcode = insert_ph;
-			ph = phoneme_tab[insert_ph];
+			ph = epContext->phoneme_tab[insert_ph];
 			plist3->ph = ph;
 			insert_ph = 0;
 			inserted = true; // don't insert the same phoneme repeatedly
@@ -277,14 +277,14 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 			if (plist3->sourceix != 0)
 				word_start = j;
 
-			ph = phoneme_tab[plist3->phcode];
+			ph = epContext->phoneme_tab[plist3->phcode];
 			plist3[0].ph = ph;
 
 			if (plist3->phcode == phonSWITCH) {
 				// change phoneme table
 				SelectPhonemeTable(epContext, plist3->tone_ph);
 			}
-			next = phoneme_tab[plist3[1].phcode]; // the phoneme after this one
+			next = epContext->phoneme_tab[plist3[1].phcode]; // the phoneme after this one
 			plist3[1].ph = next;
 		}
 
@@ -293,10 +293,10 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 		InterpretPhoneme(epContext, tr, 0x100, plist3, ph_list3, &phdata, &worddata);
 
 		if ((alternative = phdata.pd_param[pd_CHANGE_NEXTPHONEME]) > 0) {
-			ph_list3[j+1].ph = phoneme_tab[alternative];
+			ph_list3[j+1].ph = epContext->phoneme_tab[alternative];
 			ph_list3[j+1].phcode = alternative;
-			ph_list3[j+1].type = phoneme_tab[alternative]->type;
-			next = phoneme_tab[alternative];
+			ph_list3[j+1].type = epContext->phoneme_tab[alternative]->type;
+			next = epContext->phoneme_tab[alternative];
 		}
 
 		if (((alternative = phdata.pd_param[pd_INSERTPHONEME]) > 0) && (inserted == false)) {
@@ -305,7 +305,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 			ph2 = ph;
 
 			insert_ph = plist3->phcode;
-			ph = phoneme_tab[alternative];
+			ph = epContext->phoneme_tab[alternative];
 			plist3->ph = ph;
 			plist3->phcode = alternative;
 
@@ -315,7 +315,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 		if ((alternative = phdata.pd_param[pd_CHANGEPHONEME]) > 0) {
 			PHONEME_TAB *ph2;
 			ph2 = ph;
-			ph = phoneme_tab[alternative];
+			ph = epContext->phoneme_tab[alternative];
 			plist3->ph = ph;
 			plist3->phcode = alternative;
 
@@ -418,7 +418,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 			}
 		}
 
-		plist3[2].ph = phoneme_tab[plist3[2].phcode];
+		plist3[2].ph = epContext->phoneme_tab[plist3[2].phcode];
 
 		if ((insert_ph == 0) && (phdata.pd_param[pd_APPENDPHONEME] != 0))
 			insert_ph = phdata.pd_param[pd_APPENDPHONEME];
@@ -452,7 +452,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 
 			phlist[ix].length = phdata.pd_param[i_SET_LENGTH]*2;
 			if ((ph->code == phonPAUSE_LONG) && (epContext->option_wordgap > 0) && (plist3[1].sourceix != 0)) {
-				phlist[ix].ph = phoneme_tab[phonPAUSE_SHORT];
+				phlist[ix].ph = epContext->phoneme_tab[phonPAUSE_SHORT];
 				phlist[ix].length = epContext->option_wordgap*14; // 10mS per unit at the default speed
 			}
 
@@ -477,7 +477,7 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 	phlist[ix].sourceix = end_sourceix;
 	phlist[ix].synthflags = 0;
 	phlist[ix].prepause = 0;
-	phlist[ix++].ph = phoneme_tab[phonPAUSE];
+	phlist[ix++].ph = epContext->phoneme_tab[phonPAUSE];
 
 	phlist[ix].newword = 0;
 
@@ -487,9 +487,9 @@ void MakePhonemeList(EspeakProcessorContext* epContext, Translator *tr, int post
 	phlist[ix].sourceix = 0;
 	phlist[ix].synthflags = 0;
 	phlist[ix].prepause = 0;
-	phlist[ix++].ph = phoneme_tab[phonPAUSE_SHORT];
+	phlist[ix++].ph = epContext->phoneme_tab[phonPAUSE_SHORT];
 
-	n_phoneme_list = ix;
+	epContext->n_phoneme_list = ix;
 
 	SelectPhonemeTable(epContext, tr->phoneme_tab_ix);
 }
@@ -513,7 +513,7 @@ static void SetRegressiveVoicing(EspeakProcessorContext* epContext, int regressi
 				else
 					SelectPhonemeTable(epContext, tr->phoneme_tab_ix);
 			}
-			ph = phoneme_tab[plist2[j].phcode];
+			ph = epContext->phoneme_tab[plist2[j].phcode];
 			if (ph == NULL)
 				continue;
 

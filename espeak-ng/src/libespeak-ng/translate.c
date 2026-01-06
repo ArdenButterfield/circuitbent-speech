@@ -160,12 +160,12 @@ static void SetPlist2(EspeakProcessorContext* epContext, PHONEME_LIST2 *p, unsig
 	epContext->embedded_flag = 0;
 }
 
-static int CountSyllables(unsigned char *phonemes)
+static int CountSyllables(EspeakProcessorContext* epContext, unsigned char *phonemes)
 {
 	int count = 0;
 	int phon;
 	while ((phon = *phonemes++) != 0) {
-		if (phoneme_tab[phon]->type == phVOWEL)
+		if (epContext->phoneme_tab[phon]->type == phVOWEL)
 			count++;
 	}
 	return count;
@@ -176,7 +176,7 @@ static void Word_EmbeddedCmd(EspeakProcessorContext* epContext)
 	// Process embedded commands for emphasis, sayas, and break
 	int embedded_cmd;
 	do {
-		embedded_cmd = embedded_list[epContext->embedded_read++];
+		embedded_cmd = epContext->embedded_list[epContext->embedded_read++];
 		int value = embedded_cmd >> 8;
 
 		switch (embedded_cmd & 0x1f)
@@ -314,10 +314,10 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 		if ((epContext->option_capitals > 2) && (epContext->embedded_ix < N_EMBEDDED_LIST-6)) {
 			// indicate capital letter by raising pitch
 			if (epContext->embedded_flag)
-				embedded_list[epContext->embedded_ix-1] &= ~0x80; // already embedded command before this word, remove terminator
+				epContext->embedded_list[epContext->embedded_ix-1] &= ~0x80; // already embedded command before this word, remove terminator
 			if ((pitch_raised = epContext->option_capitals) == 3)
 				pitch_raised = 20; // default pitch raise for capitals
-			embedded_list[epContext->embedded_ix++] = EMBED_P+0x40+0x80 + (pitch_raised << 8); // raise pitch
+			epContext->embedded_list[epContext->embedded_ix++] = EMBED_P+0x40+0x80 + (pitch_raised << 8); // raise pitch
 			epContext->embedded_flag = SFLAG_EMBEDDED;
 		}
 	}
@@ -478,7 +478,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 	}
 
 	// remove initial pause from a word if it follows a hyphen
-	if ((word_flags & FLAG_HYPHEN) && (phoneme_tab[*p]->type == phPAUSE))
+	if ((word_flags & FLAG_HYPHEN) && (epContext->phoneme_tab[*p]->type == phPAUSE))
 		p++;
 
 	if ((p[0] == 0) && (epContext->embedded_flag)) {
@@ -495,7 +495,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 			continue; // unknown phoneme
 
 		// Add the phonemes to the first stage phoneme list (epContext->ph_list2)
-		ph = phoneme_tab[ph_code];
+		ph = epContext->phoneme_tab[ph_code];
 		if (ph == NULL) {
 			printf("Invalid phoneme code %d\n", ph_code);
 			continue;
@@ -589,7 +589,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 		plist2->sourceix = source_ix;
 
 	tr->end_stressed_vowel = 0;
-	if ((stress >= 4) && (phoneme_tab[epContext->ph_list2[epContext->n_ph_list2-1].phcode]->type == phVOWEL))
+	if ((stress >= 4) && (epContext->phoneme_tab[epContext->ph_list2[epContext->n_ph_list2-1].phcode]->type == phVOWEL))
 		tr->end_stressed_vowel = 1; // word ends with a stressed vowel
 
 	// This may require up to 1 phoneme
@@ -604,7 +604,7 @@ static int TranslateWord2(EspeakProcessorContext* epContext, Translator *tr, cha
 
 	// This may require up to 1 phoneme
 	if (pitch_raised > 0) {
-		embedded_list[epContext->embedded_ix++] = EMBED_P+0x60+0x80 + (pitch_raised << 8); // lower pitch
+		epContext->embedded_list[epContext->embedded_ix++] = EMBED_P+0x60+0x80 + (pitch_raised << 8); // lower pitch
 		SetPlist2(epContext, &epContext->ph_list2[epContext->n_ph_list2], phonPAUSE_SHORT);
 		epContext->ph_list2[epContext->n_ph_list2++].synthflags = SFLAG_EMBEDDED;
 	}
@@ -670,7 +670,7 @@ static int EmbeddedCommand(EspeakProcessorContext* epContext, unsigned int *sour
 			epContext->word_emphasis = 0;
 	}
 
-	embedded_list[epContext->embedded_ix++] = cmd + sign + (value << 8);
+	epContext->embedded_list[epContext->embedded_ix++] = cmd + sign + (value << 8);
 	*source_index_out = source_index;
 	return 1;
 }
@@ -1359,7 +1359,7 @@ void TranslateClauseWithTerminator(EspeakProcessorContext* epContext, Translator
 			if ((word_count < N_CLAUSE_WORDS-1) && (ix > words[word_count].start)) {
 				if (embedded_count > 0) {
 					// there are embedded commands before this word
-					embedded_list[epContext->embedded_ix-1] |= 0x80; // terminate list of commands for this word
+					epContext->embedded_list[epContext->embedded_ix-1] |= 0x80; // terminate list of commands for this word
 					words[word_count].flags |= FLAG_EMBEDDED;
 					embedded_count = 0;
 				}
@@ -1408,7 +1408,7 @@ void TranslateClauseWithTerminator(EspeakProcessorContext* epContext, Translator
 
 	if ((word_count == 0) && (embedded_count > 0)) {
 		// add a null 'word' to carry the embedded command flag
-		embedded_list[epContext->embedded_ix-1] |= 0x80;
+		epContext->embedded_list[epContext->embedded_ix-1] |= 0x80;
 		words[word_count].flags |= FLAG_EMBEDDED;
 		word_count = 1;
 	}
@@ -1594,13 +1594,13 @@ void TranslateClauseWithTerminator(EspeakProcessorContext* epContext, Translator
 		clause_pause = 10;
 
 	MakePhonemeList(epContext, tr, clause_pause, new_sentence2);
-	phoneme_list[N_PHONEME_LIST].ph = NULL; // recognize end of phoneme_list array, in Generate()
-	phoneme_list[N_PHONEME_LIST].sourceix = 1;
+	epContext->phoneme_list[N_PHONEME_LIST].ph = NULL; // recognize end of phoneme_list array, in Generate()
+	epContext->phoneme_list[N_PHONEME_LIST].sourceix = 1;
 
 	if (embedded_count) { // ???? is this needed
-		phoneme_list[n_phoneme_list-2].synthflags = SFLAG_EMBEDDED;
-		embedded_list[epContext->embedded_ix-1] |= 0x80;
-		embedded_list[epContext->embedded_ix] = 0x80;
+		epContext->phoneme_list[epContext->n_phoneme_list-2].synthflags = SFLAG_EMBEDDED;
+		epContext->embedded_list[epContext->embedded_ix-1] |= 0x80;
+		epContext->embedded_list[epContext->embedded_ix] = 0x80;
 	}
 
 	epContext->new_sentence = false;
@@ -1686,7 +1686,7 @@ static void CombineFlag(EspeakProcessorContext* epContext, Translator *tr, WORD_
 		*p2 = '-'; // replace next space by hyphen
 		wtab[0].flags &= ~FLAG_ALL_UPPER; // prevent it being considered an abbreviation
 		*flags = TranslateWord(epContext, epContext->translator, word, wtab, NULL); // translate the combined word
-		if ((sylimit > 0) && (CountSyllables(p) > (sylimit & 0x1f))) {
+		if ((sylimit > 0) && (CountSyllables(epContext, p) > (sylimit & 0x1f))) {
 			// revert to separate words
 			*p2 = ' ';
 			*flags = TranslateWord(epContext, epContext->translator, word, wtab, NULL);

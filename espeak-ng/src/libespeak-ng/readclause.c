@@ -981,11 +981,11 @@ static void DecodeWithPhonemeMode(EspeakProcessorContext* epContext, char *buf, 
 	char phonemes2[55];
 	if (tr2 == NULL) {
 		SetWordStress(epContext, tr, phonemes, flags, -1, 0);
-		DecodePhonemes(phonemes, phonemes2);
+		DecodePhonemes(epContext, phonemes, phonemes2);
 		sprintf(buf, "[\002%s]]", phonemes2);
 	} else {
 		SetWordStress(epContext, tr2, phonemes, flags, -1, 0);
-	    DecodePhonemes(phonemes, phonemes2);
+	    DecodePhonemes(epContext, phonemes, phonemes2);
 			char wbuf[5];
 	    sprintf(buf, "[\002_^_%s %s _^_%s]]", ESPEAKNG_DEFAULT_VOICE, phonemes2, WordToString2(wbuf, tr->translator_name));
     }

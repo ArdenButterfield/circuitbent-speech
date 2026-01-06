@@ -198,8 +198,6 @@ static void DoPause(EspeakProcessorContext* epContext, int length, int control)
 	}
 }
 
-extern int seq_len_adjust; // temporary fix to advance the start point for playing the wav sample
-
 static int DoSample2(EspeakProcessorContext* epContext, int index, int which, int std_length, int control, int length_mod, int amp)
 {
 	int length;
@@ -1051,7 +1049,7 @@ void DoEmbedded(EspeakProcessorContext* epContext, int *embix, int sourceix)
 		unsigned int value;
 		int command;
 
-		word = embedded_list[*embix];
+		word = epContext->embedded_list[*embix];
 		value = word >> 8;
 		command = word & 0x7f;
 
@@ -1525,7 +1523,7 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 
 	if (control == 2) {
 		// stop speaking
-		n_phoneme_list = 0;
+		epContext->n_phoneme_list = 0;
 		WcmdqStop(epContext);
 
 		return 0;
@@ -1555,11 +1553,11 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 	}
 
 	if (epContext->skipping_text) {
-		n_phoneme_list = 0;
+		epContext->n_phoneme_list = 0;
 		return 1;
 	}
 
-	Generate(epContext, phoneme_list, &n_phoneme_list, 0);
+	Generate(epContext, epContext->phoneme_list, &epContext->n_phoneme_list, 0);
 
 	if (voice_change != NULL) {
 		// voice change at the end of the clause (i.e. clause was terminated by a voice change)

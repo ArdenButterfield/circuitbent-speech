@@ -253,18 +253,6 @@ typedef struct {
 
 #define LENGTH_MOD_LIMIT 10
 
-
-
-
-
-// phoneme table
-extern PHONEME_TAB *phoneme_tab[N_PHONEME_TAB];
-
-// list of phonemes in a clause
-extern int n_phoneme_list;
-extern PHONEME_LIST phoneme_list[N_PHONEME_LIST+1];
-extern unsigned int embedded_list[];
-
 extern const unsigned char env_fall[128];
 
 // queue of commands for wavegen
@@ -308,11 +296,6 @@ void DoSonicSpeed(EspeakProcessorContext* epContext, int value);
 #define PITCHrise   2
 #define N_ENVELOPE_DATA   20
 extern const unsigned char *const envelope_data[N_ENVELOPE_DATA];
-
-extern int formant_rate[];         // max rate of change of each formant
-extern SPEED_FACTORS speed;
-
-extern espeak_EVENT *event_list;
 extern const int version_phdata;
 
 void DoEmbedded(EspeakProcessorContext* epContext, int *embix, int sourceix);
