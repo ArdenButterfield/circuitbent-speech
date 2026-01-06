@@ -148,20 +148,20 @@ static void DoPitch(EspeakProcessorContext* epContext, const unsigned char *env,
 	WcmdqInc(epContext);
 }
 
-int PauseLength(int pause, int control)
+int PauseLength(EspeakProcessorContext* epContext, int pause, int control)
 {
 	unsigned int len;
 
 	if (control == 0) {
 		if (pause >= 200)
-			len = (pause * speed.clause_pause_factor)/256;
+			len = (pause * epContext->speed.clause_pause_factor)/256;
 		else
-			len = (pause * speed.pause_factor)/256;
+			len = (pause * epContext->speed.pause_factor)/256;
 	} else
-		len = (pause * speed.wav_factor)/256;
+		len = (pause * epContext->speed.wav_factor)/256;
 
-	if (len < speed.min_pause)
-		len = speed.min_pause; // mS, limit the amount to which pauses can be shortened
+	if (len < epContext->speed.min_pause)
+		len = epContext->speed.min_pause; // mS, limit the amount to which pauses can be shortened
 	return len;
 }
 
@@ -175,7 +175,7 @@ static void DoPause(EspeakProcessorContext* epContext, int length, int control)
 	if (length == 0)
 		len = 0;
 	else {
-		len = PauseLength(length, control);
+		len = PauseLength(epContext, length, control);
 
 		if (len < 90000)
 			len = (len * epContext->samplerate) / 1000; // convert from mS to number of samples
@@ -218,7 +218,7 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 	if (wav_length == 0)
 		return 0;
 
-	min_length = speed.min_sample_len;
+	min_length = epContext->speed.min_sample_len;
 
 	if (wav_scale == 0)
 		min_length *= 2; // 16 bit samples
@@ -239,7 +239,7 @@ static int DoSample2(EspeakProcessorContext* epContext, int index, int which, in
 	if (length_mod > 0)
 		std_length = (std_length * length_mod)/256;
 
-	length = (std_length * speed.wav_factor)/256;
+	length = (std_length * epContext->speed.wav_factor)/256;
 
 	if (control & pd_DONTLENGTHEN) {
 		// this option is used for Stops, with short noise bursts.
@@ -343,7 +343,7 @@ int DoSample3(EspeakProcessorContext* epContext, PHONEME_DATA *phdata, int lengt
 		amp2 = (amp2 * 32)/100;
 	}
 
-	seq_len_adjust = 0;
+	epContext->seq_len_adjust = 0;
 
 	if (phdata->sound_addr[pd_WAV] == 0)
 		len = 0;
@@ -597,7 +597,7 @@ int FormantTransition2(EspeakProcessorContext* epContext, frameref_t *seq, int *
 			} else {
 				fr = DuplicateLastFrame(seq, (*n_frames)++, len);
 				if (len > 36)
-					seq_len_adjust += (len - 36);
+					epContext->seq_len_adjust += (len - 36);
 
 				if (f2 != 0)
 					AdjustFormants(epContext, fr, f2, f2_min, f2_max, f1, f3_adj, f3_amp, flags);
@@ -708,7 +708,7 @@ static void SmoothSpect(EspeakProcessorContext* epContext)
 
 				// the allowed change is specified as percentage (%*10) of the frequency
 				// take "frequency" as 1/3 from the lower freq
-				allowed = (allowed * formant_rate[pk])/3000;
+				allowed = (allowed * epContext->formant_rate[pk])/3000;
 				allowed = (allowed * len)/256;
 
 				if (diff > allowed) {
@@ -775,7 +775,7 @@ static void SmoothSpect(EspeakProcessorContext* epContext)
 					allowed = f1*2 + f2;
 				else
 					allowed = f1 + f2*2;
-				allowed = (allowed * formant_rate[pk])/3000;
+				allowed = (allowed * epContext->formant_rate[pk])/3000;
 				allowed = (allowed * len)/256;
 
 				if (diff > allowed) {
@@ -915,9 +915,9 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 	for (frameix = 1; frameix < n_frames; frameix++) {
 		int length_factor = length_mod;
 		if (frames[frameix-1].frflags & FRFLAG_LEN_MOD) // reduce effect of length mod
-			length_factor = (length_mod*(256-speed.lenmod_factor) + 256*speed.lenmod_factor)/256;
+			length_factor = (length_mod*(256-epContext->speed.lenmod_factor) + 256*epContext->speed.lenmod_factor)/256;
 		else if (frames[frameix-1].frflags & FRFLAG_LEN_MOD2) // reduce effect of length mod, used for the start of a vowel
-			length_factor = (length_mod*(256-speed.lenmod2_factor) + 256*speed.lenmod2_factor)/256;
+			length_factor = (length_mod*(256-epContext->speed.lenmod2_factor) + 256*epContext->speed.lenmod2_factor)/256;
 
 		int frame_length = frames[frameix-1].length;
 		len = (frame_length * epContext->samplerate)/1000;
@@ -937,7 +937,7 @@ int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which,
 
 		if ((fmt_params->wav_addr != 0) && ((frame1->frflags & FRFLAG_DEFER_WAV) == 0)) {
 			// there is a wave file to play along with this synthesis
-			seq_len_adjust = 0;
+			epContext->seq_len_adjust = 0;
 
 			int wavefile_amp;
 			if (fmt_params->wav_amp == 0)
@@ -1547,7 +1547,7 @@ int SpeakNextClause(EspeakProcessorContext* epContext, int control)
 		const char *phon_out;
 		phon_out = GetTranslatedPhonemeString(epContext, epContext->option_phonemes);
 		if (epContext->option_phonemes & 0xf)
-			fprintf(f_trans, "%s\n", phon_out);
+			fprintf(epContext->f_trans, "%s\n", phon_out);
 		if (phoneme_callback != NULL)
 			phoneme_callback(phon_out);
 	}

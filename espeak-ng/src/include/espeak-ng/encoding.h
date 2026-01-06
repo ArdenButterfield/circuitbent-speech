@@ -54,8 +54,6 @@ typedef enum
 ESPEAK_NG_API espeak_ng_ENCODING
 espeak_ng_EncodingFromName(const char *encoding);
 
-typedef struct espeak_ng_TEXT_DECODER_ espeak_ng_TEXT_DECODER;
-
 ESPEAK_NG_API espeak_ng_TEXT_DECODER *
 create_text_decoder(void);
 

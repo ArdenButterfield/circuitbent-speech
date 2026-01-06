@@ -180,13 +180,13 @@ void LoadLanguageOptions(EspeakProcessorContext* epContext, Translator *translat
 
 void LoadConfig(EspeakProcessorContext* epContext) {
 	// Load configuration file, if one exists
-	char buf[sizeof(path_home)+10];
+	char buf[sizeof(epContext->path_home)+10];
 	FILE *f;
 	int ix;
 	char c1;
 	char string[200];
 
-	sprintf(buf, "%s%c%s", path_home, PATHSEP, "config");
+	sprintf(buf, "%s%c%s", epContext->path_home, PATHSEP, "config");
 	if ((f = fopen(buf, "r")) == NULL)
 		return;
 

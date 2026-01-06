@@ -142,15 +142,15 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 	int x;
 	int wpm;
 
-	speed.min_sample_len = espeakRATE_MAXIMUM;
-	speed.lenmod_factor = 110; // controls the effect of FRFLAG_LEN_MOD reduce length change
-	speed.lenmod2_factor = 100;
+	epContext->speed.min_sample_len = espeakRATE_MAXIMUM;
+	epContext->speed.lenmod_factor = 110; // controls the effect of FRFLAG_LEN_MOD reduce length change
+	epContext->speed.lenmod2_factor = 100;
 
 	wpm = epContext->embedded_value[EMBED_S];
 	if (control == 2)
 		wpm = epContext->embedded_value[EMBED_S2];
 
-	speed.min_pause = 5;
+	epContext->speed.min_pause = 5;
 
 	#if USE_LIBSONIC
 	int wpm_value = wpm;
@@ -160,7 +160,7 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 
 	if (control & 2)
 		DoSonicSpeed(epContext, 1 * 1024);
-	if ((wpm_value > espeakRATE_MAXIMUM) || ((wpm_value > speed.fast_settings) && (wpm > 350))) {
+	if ((wpm_value > espeakRATE_MAXIMUM) || ((wpm_value > epContext->speed.fast_settings) && (wpm > 350))) {
 		int wpm2;
 		wpm2 = wpm;
 		wpm = espeakRATE_NORMAL;
@@ -177,13 +177,13 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 			double sonic;
 			sonic = ((double)wpm2)/wpm;
 			DoSonicSpeed(epContext, (int)(sonic * 1024));
-			speed.pause_factor = 85;
-			speed.clause_pause_factor = espeakRATE_MINIMUM;
-			speed.min_pause = 22;
-			speed.min_sample_len = espeakRATE_MAXIMUM*2;
-			speed.wav_factor = 211;
-			speed.lenmod_factor = 210;
-			speed.lenmod2_factor = 170;
+			epContext->speed.pause_factor = 85;
+			epContext->speed.clause_pause_factor = espeakRATE_MINIMUM;
+			epContext->speed.min_pause = 22;
+			epContext->speed.min_sample_len = espeakRATE_MAXIMUM*2;
+			epContext->speed.wav_factor = 211;
+			epContext->speed.lenmod_factor = 210;
+			epContext->speed.lenmod2_factor = 170;
 		}
 		return;
 	}
@@ -200,7 +200,7 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 	}
 
 	if (control & 2) {
-		SetSpeedMods(&speed, epContext->voice->speedf1, wpm, x);
+		SetSpeedMods(&epContext->speed, epContext->voice->speedf1, wpm, x);
 	}
 }
 

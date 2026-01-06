@@ -905,9 +905,9 @@ int ProcessSsmlTag(EspeakProcessorContext* epContext, wchar_t *xml_buf, char *ou
 
 			// compensate for speaking speed to keep constant pause length, see function PauseLength()
 			// 'value' here is x 10mS
-			value = (value2 * 256) / (speed.clause_pause_factor * 10);
+			value = (value2 * 256) / (epContext->speed.clause_pause_factor * 10);
 			if (value < 200)
-				value = (value2 * 256) / (speed.pause_factor * 10);
+				value = (value2 * 256) / (epContext->speed.pause_factor * 10);
 
 			if (terminator == 0)
 				terminator = CLAUSE_NONE;

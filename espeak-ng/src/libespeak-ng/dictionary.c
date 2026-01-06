@@ -201,7 +201,7 @@ int LoadDictionary(EspeakProcessorContext* epContext, Translator *tr, const char
 	int length;
 	FILE *f;
 	int size;
-	char fname[sizeof(path_home)+20];
+	char fname[sizeof(epContext->path_home)+20];
 
 	if (epContext->dictionary_name != name)
 		strncpy(epContext->dictionary_name, name, 40); // currently loaded dictionary name
@@ -211,7 +211,7 @@ int LoadDictionary(EspeakProcessorContext* epContext, Translator *tr, const char
 	// Load a pronunciation data file into memory
 	// bytes 0-3:  offset to rules data
 	// bytes 4-7:  number of hash table entries
-	sprintf(fname, "%s%c%s_dict", path_home, PATHSEP, name);
+	sprintf(fname, "%s%c%s_dict", epContext->path_home, PATHSEP, name);
 	size = GetFileLength(fname);
 
 	if (tr->data_dictlist != NULL) {
@@ -2060,7 +2060,7 @@ static void MatchRule(EspeakProcessorContext* epContext, Translator *tr, char *w
 					if (group_length > 1)
 						pts += 35; // to account for an extra letter matching
 					DecodePhonemes(epContext, match.phonemes, decoded_phonemes);
-					fprintf(f_trans, "%3d\t%s [%s]\n", pts, DecodeRule(group_chars, group_length, rule_start, word_flags, output), decoded_phonemes);
+					fprintf(epContext->f_trans, "%3d\t%s [%s]\n", pts, DecodeRule(group_chars, group_length, rule_start, word_flags, output), decoded_phonemes);
 				}
 			}
 		}
@@ -2129,9 +2129,9 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 			wordbuf[ix] = c;
 		wordbuf[ix] = 0;
 		if (word_flags & FLAG_UNPRON_TEST)
-			fprintf(f_trans, "Unpronouncable? '%s'\n", wordbuf);
+			fprintf(epContext->f_trans, "Unpronouncable? '%s'\n", wordbuf);
 		else
-			fprintf(f_trans, "Translate '%s'\n", wordbuf);
+			fprintf(epContext->f_trans, "Translate '%s'\n", wordbuf);
 	}
 
 	p = p_start;
@@ -2305,7 +2305,7 @@ int TranslateRules(EspeakProcessorContext* epContext, Translator *tr, char *p_st
 			}
 
 			if ((epContext->option_phonemes & espeakPHONEMES_TRACE) && ((word_flags & FLAG_NO_TRACE) == 0))
-				fprintf(f_trans, "\n");
+				fprintf(epContext->f_trans, "\n");
 
 			match1.end_type &= ~SUFX_UNPRON;
 
@@ -2658,7 +2658,7 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 		if (phoneme_len == 0) {
 			if (epContext->option_phonemes & espeakPHONEMES_TRACE) {
 				print_dictionary_flags(flags, dict_flags_buf, sizeof(dict_flags_buf));
-				fprintf(f_trans, "Flags:  %s  %s\n", word1, dict_flags_buf);
+				fprintf(epContext->f_trans, "Flags:  %s  %s\n", word1, dict_flags_buf);
 			}
 			return 0; // no phoneme translation found here, only flags. So use rules
 		}
@@ -2684,11 +2684,11 @@ static const char *LookupDict2(EspeakProcessorContext* epContext, Translator *tr
 					// (check for wtab prevents showing RULE_SPELLING byte when speaking individual letters)
 					memcpy(word_buf, word2, word_end-word2);
 					word_buf[word_end-word2-1] = 0;
-					fprintf(f_trans, "Found: '%s %s\n", word1, word_buf);
+					fprintf(epContext->f_trans, "Found: '%s %s\n", word1, word_buf);
 				} else
-					fprintf(f_trans, "Found: '%s", word1);
+					fprintf(epContext->f_trans, "Found: '%s", word1);
 				print_dictionary_flags(flags, dict_flags_buf, sizeof(dict_flags_buf));
-				fprintf(f_trans, "' [%s]  %s\n", ph_decoded, dict_flags_buf);
+				fprintf(epContext->f_trans, "' [%s]  %s\n", ph_decoded, dict_flags_buf);
 			}
 		}
 
@@ -2840,7 +2840,7 @@ int LookupDictList(EspeakProcessorContext* epContext, Translator *tr, char **wor
 					len = found - word1;
 					memcpy(word, word1, len); // include multiple matching words
 					word[len] = 0;
-					fprintf(f_trans, "Replace: %s  %s\n", word, *wordptr);
+					fprintf(epContext->f_trans, "Replace: %s  %s\n", word, *wordptr);
 				}
 			}
 
@@ -2881,7 +2881,7 @@ int Lookup(EspeakProcessorContext* epContext, Translator *tr, const char *word, 
 		text[2] = ' ';
 		strncpy0(text+3, word1, sizeof(text)-3);
 		flags0 = TranslateWord(epContext, tr, text+3, NULL, NULL);
-		strcpy(ph_out, word_phonemes);
+		strcpy(ph_out, epContext->word_phonemes);
 		epContext->option_sayas = say_as;
 	}
 	return flags0;
@@ -3009,7 +3009,7 @@ int RemoveEnding(EspeakProcessorContext* epContext, Translator *tr, char *word, 
 			utf8_out(tr->langopts.suffix_add_e, &word_end[1]);
 
 			if (epContext->option_phonemes & espeakPHONEMES_TRACE)
-				fprintf(f_trans, "add e\n");
+				fprintf(epContext->f_trans, "add e\n");
 		}
 	}
 

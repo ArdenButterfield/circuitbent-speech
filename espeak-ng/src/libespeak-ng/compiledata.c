@@ -405,7 +405,7 @@ typedef struct CompileContext {
 
 	NAMETAB *manifest;
 	int n_manifest;
-	char phsrc[sizeof(path_home)+40]; // Source: path to the 'phonemes' source file.
+	char phsrc[N_PATH_HOME+40]; // Source: path to the 'phonemes' source file.
 } CompileContext;
 
 static void clean_context(CompileContext *ctx) {
@@ -446,17 +446,17 @@ static void error_from_status(CompileContext *ctx, espeak_ng_STATUS status, cons
 		error(ctx, "%s.", message);
 }
 
-static espeak_ng_STATUS ReadPhondataManifest(CompileContext *ctx, espeak_ng_ERROR_CONTEXT *context)
+static espeak_ng_STATUS ReadPhondataManifest(EspeakProcessorContext* epContext, CompileContext *ctx, espeak_ng_ERROR_CONTEXT *context)
 {
 	// Read the phondata-manifest file
 	FILE *f;
 	int n_lines = 0;
 	char *p;
 	unsigned int value;
-	char buf[sizeof(path_home)+40];
+	char buf[N_PATH_HOME+40];
 	char name[120];
 
-	sprintf(buf, "%s%c%s", path_home, PATHSEP, "phondata-manifest");
+	sprintf(buf, "%s%c%s", epContext->path_home, PATHSEP, "phondata-manifest");
 	if ((f = fopen(buf, "r")) == NULL)
 		return create_file_error_context(context, errno, buf);
 
@@ -911,7 +911,7 @@ static espeak_ng_STATUS LoadSpect(EspeakProcessorContext* epContext, CompileCont
 	int klatt_flag = 0;
 	SpectFrame *fr;
 	frame_t *fr_out;
-	char filename[sizeof(path_home)+20];
+	char filename[sizeof(epContext->path_home)+20];
 
 	SPECT_SEQ seq_out;
 	SPECT_SEQK seqk_out;
@@ -1288,7 +1288,7 @@ static espeak_ng_STATUS LoadDataFile(EspeakProcessorContext* epContext, CompileC
 	}
 
 	if (*addr == 0) {
-		char buf[sizeof(path_home)+150];
+		char buf[sizeof(epContext->path_home)+150];
 		sprintf(buf, "%s/%s", ctx->phsrc, path);
 
 		FILE *f;
@@ -2246,7 +2246,7 @@ static void StartPhonemeTable(CompileContext *ctx, const char *name)
 static void CompilePhonemeFiles(EspeakProcessorContext* epContext, CompileContext *ctx)
 {
 	FILE *f;
-	char buf[sizeof(path_home)+120];
+	char buf[sizeof(epContext->path_home)+120];
 
 	ctx->linenum = 1;
 
@@ -2332,8 +2332,8 @@ espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
 {
 	if (!log) log = stderr;
 
-	char fname[sizeof(path_home)+40];
-	char phdst[sizeof(path_home)+40]; // Destination: path to the phondata/phontab/phonindex output files.
+	char fname[sizeof(epContext->path_home)+40];
+	char phdst[sizeof(epContext->path_home)+40]; // Destination: path to the phondata/phontab/phonindex output files.
 
 	CompileContext *ctx = calloc(1, sizeof(CompileContext));
 	if (!ctx) return ENOMEM;
@@ -2341,13 +2341,13 @@ espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
 	if (source_path) {
 		sprintf(ctx->phsrc, "%s", source_path);
 	} else {
-		sprintf(ctx->phsrc, "%s/../phsource", path_home);
+		sprintf(ctx->phsrc, "%s/../phsource", epContext->path_home);
 	}
 
 	if (destination_path) {
 		sprintf(phdst, "%s", destination_path);
 	} else {
-		sprintf(phdst, "%s", path_home);
+		sprintf(phdst, "%s", epContext->path_home);
 	}
 
 	epContext->samplerate = rate;
@@ -2466,7 +2466,7 @@ espeak_ng_CompilePhonemeDataPath(EspeakProcessorContext* epContext, long rate,
 	if (ctx->f_errors != stderr && ctx->f_errors != stdout)
 		fclose(ctx->f_errors);
 
-	espeak_ng_STATUS status = ReadPhondataManifest(ctx, context);
+	espeak_ng_STATUS status = ReadPhondataManifest(epContext, ctx, context);
 	int res = ctx->error_count > 0 ? ENS_COMPILE_ERROR : ENS_OK;
 	clean_context(ctx);
 	return (status != ENS_OK) ? status : res;
@@ -2528,8 +2528,8 @@ espeak_ng_CompileIntonationPath(EspeakProcessorContext* epContext, const char *s
                                 )
 {
 	if (!log) log = stderr;
-	if (!source_path) source_path = path_home;
-	if (!destination_path) destination_path = path_home;
+	if (!source_path) source_path = epContext->path_home;
+	if (!destination_path) destination_path = epContext->path_home;
 
 	int ix;
 	char *p;
@@ -2547,7 +2547,7 @@ espeak_ng_CompileIntonationPath(EspeakProcessorContext* epContext, const char *s
 
 	char name[12];
 	char tune_names[N_TUNE_NAMES][12];
-	char buf[sizeof(path_home)+150];
+	char buf[sizeof(epContext->path_home)+150];
 
 	CompileContext *ctx = calloc(1, sizeof(CompileContext));
 	if (!ctx) return ENOMEM;

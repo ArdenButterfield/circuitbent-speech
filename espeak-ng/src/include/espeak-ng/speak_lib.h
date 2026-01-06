@@ -27,7 +27,6 @@
 
 
 
-#include "encoding.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdbool.h>

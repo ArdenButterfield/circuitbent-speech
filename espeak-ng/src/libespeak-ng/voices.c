@@ -271,7 +271,7 @@ void VoiceReset(EspeakProcessorContext* epContext, int tone_only)
 	epContext->voice->samplerate = epContext->samplerate;
 	memset(epContext->voice->klattv, 0, sizeof(epContext->voice->klattv));
 
-	speed.fast_settings = espeakRATE_MAXIMUM;
+	epContext->speed.fast_settings = espeakRATE_MAXIMUM;
 
 	epContext->voice->roughness = 2;
 
@@ -287,7 +287,7 @@ void VoiceReset(EspeakProcessorContext* epContext, int tone_only)
 		epContext->voice->freqadd[pk] = 0;
 
 		// adjust formant smoothing depending on sample rate
-		formant_rate[pk] = (formant_rate_22050[pk] * 22050)/epContext->samplerate;
+		epContext->formant_rate[pk] = (formant_rate_22050[pk] * 22050)/epContext->samplerate;
 	}
 
 	// This table provides the opportunity for tone control.
@@ -420,7 +420,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
 	char new_dictionary[40];
 	char phonemes_name[40] = "";
 	const char *language_type;
-	char buf[sizeof(path_home)+30];
+	char buf[sizeof(epContext->path_home)+30];
 #if USE_MBROLA
 	char name1[40];
 	char name2[80];
@@ -452,12 +452,12 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
 		if (voicename[0] == 0 && !(control & 8)/*compiling phonemes*/)
 			strcpy(voicename, ESPEAKNG_DEFAULT_VOICE);
 
-		char path_voices[sizeof(path_home)+12];
-		sprintf(path_voices, "%s%cvoices%c", path_home, PATHSEP, PATHSEP);
+		char path_voices[sizeof(epContext->path_home)+12];
+		sprintf(path_voices, "%s%cvoices%c", epContext->path_home, PATHSEP, PATHSEP);
 		sprintf(buf, "%s%s", path_voices, voicename); // look in the main voices directory
 
 		if (GetFileLength(buf) <= 0) {
-			sprintf(path_voices, "%s%clang%c", path_home, PATHSEP, PATHSEP);
+			sprintf(path_voices, "%s%clang%c", epContext->path_home, PATHSEP, PATHSEP);
 			sprintf(buf, "%s%s", path_voices, voicename); // look in the main languages directory
 		}
 	}
@@ -688,7 +688,7 @@ voice_t *LoadVoice(EspeakProcessorContext* epContext, const char *vname, int con
                 break;
 #endif
             case V_FAST:
-                sscanf(p, "%d", &speed.fast_settings);
+                sscanf(p, "%d", &epContext->speed.fast_settings);
                 SetSpeed(epContext, 3);
                 break;
 
@@ -970,8 +970,8 @@ static int SetVoiceScores(EspeakProcessorContext* epContext, espeak_VOICE *voice
 			lang_len = 2;
 		}
 
-		char buf[sizeof(path_home)+80];
-		sprintf(buf, "%s/voices/%s", path_home, language);
+		char buf[sizeof(epContext->path_home)+80];
+		sprintf(buf, "%s/voices/%s", epContext->path_home, language);
 		if (GetFileLength(buf) == -EISDIR) {
 			// A subdirectory name has been specified.  List all the voices in that subdirectory
 			language[lang_len++] = PATHSEP;
@@ -1192,7 +1192,7 @@ char const *SelectVoice(EspeakProcessorContext* epContext, espeak_VOICE *voice_s
 
 static void GetVoices(EspeakProcessorContext* epContext, const char *path, int len_path_voices, int is_language_file)
 {
-	char fname[sizeof(path_home)+100];
+	char fname[sizeof(epContext->path_home)+100];
 
 #if PLATFORM_WINDOWS
 	WIN32_FIND_DATAA FindFileData;
@@ -1366,7 +1366,7 @@ void FreeVoiceList(EspeakProcessorContext* epContext)
 
 ESPEAK_API const espeak_VOICE **espeak_ListVoices(EspeakProcessorContext* epContext, espeak_VOICE *voice_spec)
 {
-	char path_voices[sizeof(path_home)+12];
+	char path_voices[sizeof(epContext->path_home)+12];
 
 	espeak_VOICE *v;
 	static espeak_VOICE **voices = NULL;
@@ -1374,10 +1374,10 @@ ESPEAK_API const espeak_VOICE **espeak_ListVoices(EspeakProcessorContext* epCont
 	// free previous voice list data
 	FreeVoiceList(epContext);
 
-	sprintf(path_voices, "%s%cvoices", path_home, PATHSEP);
+	sprintf(path_voices, "%s%cvoices", epContext->path_home, PATHSEP);
 	GetVoices(epContext, path_voices, strlen(path_voices)+1, 0);
 
-	sprintf(path_voices, "%s%clang", path_home, PATHSEP);
+	sprintf(path_voices, "%s%clang", epContext->path_home, PATHSEP);
 	GetVoices(epContext, path_voices, strlen(path_voices)+1, 1);
 
 	epContext->voices_list[epContext->n_voices_list] = NULL; // voices list terminator

@@ -357,7 +357,7 @@ int TranslateWord3(EspeakProcessorContext* epContext, Translator *tr, char *word
 							strcpy(end_phonemes, end_phonemes2);
 							if (epContext->option_phonemes & espeakPHONEMES_TRACE) {
 								DecodePhonemes(epContext, end_phonemes, end_phonemes2);
-								fprintf(f_trans, "  suffix [%s]\n\n", end_phonemes2);
+								fprintf(epContext->f_trans, "  suffix [%s]\n\n", end_phonemes2);
 							}
 						}
 						confirm_prefix = false;

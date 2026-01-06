@@ -303,7 +303,7 @@ void DoMarker(EspeakProcessorContext* epContext, int type, int char_posn, int le
 void DoPhonemeMarker(EspeakProcessorContext* epContext, int type, int char_posn, int length, char *name);
 int DoSample3(EspeakProcessorContext* epContext, PHONEME_DATA *phdata, int length_mod, int amp);
 int DoSpect2(EspeakProcessorContext* epContext, PHONEME_TAB *this_ph, int which, FMT_PARAMS *fmt_params,  PHONEME_LIST *plist, int modulation);
-int PauseLength(int pause, int control);
+int PauseLength(EspeakProcessorContext* epContext, int pause, int control);
 const char *WordToString(char buf[5], unsigned int word);
 
 #ifdef __cplusplus

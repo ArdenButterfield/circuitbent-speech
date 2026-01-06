@@ -717,7 +717,7 @@ static int compile_dictlist_file(EspeakProcessorContext* epContext, CompileConte
 	int count = 0;
 	FILE *f_in;
 	char buf[200];
-	char fname[sizeof(path_home)+45];
+	char fname[sizeof(epContext->path_home)+45];
 	char dict_line[256]; // length is uint8_t, so an entry can't take up more than 256 bytes
 
 	ctx->text_mode = false;
@@ -1534,9 +1534,9 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(EspeakProcessorContex
 	FILE *f_out;
 	int offset_rules = 0;
 	int value;
-	char fname_in[sizeof(path_home)+45];
-	char fname_out[sizeof(path_home)+15];
-	char path[sizeof(path_home)+40];       // path_dsource+20
+	char fname_in[sizeof(epContext->path_home)+45];
+	char fname_out[sizeof(epContext->path_home)+15];
+	char path[sizeof(epContext->path_home)+40];       // path_dsource+20
 
 	CompileContext *ctx = calloc(1, sizeof(CompileContext));
 
@@ -1564,7 +1564,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_CompileDictionary(EspeakProcessorContex
 		}
 	}
 
-	sprintf(fname_out, "%s%c%s_dict", path_home, PATHSEP, dict_name);
+	sprintf(fname_out, "%s%c%s_dict", epContext->path_home, PATHSEP, dict_name);
 	if ((f_out = fopen(fname_out, "wb+")) == NULL) {
 		int error = errno;
 		fclose(f_in);

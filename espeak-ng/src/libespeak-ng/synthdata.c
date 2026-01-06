@@ -45,15 +45,15 @@
 const int version_phdata  = 0x014801;
 
 
-static espeak_ng_STATUS ReadPhFile(void **ptr, const char *fname, int *size, espeak_ng_ERROR_CONTEXT *context)
+static espeak_ng_STATUS ReadPhFile(EspeakProcessorContext* epContext, void **ptr, const char *fname, int *size, espeak_ng_ERROR_CONTEXT *context)
 {
 	if (!ptr) return EINVAL;
 
 	FILE *f_in;
 	int length;
-	char buf[sizeof(path_home)+40];
+	char buf[sizeof(epContext->path_home)+40];
 
-	sprintf(buf, "%s%c%s", path_home, PATHSEP, fname);
+	sprintf(buf, "%s%c%s", epContext->path_home, PATHSEP, fname);
 	length = GetFileLength(buf);
 	if (length < 0) // length == -errno
 		return create_file_error_context(context, -length, buf);
@@ -98,13 +98,13 @@ espeak_ng_STATUS LoadPhData(EspeakProcessorContext* epContext, int *srate, espea
 	unsigned char *p;
 
 	espeak_ng_STATUS status;
-	if ((status = ReadPhFile((void **)&epContext->phoneme_tab_data, "phontab", NULL, context)) != ENS_OK)
+	if ((status = ReadPhFile(epContext, (void **)&epContext->phoneme_tab_data, "phontab", NULL, context)) != ENS_OK)
 		return status;
-	if ((status = ReadPhFile((void **)&epContext->phoneme_index, "phonindex", NULL, context)) != ENS_OK)
+	if ((status = ReadPhFile(epContext, (void **)&epContext->phoneme_index, "phonindex", NULL, context)) != ENS_OK)
 		return status;
-	if ((status = ReadPhFile((void **)&epContext->phondata_ptr, "phondata", NULL, context)) != ENS_OK)
+	if ((status = ReadPhFile(epContext, (void **)&epContext->phondata_ptr, "phondata", NULL, context)) != ENS_OK)
 		return status;
-	if ((status = ReadPhFile((void **)&epContext->tunes, "intonations", &length, context)) != ENS_OK)
+	if ((status = ReadPhFile(epContext, (void **)&epContext->tunes, "intonations", &length, context)) != ENS_OK)
 		return status;
 	epContext->wavefile_data = (unsigned char *)epContext->phondata_ptr;
 	epContext->n_tunes = length / sizeof(TUNE);
@@ -120,7 +120,7 @@ espeak_ng_STATUS LoadPhData(EspeakProcessorContext* epContext, int *srate, espea
 	}
 
 	if (version != version_phdata)
-		return create_version_mismatch_error_context(context, path_home, version, version_phdata);
+		return create_version_mismatch_error_context(context, epContext->path_home, version, version_phdata);
 
 	// set up phoneme tables
 	p = epContext->phoneme_tab_data;

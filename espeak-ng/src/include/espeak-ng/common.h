@@ -549,5 +549,6 @@ typedef struct {
 // pause when announcing bracket names (default=2), also see LOPT_BRACKET_PAUSE
 #define LOPT_BRACKET_PAUSE_ANNOUNCED 17
 
+typedef struct espeak_ng_TEXT_DECODER_ espeak_ng_TEXT_DECODER;
 
 #endif //HOMER_COMMON_H

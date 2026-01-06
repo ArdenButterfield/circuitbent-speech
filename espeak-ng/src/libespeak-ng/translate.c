@@ -750,7 +750,7 @@ static int SubstituteChar(EspeakProcessorContext* epContext, Translator *tr, uns
 		return c; // no substitution
 
 	if (epContext->option_phonemes & espeakPHONEMES_TRACE)
-		fprintf(f_trans, "Replace: %s > %s\n", from, to);
+		fprintf(epContext->f_trans, "Replace: %s > %s\n", from, to);
 
 	to += utf8_in((int *)&new_c, to);
 	if (*to != 0) {

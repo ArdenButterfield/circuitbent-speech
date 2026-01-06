@@ -50,7 +50,7 @@ static espeak_ERROR status_to_espeak_error(espeak_ng_STATUS status)
 
 ESPEAK_API int espeak_Initialize(EspeakProcessorContext* epContext, espeak_AUDIO_OUTPUT output_type, int buf_length, const char *path, int options)
 {
-	espeak_ng_InitializePath(path);
+	espeak_ng_InitializePath(epContext, path);
 	espeak_ng_ERROR_CONTEXT context = NULL;
 	espeak_ng_STATUS result = espeak_ng_Initialize(epContext, &context);
 	if (result != ENS_OK) {

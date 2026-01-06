@@ -56,7 +56,7 @@ espeak_ng_PrintStatusCodeMessage(espeak_ng_STATUS status,
                                  espeak_ng_ERROR_CONTEXT context);
 
 ESPEAK_NG_API void
-espeak_ng_InitializePath(const char *path);
+espeak_ng_InitializePath(EspeakProcessorContext* epContext, const char *path);
 
 ESPEAK_NG_API espeak_ng_STATUS
 espeak_ng_Initialize(EspeakProcessorContext* epContext, espeak_ng_ERROR_CONTEXT *context);

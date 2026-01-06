@@ -221,19 +221,19 @@ int sync_espeak_terminated_msg(uint32_t unique_identifier, void *user_data)
 
 #endif
 
-static int check_data_path(const char *path, int allow_directory)
+static int check_data_path(EspeakProcessorContext* epContext, const char *path, int allow_directory)
 {
 	if (!path) return 0;
 
-	snprintf(path_home, sizeof(path_home), "%s/espeak-ng-data", path);
-	if (GetFileLength(path_home) == -EISDIR)
+	snprintf(epContext->path_home, sizeof(epContext->path_home), "%s/espeak-ng-data", path);
+	if (GetFileLength(epContext->path_home) == -EISDIR)
 		return 1;
 
 	if (!allow_directory)
 		return 0;
 
-	snprintf(path_home, sizeof(path_home), "%s", path);
-	return GetFileLength(path_home) == -EISDIR;
+	snprintf(epContext->path_home, sizeof(epContext->path_home), "%s", path);
+	return GetFileLength(epContext->path_home) == -EISDIR;
 }
 
 #pragma GCC visibility push(default)
@@ -271,27 +271,27 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_InitializeOutput(EspeakProcessorContext
 	// allocate space for event list.  Allow 200 events per second.
 	// Add a constant to allow for very small buffer_length
 	epContext->n_event_list = (buffer_length*200)/1000 + 20;
-	espeak_EVENT *new_event_list = (espeak_EVENT *)realloc(event_list, sizeof(espeak_EVENT) * epContext->n_event_list);
+	espeak_EVENT *new_event_list = (espeak_EVENT *)realloc(epContext->event_list, sizeof(espeak_EVENT) * epContext->n_event_list);
 	if (new_event_list == NULL)
 		return ENOMEM;
-	event_list = new_event_list;
+	epContext->event_list = new_event_list;
 
 	return ENS_OK;
 }
 
 
-ESPEAK_NG_API void espeak_ng_InitializePath(const char *path)
+ESPEAK_NG_API void espeak_ng_InitializePath(EspeakProcessorContext* epContext, const char *path)
 {
-	if (check_data_path(path, 1))
+	if (check_data_path(epContext, path, 1))
 		return;
 
 #if PLATFORM_WINDOWS
 	HKEY RegKey;
 	unsigned long size;
 	unsigned long var_type;
-	unsigned char buf[sizeof(path_home)-13];
+	unsigned char buf[sizeof(epContext->path_home)-13];
 
-	if (check_data_path(getenv("ESPEAK_DATA_PATH"), 1))
+	if (check_data_path(epContext, getenv("ESPEAK_DATA_PATH"), 1))
 		return;
 
 	buf[0] = 0;
@@ -302,7 +302,7 @@ ESPEAK_NG_API void espeak_ng_InitializePath(const char *path)
 	var_type = REG_SZ;
 	RegQueryValueExA(RegKey, "Path", 0, &var_type, buf, &size);
 
-	if (check_data_path(buf, 1))
+	if (check_data_path(epContext, buf, 1))
 		return;
 #elif !defined(PLATFORM_DOS)
 	if (check_data_path(getenv("ESPEAK_DATA_PATH"), 1))
@@ -312,7 +312,7 @@ ESPEAK_NG_API void espeak_ng_InitializePath(const char *path)
 		return;
 #endif
 
-	strcpy(path_home, PATH_ESPEAK_DATA);
+	strcpy(epContext->path_home, PATH_ESPEAK_DATA);
 }
 
 const int param_defaults[N_SPEECH_PARAM] = {
@@ -406,7 +406,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 	int length;
 	int finished = 0;
 
-	if ((epContext->outbuf == NULL) || (event_list == NULL))
+	if ((epContext->outbuf == NULL) || (epContext->event_list == NULL))
 		return ENS_NOT_INITIALIZED;
 
 	epContext->option_ssml = flags & espeakSSML;
@@ -439,16 +439,16 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 
 		length = (epContext->out_ptr - epContext->outbuf)/2;
 		epContext->count_samples += length;
-		event_list[epContext->event_list_ix].type = espeakEVENT_LIST_TERMINATED; // indicates end of event list
-		event_list[epContext->event_list_ix].unique_identifier = unique_identifier;
-		event_list[epContext->event_list_ix].user_data = epContext->my_user_data;
+		epContext->event_list[epContext->event_list_ix].type = espeakEVENT_LIST_TERMINATED; // indicates end of event list
+		epContext->event_list[epContext->event_list_ix].unique_identifier = unique_identifier;
+		epContext->event_list[epContext->event_list_ix].user_data = epContext->my_user_data;
 
 		if ((epContext->my_mode & ENOUTPUT_MODE_SPEAK_AUDIO) == ENOUTPUT_MODE_SPEAK_AUDIO) {
-			finished = create_events(epContext, (short *)epContext->outbuf, length, event_list);
+			finished = create_events(epContext, (short *)epContext->outbuf, length, epContext->event_list);
 			if (finished < 0)
 				return ENS_AUDIO_ERROR;
 		} else if (epContext->synth_callback)
-			finished = epContext->synth_callback((short *)epContext->outbuf, length, event_list);
+			finished = epContext->synth_callback((short *)epContext->outbuf, length, epContext->event_list);
 		if (finished) {
 			SpeakNextClause(epContext, 2); // stop
 			return ENS_SPEECH_STOPPED;
@@ -459,9 +459,9 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 				// don't process the next clause until the previous clause has finished generating speech.
 				// This ensures that <audio> tag (which causes end-of-clause) is at a sound buffer boundary
 
-				event_list[0].type = espeakEVENT_LIST_TERMINATED;
-				event_list[0].unique_identifier = epContext->my_unique_identifier;
-				event_list[0].user_data = epContext->my_user_data;
+				epContext->event_list[0].type = espeakEVENT_LIST_TERMINATED;
+				epContext->event_list[0].unique_identifier = epContext->my_unique_identifier;
+				epContext->event_list[0].user_data = epContext->my_user_data;
 
 				if (SpeakNextClause(epContext, 1) == 0) {
 					finished = 0;
@@ -469,7 +469,7 @@ static espeak_ng_STATUS Synthesize(EspeakProcessorContext* epContext, unsigned i
 						if (dispatch_audio(epContext, NULL, 0, NULL) < 0)
 							return ENS_AUDIO_ERROR;
 					} else if (epContext->synth_callback)
-						finished = epContext->synth_callback(NULL, 0, event_list); // NULL buffer ptr indicates end of data
+						finished = epContext->synth_callback(NULL, 0, epContext->event_list); // NULL buffer ptr indicates end of data
 					if (finished) {
 						SpeakNextClause(epContext, 2); // stop
 						return ENS_SPEECH_STOPPED;
@@ -487,10 +487,10 @@ void MarkerEvent(EspeakProcessorContext* epContext, int type, unsigned int char_
 	espeak_EVENT *ep;
 	double time;
 
-	if ((event_list == NULL) || (epContext->event_list_ix >= (epContext->n_event_list-2)))
+	if ((epContext->event_list == NULL) || (epContext->event_list_ix >= (epContext->n_event_list-2)))
 		return;
 
-	ep = &event_list[epContext->event_list_ix++];
+	ep = &epContext->event_list[epContext->event_list_ix++];
 	ep->type = (espeak_EVENT_TYPE)type;
 	ep->unique_identifier = epContext->my_unique_identifier;
 	ep->user_data = epContext->my_user_data;
@@ -825,9 +825,9 @@ ESPEAK_API void espeak_SetPhonemeTrace(EspeakProcessorContext* epContext, int ph
 	*/
 
 	epContext->option_phonemes = phonememode;
-	f_trans = stream;
+	epContext->f_trans = stream;
 	if (stream == NULL)
-		f_trans = stderr;
+		epContext->f_trans = stderr;
 }
 
 ESPEAK_API const char* espeak_TextToPhonemesWithTerminator(EspeakProcessorContext* epContext, const void** textptr, int textmode, int phonememode, int* terminator)
@@ -911,8 +911,8 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Terminate(EspeakProcessorContext* epCon
 		epContext->out_samplerate = 0;
 	}
 
-	free(event_list);
-	event_list = NULL;
+	free(epContext->event_list);
+	epContext->event_list = NULL;
 
 	free(epContext->outbuf);
 	epContext->outbuf = NULL;
@@ -937,7 +937,7 @@ static const char version_string[] = PACKAGE_VERSION;
 ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char **ptr)
 {
 	if (ptr != NULL)
-		*ptr = path_home;
+		*ptr = epContext->path_home;
 	return version_string;
 }
 
