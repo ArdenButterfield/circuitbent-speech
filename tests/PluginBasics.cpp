@@ -46,6 +46,7 @@ TEST_CASE ("Basics of espeak", "[espeak]")
     int buflength = 500, options = 0;
 
     EspeakProcessorContext epContext;
+    memset(&epContext, 0, sizeof(EspeakProcessorContext));
 
     initEspeakContext(&epContext);
 
@@ -67,11 +68,11 @@ TEST_CASE ("Basics of espeak", "[espeak]")
     unsigned int *identifier = nullptr;
     auto synthError = espeak_Synth(&epContext, text, buflength, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
 
-    REQUIRE (synthError == EE_OK);
+     REQUIRE (synthError == EE_OK);
 
-    juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 1000);
-    std::cout << "writing samples\n";
-    REQUIRE(samples.size() > 0);
+     juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 1000);
+     std::cout << "writing samples\n";
+     REQUIRE(samples.size() > 0);
 
     juce::AudioBuffer<float> buffer;
     buffer.setSize (1, samples.size());

@@ -581,7 +581,7 @@ espeak_ng_STATUS sync_espeak_Synth_Mark(EspeakProcessorContext* epContext, unsig
 	return Synthesize(epContext, unique_identifier, text, flags | espeakSSML);
 }
 
-espeak_ng_STATUS sync_e2speak_Key(EspeakProcessorContext* epContext, const char *key)
+espeak_ng_STATUS sync_espeak_Key(EspeakProcessorContext* epContext, const char *key)
 {
 	// symbolic name, symbolicname_character  - is there a system resource of symbolic names per language?
 	int letter;
