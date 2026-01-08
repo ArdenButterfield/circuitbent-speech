@@ -30,7 +30,6 @@ int testSynthCallback(short *wav, int numsamples, espeak_EVENT *events)
     {
         samples->push_back (wav[i] / 32768.0f);
     }
-    std::cout << "callback " << numsamples << std::endl;
 
     if (wav == nullptr)
     {
@@ -39,13 +38,12 @@ int testSynthCallback(short *wav, int numsamples, espeak_EVENT *events)
     return 0;
 }
 
-TEST_CASE ("Basics of espeak", "[espeak]")
+int prepareForEpBendTest(EspeakProcessorContext& epContext)
 {
     const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
-    espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_RETRIEVAL;
+    espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
     int buflength = 500, options = 0;
 
-    EspeakProcessorContext epContext;
     memset(&epContext, 0, sizeof(EspeakProcessorContext));
 
     initEspeakContext(&epContext);
@@ -53,26 +51,32 @@ TEST_CASE ("Basics of espeak", "[espeak]")
     auto fs = espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
     REQUIRE (fs > 0);
 
-    char text[] = { "I'm just here to make a friend, okay!!! Name's Sea Man got a (voice) in the mix. When it comes to making friends, I got crazy magic tricks" };
-    char voicename[] = { "English (America)" }; // Set voice by its name
+    return fs;
+}
 
-    std::vector<float> samples;
-    samples.clear();
+void carryOut(EspeakProcessorContext& epContext, int fs, juce::String outFileName)
+{
+    // char text[] = { "I'm just here to make a friend, okay!!! Name's Sea Man got a (voice) in the mix. When it comes to making friends, I got crazy magic tricks" };
+    char text[] = { "She sells seashells by the seashore." };
+    char voicename[] = { "English (America)" }; // Set voice by its name
 
     auto voiceResult = espeak_SetVoiceByName(&epContext, voicename);
     REQUIRE (voiceResult == EE_OK);
+
+    std::vector<float> samples;
+    samples.clear();
 
     espeak_SetSynthCallback(&epContext, testSynthCallback);
 
     void* user_data = &samples;
     unsigned int *identifier = nullptr;
-    auto synthError = espeak_Synth(&epContext, text, buflength, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
+    auto synthError = espeak_Synth(&epContext, text, 500, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
 
-     REQUIRE (synthError == EE_OK);
+    REQUIRE (synthError == EE_OK);
 
-     juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 1000);
-     std::cout << "writing samples\n";
-     REQUIRE(samples.size() > 0);
+    juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 400);
+    std::cout << "writing samples\n";
+    REQUIRE(samples.size() > 0);
 
     juce::AudioBuffer<float> buffer;
     buffer.setSize (1, samples.size());
@@ -84,7 +88,7 @@ TEST_CASE ("Basics of espeak", "[espeak]")
 
     juce::WavAudioFormat format;
     std::unique_ptr<juce::AudioFormatWriter> writer;
-    writer.reset (format.createWriterFor (new juce::FileOutputStream (juce::File(juce::File::getCurrentWorkingDirectory().getChildFile ("testHelloWorld.wav"))),
+    writer.reset (format.createWriterFor (new juce::FileOutputStream (juce::File(juce::File::getCurrentWorkingDirectory().getChildFile (outFileName))),
                                           fs,
                                           buffer.getNumChannels(),
                                           24,
@@ -92,6 +96,44 @@ TEST_CASE ("Basics of espeak", "[espeak]")
                                           0));
     REQUIRE (writer != nullptr);
     writer->writeFromAudioSampleBuffer (buffer, 0, buffer.getNumSamples());
+}
+
+TEST_CASE ("Basics of espeak", "[espeak]")
+{
+    EspeakProcessorContext epContext;
+    auto fs = prepareForEpBendTest(epContext);
+    carryOut (epContext, fs, juce::String("testOutHelloWorld.wav"));
+}
+TEST_CASE ("Rotate phonemes", "[espeak-rotphonemes]")
+{
+    EspeakProcessorContext epContext;
+    auto fs = prepareForEpBendTest(epContext);
+    epContext.bends.rotatePhonemes = 1;
+    carryOut (epContext, fs, juce::String("testRotatePhonemes.wav"));
+}
+TEST_CASE ("stick chance", "[espeak-stickchance]")
+{
+    EspeakProcessorContext epContext;
+    auto fs = prepareForEpBendTest(epContext);
+    epContext.bends.stickChance = 0.5;
+    carryOut (epContext, fs, juce::String("testStickChance.wav"));
+}
+
+TEST_CASE("debug print it all", "[printeverything]")
+{
+    EspeakProcessorContext epContext;
+    auto fs = prepareForEpBendTest(epContext);
+    epContext.bends.debugPrintEverything = true;
+    carryOut (epContext, fs, juce::String("debugPrintEverything.wav"));
+}
+
+TEST_CASE("constant pitch", "[constantf0]")
+{
+    EspeakProcessorContext epContext;
+    auto fs = prepareForEpBendTest(epContext);
+    epContext.bends.bendPitch = 440.0f;
+    carryOut (epContext, fs, juce::String("debugContstantPitch.wav"));
+
 }
 
 #ifdef PAMPLEJUCE_IPP

@@ -459,8 +459,6 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 	if ((ix = epContext->wdata.pitch_ix>>8) > 127) ix = 127;
 	if (epContext->wdata.pitch_env) x = epContext->wdata.pitch_env[ix] * epContext->wdata.pitch_range;
 	epContext->wdata.pitch = (x>>8) + epContext->wdata.pitch_base;
-	
-	
 
 	epContext->amp_ix += epContext->amp_inc;
 
@@ -473,6 +471,9 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 	
 	if(epContext->const_f0)
 		epContext->wdata.pitch = (epContext->const_f0<<12);
+    if (epContext->bends.bendPitch > 0) {
+        epContext->wdata.pitch = (int)(epContext->bends.bendPitch * (1<<12));
+    }
 
 	if (epContext->wdata.pitch < 102400)
 		epContext->wdata.pitch = 102400; // min pitch, 25 Hz  (25 << 12)
@@ -486,6 +487,7 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
 		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
 			epContext->peaks[ix].height = 0;
+
 		epContext->peaks[ix].left1 += epContext->peaks[ix].left_inc;
 		epContext->peaks[ix].left = (int)epContext->peaks[ix].left1;
 		if (ix < 3) {
@@ -651,6 +653,16 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[epContext->hswitch], 1);
 
 			SetBreath(epContext);
+		    if (epContext->bends.debugPrintEverything)
+		    {
+		        printf("wave: %i %i %i %i %i %i %i | ",
+		            epContext->samplecount, epContext->phaseinc, epContext->samplecount_start, epContext->wdata.amplitude,
+		            epContext->wdata.pitch, epContext->wdata.amplitude_fmt, epContext->flutter_amp);
+		        for (ix = 0; ix <= epContext->wvoice->n_harmonic_peaks; ix++) {
+		            printf("%f %f %f %f,", epContext->peaks[ix].freq1, epContext->peaks[ix].height1, epContext->peaks[ix].left1, epContext->peaks[ix].right1);
+		        }
+		        printf("\n");
+		    }
 		} else if ((epContext->samplecount & 0x07) == 0) {
 			for (h = 1; h < N_LOWHARM && h <= maxh2 && h <= maxh; h++)
 				epContext->harmspect[h] += epContext->harm_inc[h];

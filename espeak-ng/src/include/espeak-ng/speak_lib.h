@@ -731,7 +731,10 @@ ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char
 
 typedef struct esb
 {
-    int dummy;
+    int rotatePhonemes;
+    float stickChance;
+    bool debugPrintEverything;
+    float bendPitch;
 } EspeakBends;
 
 typedef struct {

@@ -1147,7 +1147,12 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 	while ((ix < (*n_ph)) && (ix < N_PHONEME_LIST-2)) {
 		p = &phoneme_list[ix];
 
-		if(epContext->output_hooks && epContext->output_hooks->outputPhoSymbol)
+	    p->ph = p->ph + (epContext->bends.rotatePhonemes); // BEND TODO: actually rotate. what if we go over the end?
+	    if (ix > 0 && epContext->bends.stickChance * RAND_MAX > (float)rand())
+	    {
+	        p->ph = phoneme_list[ix-1].ph;
+	    }
+	    if(epContext->output_hooks && epContext->output_hooks->outputPhoSymbol)
 		{
 			char buf[30];
 			int dummy=0;
@@ -1210,6 +1215,8 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 				done_phoneme_marker = true;
 			}
 		}
+
+	    // BEND TODO: something with pitch
 
 		switch (p->type)
 		{
@@ -1497,6 +1504,14 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 			DoSpect2(epContext, ph, 2, &fmtp, p, modulation);
 			break;
 		}
+
+	    if (epContext->bends.debugPrintEverything)
+	    {
+	        printf("p: %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i | %u %u %u %u %u %u %u %u %u\n",
+                p->synthflags, p->phcode, p->stresslevel, p->sourceix, p->wordstress, p->tone_ph, p->length, p->env, p->type, p->prepause, p->amp, p->newword, p->pitch1, p->pitch2, p->std_length, p->phontab_addr, p->sound_param,
+                p->ph->mnemonic, p->ph->phflags, p->ph->program, p->ph->code, p->ph->type, p->ph->start_type, p->ph->end_type, p->ph->std_length, p->ph->length_mod);
+	    }
+
 		ix++;
 	}
 	EndPitch(epContext, 1);
