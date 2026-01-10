@@ -6,7 +6,7 @@
 #define HOMER_HOMERPROCESSOR_H
 
 #include "juce_audio_basics/juce_audio_basics.h"
-#include <espeak-ng/speak_lib.h>
+#include "EspeakThread.h"
 
 class HomerProcessor
 {
@@ -19,6 +19,7 @@ public:
     void releaseResources();
 private:
     std::vector<float> samples;
+    std::unique_ptr<EspeakThread> espeakThread;
 };
 
 #endif //HOMER_HOMERPROCESSOR_H

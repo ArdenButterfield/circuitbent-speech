@@ -154,7 +154,7 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z)
     *epContext->out_ptr++ = z;
     *epContext->out_ptr++ = z >> 8;
 
-    if (epContext->pluginBuffer != NULL)
+    if (epContext->pluginBuffer != NULL && epContext->noteEndingEarly == false)
     {
         bool notReady = false;
         while (epContext->readyToProcess == notReady)
@@ -656,6 +656,9 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 	// the required number of samples have been produced
 
 	for (;;) {
+	    if (epContext->noteEndingEarly) {
+	        return 0;
+	    }
 		if ((epContext->end_wave == 0) && (epContext->samplecount == epContext->nsamples))
 			return 0;
 
@@ -872,7 +875,7 @@ static int PlaySilence(EspeakProcessorContext* epContext, int length, bool resum
 		n_samples = length;
 
 	int value = 0;
-	while (n_samples-- > 0) {
+	while ((n_samples-- > 0) && (epContext->noteEndingEarly == false)) {
 		value = (epContext->echo_buf[epContext->echo_tail++] * epContext->echo_amp) >> 8;
 
 		if (epContext->echo_tail >= N_ECHO_BUF)
@@ -907,7 +910,7 @@ static int PlayWave(EspeakProcessorContext* epContext, int length, bool resume, 
 	epContext->nsamples = 0;
 	epContext->samplecount = 0;
 
-	while (n_samples-- > 0) {
+	while ((n_samples-- > 0) && (epContext->noteEndingEarly == false)) {
 		if (scale == 0) {
 			// 16 bits data
 			c = data[ix+1];
@@ -1345,8 +1348,12 @@ static int WavegenFill2(EspeakProcessorContext* epContext)
 		if (result == 0) {
 			WcmdqIncHead(epContext);
 			resume = false;
-		} else
-			resume = true;
+		} else {
+		    resume = true;
+		}
+	    if (epContext->noteEndingEarly) {
+	        return 1;
+	    }
 	}
 
 	return 0;

@@ -5,7 +5,6 @@
 #ifndef HOMER_ESPEAKTHREAD_H
 #define HOMER_ESPEAKTHREAD_H
 
-#include "juce_audio_basics/juce_audio_basics.h"
 #include "juce_core/juce_core.h"
 #include <espeak-ng/speak_lib.h>
 
@@ -16,12 +15,13 @@ public:
     ~EspeakThread() override;
     void resetEspeakContext();
 
+    void endNote();
+
     void run() override;
 
-    void setOutputBuffer(juce::AudioBuffer<float>& buffer);
+    void setOutputBuffer(float* ptr, int numSamples);
+    void process();
     EspeakProcessorContext epContext;
-private:
-    juce::AudioBuffer<float>* outputBuffer;
 };
 
 #endif //HOMER_ESPEAKTHREAD_H

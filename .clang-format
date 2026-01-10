@@ -29,8 +29,8 @@ BraceWrapping: # Allman except for lambdas
   AfterFunction: true
   AfterNamespace: true
   AfterStruct: true
-  BeforeElse: true
-  AfterControlStatement: Always
+  BeforeElse: false
+  AfterControlStatement: Never
   BeforeLambdaBody: false
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: false

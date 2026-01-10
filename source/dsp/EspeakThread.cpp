@@ -5,13 +5,15 @@
 #include "EspeakThread.h"
 #include "windows.h"
 
-EspeakThread::EspeakThread() : Thread("EspeakThread"), outputBuffer(nullptr)
+EspeakThread::EspeakThread() : Thread("EspeakThread")
 {
     resetEspeakContext();
 }
+
 EspeakThread::~EspeakThread()
 {
 }
+
 void EspeakThread::resetEspeakContext()
 {
     const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
@@ -25,15 +27,20 @@ void EspeakThread::resetEspeakContext()
     auto fs = espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
 }
 
-int synthCallback(short *wav, int numsamples, espeak_EVENT *events)
+void EspeakThread::endNote()
 {
-    std::cout << "callback\n";
-    if (wav == nullptr)
-    {
+    epContext.noteEndingEarly = true;
+    epContext.readyToProcess = true;
+    WakeByAddressSingle(&epContext.readyToProcess);
+    stopThread (1);
+}
+
+int synthCallback(short *wav, int, espeak_EVENT*)
+{
+    if (wav == nullptr) {
         return 1;
     }
     return 0;
-
 }
 
 
@@ -59,7 +66,25 @@ void EspeakThread::run()
     WakeByAddressSingle(&epContext.doneProcessing);
 }
 
-void EspeakThread::setOutputBuffer (juce::AudioBuffer<float>& buffer)
+void EspeakThread::setOutputBuffer (float* ptr, int numSamples)
 {
-    outputBuffer = &buffer;
+    epContext.pluginBuffer = ptr;
+    epContext.pluginBufferSize = numSamples;
+    epContext.pluginBufferPosition = 0;
+}
+
+void EspeakThread::process()
+{
+    epContext.readyToProcess = true;
+    epContext.doneProcessing = false;
+    epContext.allDone = false;
+
+    bool stillProcessing = false;
+
+    WakeByAddressSingle(&epContext.readyToProcess);
+
+    while (epContext.doneProcessing == stillProcessing)
+    {
+        WaitOnAddress(&epContext.doneProcessing, &stillProcessing, sizeof(bool), INFINITE);
+    }
 }

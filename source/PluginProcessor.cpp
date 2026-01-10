@@ -1,6 +1,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include "dsp/HomerProcessor.h"
+
 //==============================================================================
 PluginProcessor::PluginProcessor()
      : AudioProcessor (BusesProperties()
@@ -86,9 +88,9 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 //==============================================================================
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    std::cout << "prepareToPlay" << std::endl;
+    homerProcessor = std::make_unique<HomerProcessor> ();
+    homerProcessor->prepareToPlay (sampleRate, samplesPerBlock);
 }
 
 void PluginProcessor::releaseResources()
@@ -122,8 +124,6 @@ bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                               juce::MidiBuffer& midiMessages)
 {
-    juce::ignoreUnused (midiMessages);
-
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
@@ -137,17 +137,22 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
+    int noteStartSample = -1;
+    int midiNote = -1;
+    for (const auto& message : midiMessages) {
+        auto m = message.getMessage();
+        if (m.isNoteOn ()) {
+            midiNote = m.getNoteNumber();
+            noteStartSample = message.samplePosition;
+        }
+    }
+    if (noteStartSample >= 0) {
+        std::cout << "note on:" << noteStartSample << " " << midiNote  << std::endl;
+        homerProcessor->processBlock (buffer, 0, noteStartSample, false);
+        homerProcessor->processBlock (buffer, noteStartSample, buffer.getNumSamples() - noteStartSample, true);
+    } else {
+        std::cout << "ho hum"  << std::endl;
+        homerProcessor->processBlock (buffer, 0, buffer.getNumSamples(), false);
     }
 }
 

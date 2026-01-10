@@ -140,7 +140,6 @@ TEST_CASE("constant pitch", "[constantf0]")
 
 TEST_CASE("Espeak thread", "[espeakthread]")
 {
-    std::cout << "espeak thread" << std::endl;
     EspeakThread espeakThread;
     juce::AudioBuffer<float> buffer;
     juce::AudioBuffer<float> finalOutBuffer;
@@ -155,8 +154,6 @@ TEST_CASE("Espeak thread", "[espeakthread]")
     espeakThread.epContext.readyToProcess = true;
     espeakThread.epContext.doneProcessing = false;
     espeakThread.epContext.allDone = false;
-
-    std::cout << "starting thread" << std::endl;
 
     espeakThread.startThread ();
 
@@ -184,6 +181,69 @@ TEST_CASE("Espeak thread", "[espeakthread]")
     juce::WavAudioFormat format;
     std::unique_ptr<juce::AudioFormatWriter> writer;
     writer.reset (format.createWriterFor (new juce::FileOutputStream (juce::File(juce::File::getCurrentWorkingDirectory().getChildFile ("espeakDirectToBuffer.wav"))),
+                                          22050,
+                                          finalOutBuffer.getNumChannels(),
+                                          24,
+                                          {},
+                                          0));
+    REQUIRE (writer != nullptr);
+    writer->writeFromAudioSampleBuffer (finalOutBuffer, 0, finalOutBuffer.getNumSamples());
+}
+
+TEST_CASE("Ending early", "[espeakthreadendearly]")
+{
+    EspeakThread espeakThread;
+    juce::AudioBuffer<float> buffer;
+    juce::AudioBuffer<float> finalOutBuffer;
+    finalOutBuffer.setSize(1, 40000);
+    finalOutBuffer.clear();
+    buffer.setSize (1, 1024);
+
+    espeakThread.epContext.pluginBuffer = buffer.getWritePointer (0);
+    espeakThread.epContext.pluginBufferSize = buffer.getNumSamples();
+    espeakThread.epContext.pluginBufferPosition = 0;
+
+    espeakThread.epContext.readyToProcess = true;
+    espeakThread.epContext.doneProcessing = false;
+    espeakThread.epContext.allDone = false;
+
+    espeakThread.startThread ();
+
+    bool stillProcessing = false;
+    int finalBufferI = 0;
+    int cycleI = 0;
+    while (!espeakThread.epContext.allDone)
+    {
+        if (cycleI == 2)
+        {
+            espeakThread.epContext.noteEndingEarly = true;
+            espeakThread.epContext.readyToProcess = true;
+            WakeByAddressSingle(&espeakThread.epContext.readyToProcess);
+            bool exitedNormally = espeakThread.stopThread (1);
+            REQUIRE(exitedNormally);
+            break;
+        }
+        while (espeakThread.epContext.doneProcessing == stillProcessing)
+        {
+            WaitOnAddress(&espeakThread.epContext.doneProcessing, &stillProcessing, sizeof(bool), INFINITE);
+        }
+        espeakThread.epContext.doneProcessing = false;
+        REQUIRE(buffer.getMagnitude (0,0,buffer.getNumSamples()) > 0);
+        finalOutBuffer.copyFrom (0, finalBufferI, buffer, 0, 0, buffer.getNumSamples());
+        finalBufferI += buffer.getNumSamples();
+        buffer.clear();
+        buffer.setNotClear();
+        espeakThread.epContext.readyToProcess = true;
+        WakeByAddressSingle(&espeakThread.epContext.readyToProcess);
+        cycleI++;
+    }
+
+
+    juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 400);
+
+    juce::WavAudioFormat format;
+    std::unique_ptr<juce::AudioFormatWriter> writer;
+    writer.reset (format.createWriterFor (new juce::FileOutputStream (juce::File(juce::File::getCurrentWorkingDirectory().getChildFile ("espeakDirectToBufferEndearly.wav"))),
                                           22050,
                                           finalOutBuffer.getNumChannels(),
                                           24,

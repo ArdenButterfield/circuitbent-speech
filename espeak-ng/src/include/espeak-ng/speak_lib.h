@@ -763,6 +763,7 @@ struct epc
     bool readyToProcess;
     bool doneProcessing;
     bool allDone;
+    bool noteEndingEarly;
 
     EspeakBends bends;
 
