@@ -48,6 +48,11 @@
 #include "sintab.h"
 #include "speech.h"
 
+#include <corecrt_io.h>
+
+#include <windows.h>
+#include <synchapi.h>
+
 static void SetSynth(EspeakProcessorContext* epContext, int length, int modn, frame_t *fr1, frame_t *fr2, voice_t *v);
 
 // pitch,speed,
@@ -143,6 +148,33 @@ static const unsigned char pitch_adjust_tab[MAX_PITCH_VALUE+1] = {
 	217, 220, 223, 226, 229, 232, 236, 239,
 	242, 246, 249, 252, 254, 255
 };
+
+void writeSampleOut(EspeakProcessorContext* epContext, int z)
+{
+    *epContext->out_ptr++ = z;
+    *epContext->out_ptr++ = z >> 8;
+
+    if (epContext->pluginBuffer != NULL)
+    {
+        bool notReady = false;
+        while (epContext->readyToProcess == notReady)
+        {
+            WaitOnAddress (&epContext->readyToProcess, &notReady, sizeof(bool), INFINITE);
+        }
+        float sample = (float)z / (float)(1<<16);
+        epContext->pluginBuffer[epContext->pluginBufferPosition] = sample;
+
+        epContext->pluginBufferPosition++;
+
+        if (epContext->pluginBufferPosition >= epContext->pluginBufferSize)
+        {
+            epContext->readyToProcess = false;
+            epContext->pluginBufferPosition = 0;
+            epContext->doneProcessing = true;
+            WakeByAddressSingle(&epContext->doneProcessing);
+        }
+    }
+}
 
 void WcmdqStop(EspeakProcessorContext* epContext)
 {
@@ -812,8 +844,8 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			if (ov < agc) agc = ov;
 			z = (z1 * agc) >> 8;
 		}
-		*epContext->out_ptr++ = z;
-		*epContext->out_ptr++ = z >> 8;
+	    writeSampleOut (epContext, z);
+
 		if(epContext->output_hooks && epContext->output_hooks->outputVoiced) epContext->output_hooks->outputVoiced(z);
 
 		epContext->echo_buf[epContext->echo_head++] = z;
@@ -846,8 +878,8 @@ static int PlaySilence(EspeakProcessorContext* epContext, int length, bool resum
 		if (epContext->echo_tail >= N_ECHO_BUF)
 			epContext->echo_tail = 0;
 
-		*epContext->out_ptr++ = value;
-		*epContext->out_ptr++ = value >> 8;
+	    writeSampleOut (epContext, value);
+
 		if(epContext->output_hooks && epContext->output_hooks->outputSilence) epContext->output_hooks->outputSilence(value);
 
 		epContext->echo_buf[epContext->echo_head++] = value;
@@ -899,8 +931,8 @@ static int PlayWave(EspeakProcessorContext* epContext, int length, bool resume, 
 		if (epContext->echo_tail >= N_ECHO_BUF)
 			epContext->echo_tail = 0;
 
-		epContext->out_ptr[0] = value;
-		epContext->out_ptr[1] = value >> 8;
+	    writeSampleOut (epContext, value);
+
 		if(epContext->output_hooks && epContext->output_hooks->outputUnvoiced) epContext->output_hooks->outputUnvoiced(value);
 		epContext->out_ptr += 2;
 

@@ -208,6 +208,9 @@ initEspeakContext(EspeakProcessorContext* epContext)
 
     memcpy (epContext->wavemult, defaultWavemult, 101 * sizeof(unsigned char));
 
+    epContext->pluginBuffer = NULL;
+    epContext->pluginBufferPosition = 0;
+    epContext->pluginBufferSize = 0;
 }
 
 

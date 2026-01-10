@@ -756,6 +756,14 @@ typedef struct Translator Translator;
 
 struct epc
 {
+    // Buffer and variables for passing data to plugin
+    int pluginBufferSize;
+    float* pluginBuffer;
+    int pluginBufferPosition;
+    bool readyToProcess;
+    bool doneProcessing;
+    bool allDone;
+
     EspeakBends bends;
 
     // dictionary.c
@@ -1052,6 +1060,7 @@ struct epc
     // the presets are for 22050 Hz sample rate.
     // A different rate will need to recalculate the presets in WavegenInit()
     unsigned char wavemult[N_WAVEMULT];
+
 
 };
 

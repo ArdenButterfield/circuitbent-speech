@@ -1,3 +1,4 @@
+#include "dsp/EspeakThread.h"
 #include "helpers/test_helpers.h"
 #include <PluginProcessor.h>
 #include <catch2/catch_test_macros.hpp>
@@ -74,8 +75,7 @@ void carryOut(EspeakProcessorContext& epContext, int fs, juce::String outFileNam
 
     REQUIRE (synthError == EE_OK);
 
-    juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 400);
-    std::cout << "writing samples\n";
+    // juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 400);
     REQUIRE(samples.size() > 0);
 
     juce::AudioBuffer<float> buffer;
@@ -134,6 +134,63 @@ TEST_CASE("constant pitch", "[constantf0]")
     epContext.bends.bendPitch = 440.0f;
     carryOut (epContext, fs, juce::String("debugContstantPitch.wav"));
 
+}
+
+#include <windows.h> // mutex
+
+TEST_CASE("Espeak thread", "[espeakthread]")
+{
+    std::cout << "espeak thread" << std::endl;
+    EspeakThread espeakThread;
+    juce::AudioBuffer<float> buffer;
+    juce::AudioBuffer<float> finalOutBuffer;
+    finalOutBuffer.setSize(1, 40000);
+    finalOutBuffer.clear();
+    buffer.setSize (1, 1024);
+
+    espeakThread.epContext.pluginBuffer = buffer.getWritePointer (0);
+    espeakThread.epContext.pluginBufferSize = buffer.getNumSamples();
+    espeakThread.epContext.pluginBufferPosition = 0;
+
+    espeakThread.epContext.readyToProcess = true;
+    espeakThread.epContext.doneProcessing = false;
+    espeakThread.epContext.allDone = false;
+
+    std::cout << "starting thread" << std::endl;
+
+    espeakThread.startThread ();
+
+    bool stillProcessing = false;
+    int finalBufferI = 0;
+    while (!espeakThread.epContext.allDone)
+    {
+        while (espeakThread.epContext.doneProcessing == stillProcessing)
+        {
+            WaitOnAddress(&espeakThread.epContext.doneProcessing, &stillProcessing, sizeof(bool), INFINITE);
+        }
+        espeakThread.epContext.doneProcessing = false;
+        REQUIRE(buffer.getMagnitude (0,0,buffer.getNumSamples()) > 0);
+        finalOutBuffer.copyFrom (0, finalBufferI, buffer, 0, 0, buffer.getNumSamples());
+        finalBufferI += buffer.getNumSamples();
+        buffer.clear();
+        buffer.setNotClear();
+        espeakThread.epContext.readyToProcess = true;
+        WakeByAddressSingle(&espeakThread.epContext.readyToProcess);
+
+    }
+
+    juce::Time::waitForMillisecondCounter(juce::Time::getMillisecondCounter() + 400);
+
+    juce::WavAudioFormat format;
+    std::unique_ptr<juce::AudioFormatWriter> writer;
+    writer.reset (format.createWriterFor (new juce::FileOutputStream (juce::File(juce::File::getCurrentWorkingDirectory().getChildFile ("espeakDirectToBuffer.wav"))),
+                                          22050,
+                                          finalOutBuffer.getNumChannels(),
+                                          24,
+                                          {},
+                                          0));
+    REQUIRE (writer != nullptr);
+    writer->writeFromAudioSampleBuffer (finalOutBuffer, 0, finalOutBuffer.getNumSamples());
 }
 
 #ifdef PAMPLEJUCE_IPP
