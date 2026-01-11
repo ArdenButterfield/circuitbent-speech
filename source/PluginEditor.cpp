@@ -1,11 +1,12 @@
 #include "PluginEditor.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processorRef (p)
+    : AudioProcessorEditor (&p), processorRef (p), lyricEditor (processorRef.homerState)
 {
     juce::ignoreUnused (processorRef);
 
     addAndMakeVisible (inspectButton);
+    addAndMakeVisible (lyricEditor);
 
     // this chunk of code instantiates and opens the melatonin inspector
     inspectButton.onClick = [&] {
@@ -41,6 +42,7 @@ void PluginEditor::paint (juce::Graphics& g)
 
 void PluginEditor::resized()
 {
+    lyricEditor.setBounds (getLocalBounds());
     // layout the positions of your child components here
     auto area = getLocalBounds();
     area.removeFromBottom(50);

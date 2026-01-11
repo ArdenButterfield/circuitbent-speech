@@ -5,7 +5,7 @@
 #include "EspeakThread.h"
 #include "windows.h"
 
-EspeakThread::EspeakThread() : Thread("EspeakThread")
+EspeakThread::EspeakThread(HomerState& hs) : Thread("EspeakThread"), homerState(hs)
 {
     resetEspeakContext(22050);
 }
@@ -48,7 +48,7 @@ int synthCallback(short *wav, int, espeak_EVENT*)
 void EspeakThread::run()
 {
     // char text[] = { "I'm just here to make a friend, okay!!! Name's Sea Man got a (voice) in the mix. When it comes to making friends, I got crazy magic tricks" };
-    char text[] = { "She sells seashells by the seashore." };
+
     char voicename[] = { "English (America)" }; // Set voice by its name
 
     auto voiceResult = espeak_SetVoiceByName(&epContext, voicename);
@@ -61,7 +61,9 @@ void EspeakThread::run()
     void* user_data = &samples;
     unsigned int *identifier = nullptr;
 
-    auto synthError = espeak_Synth(&epContext, text, 500, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
+    auto lyrics = homerState.lyrics.toStdString();
+
+    auto synthError = espeak_Synth(&epContext, lyrics.c_str(), 500, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
     epContext.allDone = true;
     epContext.doneProcessing = true;
     WakeByAddressSingle(&epContext.doneProcessing);

@@ -4,7 +4,7 @@
 
 #include "HomerProcessor.h"
 
-HomerProcessor::HomerProcessor()
+HomerProcessor::HomerProcessor(HomerState& hs) : homerState(hs)
 {
 }
 
@@ -14,7 +14,7 @@ void HomerProcessor::prepareToPlay (double fs, int samplesPerBlockExpected)
     resampler.setInputSamplerate (22050);
 
     samplerate = static_cast<int>(fs);
-    espeakThread = std::make_unique<EspeakThread> ();
+    espeakThread = std::make_unique<EspeakThread> (homerState);
     inputBuffer.setSize (1, samplesPerBlockExpected * 2);
 }
 

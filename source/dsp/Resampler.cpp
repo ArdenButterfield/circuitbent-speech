@@ -39,7 +39,6 @@ void Resampler::resampleIntoBuffer (float* destination, int destinationLength, c
 {
     int sourceI = 0;
     int destinationI = 0;
-    std::cout << "pos: " << position << std::endl;
     for (destinationI = 0; destinationI < destinationLength; destinationI++) {
         destination[destinationI] = prevSample * position + prev2Sample * (1 - position);
         position = position + increment;

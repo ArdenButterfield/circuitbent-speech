@@ -89,7 +89,7 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     std::cout << "prepareToPlay" << std::endl;
-    homerProcessor = std::make_unique<HomerProcessor> ();
+    homerProcessor = std::make_unique<HomerProcessor> (homerState);
     homerProcessor->prepareToPlay (sampleRate, samplesPerBlock);
 }
 
