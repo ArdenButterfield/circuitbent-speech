@@ -14,7 +14,7 @@ public:
 
     void prepareToPlay(double realSampleRate);
     void setInputSamplerate(float fs);
-    int getNumSamplesNeeded(int bufferLength);
+    int getNumSamplesNeeded(int bufferLength) const;
     void resampleIntoBuffer(float* destination, int destinationLength, const float* source, int sourceLength);
     void releaseResources();
 private:

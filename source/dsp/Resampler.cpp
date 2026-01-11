@@ -18,7 +18,7 @@ void Resampler::prepareToPlay (double realfs)
     }
     realSampleRate = realfs;
     increment = 1;
-    position = 0;
+    position = 0.5;
     prevSample = 0;
     prev2Sample = 0;
 }
@@ -28,11 +28,9 @@ void Resampler::setInputSamplerate (float fs)
     increment = inputSampleRate / realSampleRate;
 }
 
-int Resampler::getNumSamplesNeeded (int bufferLength)
+int Resampler::getNumSamplesNeeded (int bufferLength) const
 {
-    auto spaceToFill = bufferLength - position;
-    int inputSamplesInSpace = floor(spaceToFill * increment);
-    return inputSamplesInSpace;
+    return floor(bufferLength * increment + position);
 }
 
 void Resampler::resampleIntoBuffer (float* destination, int destinationLength, const float* source, int sourceLength)
@@ -47,7 +45,7 @@ void Resampler::resampleIntoBuffer (float* destination, int destinationLength, c
             prev2Sample = prevSample;
             prevSample = source[sourceI];
             sourceI++;
-            // jassert (destinationI == (destinationLength-1) || sourceI < sourceLength);
+            jassert (sourceI < sourceLength);
         }
     }
 }

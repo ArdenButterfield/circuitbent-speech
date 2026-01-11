@@ -142,7 +142,8 @@ TEST_CASE("constant pitch", "[constantf0]")
 
 TEST_CASE("Espeak thread", "[espeakthread]")
 {
-    EspeakThread espeakThread;
+    HomerState hs;
+    EspeakThread espeakThread(hs);
     juce::AudioBuffer<float> buffer;
     juce::AudioBuffer<float> finalOutBuffer;
     finalOutBuffer.setSize(1, 40000);
@@ -194,7 +195,8 @@ TEST_CASE("Espeak thread", "[espeakthread]")
 
 TEST_CASE("Ending early", "[espeakthreadendearly]")
 {
-    EspeakThread espeakThread;
+    HomerState hs;
+    EspeakThread espeakThread(hs);
     juce::AudioBuffer<float> buffer;
     juce::AudioBuffer<float> finalOutBuffer;
     finalOutBuffer.setSize(1, 40000);
