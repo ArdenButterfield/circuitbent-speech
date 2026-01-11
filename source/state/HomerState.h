@@ -10,7 +10,11 @@
 
 struct HomerState
 {
+    HomerState();
+
     juce::String lyrics;
+    juce::StringArray voiceNames;
+    int currentVoice = 0;
 };
 
 #endif //HOMER_HOMERSTATE_H

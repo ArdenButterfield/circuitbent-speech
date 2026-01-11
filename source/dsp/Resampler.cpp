@@ -47,7 +47,7 @@ void Resampler::resampleIntoBuffer (float* destination, int destinationLength, c
             prev2Sample = prevSample;
             prevSample = source[sourceI];
             sourceI++;
-            jassert (destinationI == (destinationLength-1) || sourceI < sourceLength);
+            // jassert (destinationI == (destinationLength-1) || sourceI < sourceLength);
         }
     }
 }

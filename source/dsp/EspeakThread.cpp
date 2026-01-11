@@ -47,12 +47,8 @@ int synthCallback(short *wav, int, espeak_EVENT*)
 
 void EspeakThread::run()
 {
-    // char text[] = { "I'm just here to make a friend, okay!!! Name's Sea Man got a (voice) in the mix. When it comes to making friends, I got crazy magic tricks" };
-
-    char voicename[] = { "English (America)" }; // Set voice by its name
-
-    auto voiceResult = espeak_SetVoiceByName(&epContext, voicename);
-
+    auto voiceResult = espeak_SetVoiceByName(&epContext, homerState.voiceNames[homerState.currentVoice].toRawUTF8());
+    jassert (voiceResult == 0);
     std::vector<float> samples;
     samples.clear();
 
@@ -64,6 +60,7 @@ void EspeakThread::run()
     auto lyrics = homerState.lyrics.toStdString();
 
     auto synthError = espeak_Synth(&epContext, lyrics.c_str(), 500, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
+    jassert (synthError == 0);
     epContext.allDone = true;
     epContext.doneProcessing = true;
     WakeByAddressSingle(&epContext.doneProcessing);

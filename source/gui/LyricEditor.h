@@ -5,10 +5,10 @@
 #ifndef HOMER_LYRICEDITOR_H
 #define HOMER_LYRICEDITOR_H
 
-#include "juce_gui_basics/juce_gui_basics.h"
 #include "../state/HomerState.h"
+#include "juce_gui_basics/juce_gui_basics.h"
 
-class LyricEditor : public juce::Component, public juce::TextEditor::Listener
+class LyricEditor : public juce::Component, public juce::TextEditor::Listener, public juce::ComboBox::Listener
 {
 public:
     LyricEditor(HomerState& homerState);
@@ -16,11 +16,14 @@ public:
 private:
     void textEditorReturnKeyPressed(juce::TextEditor&) override;
     void textEditorEscapeKeyPressed(juce::TextEditor&) override;
+
+    void comboBoxChanged(juce::ComboBox*) override;
+
     void paint (juce::Graphics& g) override;
     void resized() override;
 
     juce::TextEditor textEditor;
-    juce::ComboBox comboBox;
+    juce::ComboBox voiceSelect;
 
     HomerState& homerState;
 };
