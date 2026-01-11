@@ -7,6 +7,7 @@
 
 #include "juce_gui_basics/juce_gui_basics.h"
 #include "../state/HomerState.h"
+#include <vector>
 
 class BendsPanel : public juce::Component, public juce::Slider::Listener, public juce::Timer, public juce::Button::Listener
 {
@@ -22,12 +23,16 @@ private:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
-    juce::Label singLabel, phonemeRotationLabel, phonemeStickLabel;
-    juce::ToggleButton singButton;
-    juce::Slider phonemeRotationSlider;
-    juce::Slider phonemeStickSlider;
-
     HomerState& homerState;
+
+    std::vector<juce::AudioParameterFloat*> bendParameters;
+    std::vector<juce::AudioParameterBool*> toggleParameters;
+
+    std::vector<std::unique_ptr<juce::Slider>> bendSliders;
+    std::vector<std::unique_ptr<juce::Label>> bendSliderLabels;
+    std::vector<std::unique_ptr<juce::ToggleButton>> toggleButtons;
+    juce::Rectangle<int> sliderZone;
+    juce::Rectangle<int> toggleZone;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BendsPanel);
 };
