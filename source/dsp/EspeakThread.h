@@ -21,6 +21,7 @@ public:
 
     void run() override;
 
+    void setBendParametersFromState();
     void setOutputBuffer(float* ptr, int numSamples);
     void process();
     EspeakProcessorContext epContext;

@@ -14,6 +14,9 @@ PluginProcessor::PluginProcessor()
                      #endif
                        )
 {
+    for (auto& param : homerState.params) {
+        addParameter (param);
+    }
 }
 
 PluginProcessor::~PluginProcessor()
@@ -148,6 +151,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
     if (noteStartSample >= 0) {
         std::cout << "note on:" << noteStartSample << " " << midiNote  << std::endl;
+        homerState.keyFrequency = juce::MidiMessage::getMidiNoteInHertz (midiNote);
         homerProcessor->processBlock (buffer, 0, noteStartSample, false);
         homerProcessor->processBlock (buffer, noteStartSample, buffer.getNumSamples() - noteStartSample, true);
     } else {

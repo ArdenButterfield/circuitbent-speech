@@ -18,9 +18,6 @@ void HomerProcessor::prepareToPlay (double fs, int samplesPerBlockExpected)
     inputBuffer.setSize (1, samplesPerBlockExpected * 2);
 }
 
-void HomerProcessor::setBendParameters (int paramID, float paramValue)
-{
-}
 void HomerProcessor::setText (const juce::String& text)
 {
 }
@@ -48,6 +45,9 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
         }
 
         espeakThread->setOutputBuffer (inputBuffer.getWritePointer (0), numInputSamples);
+
+        espeakThread->setBendParametersFromState();
+
         espeakThread->process();
 
         resampler.resampleIntoBuffer (ptr, numSamples, inputBuffer.getReadPointer (0), numInputSamples);

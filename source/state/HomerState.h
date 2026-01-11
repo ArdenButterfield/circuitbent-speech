@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <juce_core/juce_core.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 
 struct HomerState
 {
@@ -14,7 +15,20 @@ struct HomerState
 
     juce::String lyrics;
     juce::StringArray voiceNames;
-    int currentVoice = 0;
+
+    juce::AudioParameterChoice* currentVoiceParam;
+    juce::AudioParameterBool* singParam;
+    juce::AudioParameterFloat* phonemeRotationParam;
+    juce::AudioParameterFloat* phonemeStickParam;
+
+    const std::vector<juce::AudioProcessorParameter*> params = {
+        currentVoiceParam,
+        singParam,
+        phonemeRotationParam,
+        phonemeStickParam
+    };
+
+    float keyFrequency = 0;
 };
 
 #endif //HOMER_HOMERSTATE_H

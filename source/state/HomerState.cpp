@@ -21,4 +21,9 @@ HomerState::HomerState()
     for (int i = 0; voices[i] != nullptr; i++) {
         voiceNames.add((const char8_t* const)voices[i]->name);
     }
+
+    currentVoiceParam = new juce::AudioParameterChoice({"curvoice", 1}, "current Voice", voiceNames, 7);
+    singParam = new juce::AudioParameterBool({"sing", 1}, "speak/sing", 0);
+    phonemeRotationParam = new juce::AudioParameterFloat({"phonemerotation", 1}, "phoneme rotation", 0, 1, 0);
+    phonemeStickParam = new juce::AudioParameterFloat({"phonemestick", 1}, "phoneme stick", 0, 1, 0);
 }

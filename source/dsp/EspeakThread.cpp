@@ -3,6 +3,7 @@
 //
 
 #include "EspeakThread.h"
+#include "espeak-ng/espeak_ng.h"
 #include "windows.h"
 
 EspeakThread::EspeakThread(HomerState& hs) : Thread("EspeakThread"), homerState(hs)
@@ -64,6 +65,14 @@ void EspeakThread::run()
     epContext.allDone = true;
     epContext.doneProcessing = true;
     WakeByAddressSingle(&epContext.doneProcessing);
+}
+void EspeakThread::setBendParametersFromState()
+{
+    if (homerState.singParam->get()) {
+        espeak_ng_SetConstF0(&epContext, homerState.keyFrequency);
+    }
+
+    epContext.bends.stickChance = homerState.phonemeStickParam->get();
 }
 
 void EspeakThread::setOutputBuffer (float* ptr, int numSamples)
