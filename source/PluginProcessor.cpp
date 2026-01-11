@@ -151,7 +151,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         homerProcessor->processBlock (buffer, 0, noteStartSample, false);
         homerProcessor->processBlock (buffer, noteStartSample, buffer.getNumSamples() - noteStartSample, true);
     } else {
-        std::cout << "ho hum"  << std::endl;
         homerProcessor->processBlock (buffer, 0, buffer.getNumSamples(), false);
     }
 }

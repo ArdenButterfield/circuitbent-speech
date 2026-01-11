@@ -1,5 +1,7 @@
 #include "dsp/EspeakThread.h"
+#include "dsp/Resampler.h"
 #include "helpers/test_helpers.h"
+
 #include <PluginProcessor.h>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -251,6 +253,70 @@ TEST_CASE("Ending early", "[espeakthreadendearly]")
                                           0));
     REQUIRE (writer != nullptr);
     writer->writeFromAudioSampleBuffer (finalOutBuffer, 0, finalOutBuffer.getNumSamples());
+}
+
+TEST_CASE("No pops on resampler", "[resampler]")
+{
+    Resampler resampler;
+    resampler.prepareToPlay (44100);
+    resampler.setInputSamplerate (22050);
+
+    juce::AudioBuffer<float> buffer;
+    juce::AudioBuffer<float> inBuffer;
+    buffer.setSize (1, 480);
+    inBuffer.setSize (1, 500);
+    float angle = 0;
+    float next, prev = 0;
+    float next_out, prev_out = 0;
+    for (auto iter = 0; iter < 5; ++iter) {
+        auto numSamplesNeeded = resampler.getNumSamplesNeeded (buffer.getNumSamples());
+        for (auto samp = 0; samp < numSamplesNeeded; ++samp) {
+            next = sin (angle);
+            REQUIRE(abs(next - prev) < 0.02);
+            inBuffer.setSample(0, samp, next);
+            prev = next;
+            angle += 0.01;
+            while (angle > 2 * M_PI) {
+                angle -= 2 * M_PI;
+            }
+        }
+        resampler.resampleIntoBuffer (buffer.getWritePointer (0,0), buffer.getNumSamples(), inBuffer.getReadPointer (0,0), numSamplesNeeded);
+        for (auto samp = 0; samp < buffer.getNumSamples(); ++samp) {
+            next_out = buffer.getSample (0, samp);
+            REQUIRE(abs(next_out - prev_out) < 0.02);
+            prev_out = next_out;
+        }
+
+    }
+    resampler.prepareToPlay (44100);
+    resampler.setInputSamplerate (2000);
+
+    buffer.setSize (1, 67);
+    inBuffer.setSize (1, 500);
+    angle = 0;
+    prev = 0;
+    prev_out = 0;
+    for (auto iter = 0; iter < 20; ++iter) {
+        auto numSamplesNeeded = resampler.getNumSamplesNeeded (buffer.getNumSamples());
+        for (auto samp = 0; samp < numSamplesNeeded; ++samp) {
+            next = sin (angle);
+            REQUIRE(abs(next - prev) < 0.02);
+            inBuffer.setSample(0, samp, next);
+            prev = next;
+            angle += 0.01;
+            while (angle > 2 * M_PI) {
+                angle -= 2 * M_PI;
+            }
+        }
+        resampler.resampleIntoBuffer (buffer.getWritePointer (0,0), buffer.getNumSamples(), inBuffer.getReadPointer (0,0), numSamplesNeeded);
+        for (auto samp = 0; samp < buffer.getNumSamples(); ++samp) {
+            next_out = buffer.getSample (0, samp);
+            std::cout << next_out << " ";
+            // REQUIRE(abs(next_out - prev_out) < 0.002);
+            prev_out = next_out;
+        }
+
+    }
 }
 
 #ifdef PAMPLEJUCE_IPP

@@ -8,9 +8,14 @@ HomerProcessor::HomerProcessor()
 {
 }
 
-void HomerProcessor::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
+void HomerProcessor::prepareToPlay (double fs, int samplesPerBlockExpected)
 {
+    resampler.prepareToPlay (fs);
+    resampler.setInputSamplerate (22050);
+
+    samplerate = static_cast<int>(fs);
     espeakThread = std::make_unique<EspeakThread> ();
+    inputBuffer.setSize (1, samplesPerBlockExpected * 2);
 }
 
 void HomerProcessor::setBendParameters (int paramID, float paramValue)
@@ -30,14 +35,22 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
     }
 
     if (startNewNote) {
-        espeakThread->resetEspeakContext();
+        espeakThread->resetEspeakContext(samplerate);
         auto started = espeakThread->startThread();
         jassert (started && espeakThread->isThreadRunning());
     }
 
     if (espeakThread->isThreadRunning()) {
-        espeakThread->setOutputBuffer (ptr, numSamples);
+        inputBuffer.clear();
+        auto numInputSamples = resampler.getNumSamplesNeeded (numSamples);
+        if (numInputSamples > inputBuffer.getNumSamples()) {
+            inputBuffer.setSize (1, numInputSamples);
+        }
+
+        espeakThread->setOutputBuffer (inputBuffer.getWritePointer (0), numInputSamples);
         espeakThread->process();
+
+        resampler.resampleIntoBuffer (ptr, numSamples, inputBuffer.getReadPointer (0), numInputSamples);
 
         for (int channel = 1; channel < buffer.getNumChannels(); ++channel) {
             buffer.copyFrom (channel, startSample, ptr, numSamples);

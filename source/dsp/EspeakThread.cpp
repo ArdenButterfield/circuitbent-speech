@@ -7,14 +7,14 @@
 
 EspeakThread::EspeakThread() : Thread("EspeakThread")
 {
-    resetEspeakContext();
+    resetEspeakContext(22050);
 }
 
 EspeakThread::~EspeakThread()
 {
 }
 
-void EspeakThread::resetEspeakContext()
+void EspeakThread::resetEspeakContext(int fs)
 {
     const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
@@ -24,7 +24,8 @@ void EspeakThread::resetEspeakContext()
 
     initEspeakContext(&epContext);
 
-    auto fs = espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
+    espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
+    // epContext.samplerate = fs;
 }
 
 void EspeakThread::endNote()

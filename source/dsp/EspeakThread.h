@@ -13,7 +13,7 @@ class EspeakThread : public juce::Thread
 public:
     EspeakThread();
     ~EspeakThread() override;
-    void resetEspeakContext();
+    void resetEspeakContext(int fs);
 
     void endNote();
 

@@ -7,19 +7,23 @@
 
 #include "juce_audio_basics/juce_audio_basics.h"
 #include "EspeakThread.h"
+#include "Resampler.h"
 
 class HomerProcessor
 {
 public:
     HomerProcessor();
-    void prepareToPlay(int samplesPerBlockExpected, double sampleRate);
+    void prepareToPlay(double sampleRate, int samplesPerBlockExpected);
     void setBendParameters(int paramID, float paramValue);
     void setText(const juce::String &text);
     void processBlock(juce::AudioSampleBuffer &buffer, unsigned int startSample, unsigned int numSamples, bool startNewNote);
     void releaseResources();
 private:
-    std::vector<float> samples;
+    juce::AudioBuffer<float> inputBuffer;
     std::unique_ptr<EspeakThread> espeakThread;
+    int samplerate;
+    Resampler resampler;
+
 };
 
 #endif //HOMER_HOMERPROCESSOR_H
