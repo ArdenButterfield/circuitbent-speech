@@ -3,7 +3,8 @@
 //
 
 #include "BendsPanel.h"
-BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
+
+BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), singButton ("Speak/Sing")
 {
     addAndMakeVisible (phonemeStickLabel);
     addAndMakeVisible (phonemeStickSlider);
@@ -18,6 +19,14 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
     phonemeStickSlider.setSliderStyle (juce::Slider::SliderStyle::RotaryVerticalDrag);
     phonemeRotationSlider.setSliderStyle (juce::Slider::SliderStyle::RotaryVerticalDrag);
 
+    phonemeStickSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 100, 40);
+    phonemeRotationSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 100, 40);
+
+    phonemeRotationSlider.setRange (
+        homerState.phonemeRotationParam->getNormalisableRange().start, homerState.phonemeRotationParam->getNormalisableRange().end);
+    phonemeStickSlider.setRange (
+        homerState.phonemeStickParam->getNormalisableRange().start, homerState.phonemeStickParam->getNormalisableRange().end);
+
     phonemeRotationLabel.setText ("Phoneme Rotation", juce::dontSendNotification);
     phonemeStickLabel.setText ("Phoneme Stick", juce::dontSendNotification);
     singLabel.setText ("Speak/Sing", juce::dontSendNotification);
@@ -27,6 +36,19 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
     singButton.addListener (this);
 
     startTimerHz (30);
+
+    phonemeStickSlider.setColour (juce::Slider::ColourIds::textBoxOutlineColourId, juce::Colours::black);
+    phonemeRotationSlider.setColour (juce::Slider::ColourIds::textBoxOutlineColourId, juce::Colours::black);
+    phonemeStickSlider.setColour (juce::Slider::ColourIds::textBoxOutlineColourId, juce::Colours::black);
+    phonemeRotationSlider.setColour (juce::Slider::ColourIds::textBoxOutlineColourId, juce::Colours::black);
+
+    phonemeRotationLabel.setColour (juce::Label::ColourIds::textColourId, juce::Colours::black);
+    phonemeStickLabel.setColour (juce::Label::ColourIds::textColourId, juce::Colours::black);
+    singLabel.setColour (juce::Label::ColourIds::textColourId, juce::Colours::black);
+
+    singButton.setColour (juce::ToggleButton::ColourIds::textColourId, juce::Colours::black);
+    singButton.setColour (juce::ToggleButton::ColourIds::tickColourId, juce::Colours::black);
+
 }
 BendsPanel::~BendsPanel()
 {
