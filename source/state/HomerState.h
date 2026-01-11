@@ -21,12 +21,7 @@ struct HomerState
     juce::AudioParameterFloat* phonemeRotationParam;
     juce::AudioParameterFloat* phonemeStickParam;
 
-    const std::vector<juce::AudioProcessorParameter*> params = {
-        currentVoiceParam,
-        singParam,
-        phonemeRotationParam,
-        phonemeStickParam
-    };
+    std::vector<juce::AudioProcessorParameter*> params;
 
     float keyFrequency = 0;
 };

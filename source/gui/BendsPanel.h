@@ -1,0 +1,35 @@
+//
+// Created by Arden on 1/11/2026.
+//
+
+#ifndef HOMER_BENDSPANEL_H
+#define HOMER_BENDSPANEL_H
+
+#include "juce_gui_basics/juce_gui_basics.h"
+#include "../state/HomerState.h"
+
+class BendsPanel : public juce::Component, public juce::Slider::Listener, public juce::Timer, public juce::Button::Listener
+{
+public:
+    BendsPanel(HomerState& hs);
+    ~BendsPanel() override;
+
+private:
+    void timerCallback() override;
+    void sliderValueChanged (juce::Slider*) override;
+    void buttonClicked(juce::Button*) override;
+    void buttonStateChanged(juce::Button*) override;
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+    juce::Label singLabel, phonemeRotationLabel, phonemeStickLabel;
+    juce::ToggleButton singButton;
+    juce::Slider phonemeRotationSlider;
+    juce::Slider phonemeStickSlider;
+
+    HomerState& homerState;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BendsPanel);
+};
+
+#endif //HOMER_BENDSPANEL_H

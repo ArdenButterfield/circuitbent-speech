@@ -30,7 +30,7 @@ void LyricEditor::textEditorEscapeKeyPressed (juce::TextEditor& text_editor)
 void LyricEditor::comboBoxChanged (juce::ComboBox*)
 {
     auto id = voiceSelect.getSelectedItemIndex();
-    homerState.currentVoice = std::min(std::max(0, id), homerState.voiceNames.size() - 1);
+    *homerState.currentVoiceParam = std::min(std::max(0, id), homerState.voiceNames.size() - 1);
 }
 
 void LyricEditor::paint (juce::Graphics& g)

@@ -48,7 +48,8 @@ int synthCallback(short *wav, int, espeak_EVENT*)
 
 void EspeakThread::run()
 {
-    auto voiceResult = espeak_SetVoiceByName(&epContext, homerState.voiceNames[homerState.currentVoice].toRawUTF8());
+    std::cout << "setting voice to " << homerState.voiceNames[*homerState.currentVoiceParam] << std::endl;
+    auto voiceResult = espeak_SetVoiceByName(&epContext, homerState.voiceNames[*homerState.currentVoiceParam].toRawUTF8());
     jassert (voiceResult == 0);
     std::vector<float> samples;
     samples.clear();

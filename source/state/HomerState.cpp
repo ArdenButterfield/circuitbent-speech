@@ -26,4 +26,9 @@ HomerState::HomerState()
     singParam = new juce::AudioParameterBool({"sing", 1}, "speak/sing", 0);
     phonemeRotationParam = new juce::AudioParameterFloat({"phonemerotation", 1}, "phoneme rotation", 0, 1, 0);
     phonemeStickParam = new juce::AudioParameterFloat({"phonemestick", 1}, "phoneme stick", 0, 1, 0);
+
+    params.push_back(currentVoiceParam);
+    params.push_back(singParam);
+    params.push_back(phonemeRotationParam);
+    params.push_back(phonemeStickParam);
 }

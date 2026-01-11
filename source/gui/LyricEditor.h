@@ -26,6 +26,8 @@ private:
     juce::ComboBox voiceSelect;
 
     HomerState& homerState;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LyricEditor);
 };
 
 #endif //HOMER_LYRICEDITOR_H
