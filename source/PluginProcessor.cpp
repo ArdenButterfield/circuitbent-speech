@@ -2,6 +2,7 @@
 #include "PluginEditor.h"
 
 #include "dsp/HomerProcessor.h"
+#include <algorithm>
 
 //==============================================================================
 PluginProcessor::PluginProcessor()
@@ -146,15 +147,31 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         auto m = message.getMessage();
         if (m.isNoteOn ()) {
             midiNote = m.getNoteNumber();
-            noteStartSample = message.samplePosition;
+            if (homerState.currentMidiNotes.empty()) {
+                noteStartSample = message.samplePosition;
+            }
+            homerState.currentMidiNotes.push_back (midiNote);
+        } else if (m.isNoteOff ()) {
+            auto midiNote = m.getNoteNumber();
+            auto it = std::find(homerState.currentMidiNotes.begin(), homerState.currentMidiNotes.end(), midiNote);
+            if (it != homerState.currentMidiNotes.end()) {
+                homerState.currentMidiNotes.erase (it);
+            }
         }
     }
+
     if (noteStartSample >= 0) {
-        std::cout << "note on:" << noteStartSample << " " << midiNote  << std::endl;
-        homerState.keyFrequency = juce::MidiMessage::getMidiNoteInHertz (midiNote);
         homerProcessor->processBlock (buffer, 0, noteStartSample, false);
+        if (!homerState.currentMidiNotes.empty()) {
+            homerState.keyFrequency = juce::MidiMessage::getMidiNoteInHertz (homerState.currentMidiNotes.back());
+        }
+
         homerProcessor->processBlock (buffer, noteStartSample, buffer.getNumSamples() - noteStartSample, true);
     } else {
+        if (!homerState.currentMidiNotes.empty()) {
+            homerState.keyFrequency = juce::MidiMessage::getMidiNoteInHertz (homerState.currentMidiNotes.back());
+        }
+
         homerProcessor->processBlock (buffer, 0, buffer.getNumSamples(), false);
     }
 }

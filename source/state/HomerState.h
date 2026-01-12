@@ -6,6 +6,7 @@
 #define HOMER_HOMERSTATE_H
 
 #include <vector>
+#include <stack>
 #include <juce_core/juce_core.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -25,7 +26,9 @@ struct HomerState
 
     std::vector<juce::AudioProcessorParameter*> params;
 
+    std::vector<int> currentMidiNotes;
     float keyFrequency = 0;
+    bool noteCurrentlyDown = false;
 };
 
 #endif //HOMER_HOMERSTATE_H
