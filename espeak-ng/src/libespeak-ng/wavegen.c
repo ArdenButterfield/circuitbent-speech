@@ -151,8 +151,10 @@ static const unsigned char pitch_adjust_tab[MAX_PITCH_VALUE+1] = {
 
 void writeSampleOut(EspeakProcessorContext* epContext, int z)
 {
-    *epContext->out_ptr++ = z;
-    *epContext->out_ptr++ = z >> 8;
+    if (!epContext->bends.freeze) {
+        *epContext->out_ptr++ = z;
+        *epContext->out_ptr++ = z >> 8;
+    }
 
     if (epContext->pluginBuffer != NULL && epContext->noteEndingEarly == false)
     {
@@ -706,9 +708,11 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			if (agc < 256) agc++;
 		}
 
-		epContext->samplecount++;
+        if (!epContext->bends.freeze) {
+            epContext->samplecount++;
+	    }
 
-		if (epContext->wavephase > 0) {
+        if (epContext->wavephase > 0) {
 			epContext->wavephase += epContext->phaseinc;
 			if (epContext->wavephase < 0) {
 				// sign has changed, reached a quiet point in the waveform
@@ -937,7 +941,7 @@ static int PlayWave(EspeakProcessorContext* epContext, int length, bool resume, 
 	    writeSampleOut (epContext, value);
 
 		if(epContext->output_hooks && epContext->output_hooks->outputUnvoiced) epContext->output_hooks->outputUnvoiced(value);
-		epContext->out_ptr += 2;
+		// epContext->out_ptr += 2;
 
 		epContext->echo_buf[epContext->echo_head++] = (value*3)/4;
 		if (epContext->echo_head >= N_ECHO_BUF)

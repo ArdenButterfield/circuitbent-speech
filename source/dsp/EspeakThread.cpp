@@ -74,6 +74,7 @@ void EspeakThread::setBendParametersFromState()
     }
 
     epContext.bends.stickChance = homerState.phonemeStickParam->get();
+    epContext.bends.freeze = homerState.freezeParam->get();
 }
 
 void EspeakThread::setOutputBuffer (float* ptr, int numSamples)

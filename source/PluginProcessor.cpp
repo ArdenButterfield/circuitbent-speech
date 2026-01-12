@@ -162,6 +162,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     if (noteStartSample >= 0) {
         homerProcessor->processBlock (buffer, 0, noteStartSample, false);
+
+        buffer.applyGainRamp(0, noteStartSample, 1, 0);
+
         if (!homerState.currentMidiNotes.empty()) {
             homerState.keyFrequency = juce::MidiMessage::getMidiNoteInHertz (homerState.currentMidiNotes.back());
         }

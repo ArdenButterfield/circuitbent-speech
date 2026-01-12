@@ -12,6 +12,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
     bendParameters.push_back (homerState.amountOfAliasing);
 
     toggleParameters.push_back (homerState.singParam);
+    toggleParameters.push_back (homerState.freezeParam);
 
     for (auto& bendParameter : bendParameters) {
         auto slider = std::make_unique<juce::Slider>();
@@ -22,7 +23,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
         slider->addListener (this);
 
         if (slider->getMaximum() > 10000) {
-            slider->setSkewFactorFromMidPoint (std::sqrt(slider->getMaximum()));
+            slider->setSkewFactorFromMidPoint (slider->getMaximum() / 10);
         }
 
         auto label = std::make_unique<juce::Label>();

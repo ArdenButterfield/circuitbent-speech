@@ -19,6 +19,7 @@ struct HomerState
 
     juce::AudioParameterChoice* currentVoiceParam;
     juce::AudioParameterBool* singParam;
+    juce::AudioParameterBool* freezeParam;
     juce::AudioParameterFloat* phonemeRotationParam;
     juce::AudioParameterFloat* phonemeStickParam;
     juce::AudioParameterFloat* clockSpeed;

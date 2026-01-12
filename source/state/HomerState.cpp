@@ -22,8 +22,12 @@ HomerState::HomerState()
         voiceNames.add((const char8_t* const)voices[i]->name);
     }
 
+    // ownership passed to juce in AudioProcessor constructor, which handles deletion
     currentVoiceParam = new juce::AudioParameterChoice({"curvoice", 1}, "current Voice", voiceNames, 33);
-    singParam = new juce::AudioParameterBool({"sing", 1}, "speak/sing", 0);
+
+    singParam = new juce::AudioParameterBool({"sing", 1}, "speak/sing", false);
+    freezeParam = new juce::AudioParameterBool({"freeze", 1}, "freeze", false);
+
     phonemeRotationParam = new juce::AudioParameterFloat({"phonemerotation", 1}, "phoneme rotation", 0, 1, 0);
     phonemeStickParam = new juce::AudioParameterFloat({"phonemestick", 1}, "phoneme stick", 0, 1, 0);
     clockSpeed = new juce::AudioParameterFloat({"clockspeed", 1}, "clock speed", 0, 22050, 22050);
@@ -31,6 +35,7 @@ HomerState::HomerState()
 
     params.push_back(currentVoiceParam);
     params.push_back(singParam);
+    params.push_back (freezeParam);
     params.push_back(phonemeRotationParam);
     params.push_back(phonemeStickParam);
     params.push_back(clockSpeed);
