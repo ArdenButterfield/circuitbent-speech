@@ -178,6 +178,31 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z)
     }
 }
 
+short int fetchSineFromTable(EspeakProcessorContext* epContext, int theta)
+{
+    const short int amp = 8191;
+    const short int period = 2048;
+
+    float wtShape = epContext->bends.wavetableShape;
+    if (wtShape < 0.5) {
+        // progressive bitcrush from sine to square
+        float pos = wtShape * 2;
+        short int step = (short int)(pos * (float)amp);
+        if (step < 1) {
+            return sin_tab[theta];
+        }
+        return (sin_tab[theta] / step) * step;
+
+    } else {
+        // morph from square to saw
+        float pos = (wtShape - 0.5f) * 2;
+        float saw = (theta * 2 * amp) / period - amp;
+        float square = theta < (period / 2) ? -amp : amp;
+        return (short int)(saw * pos + square * (1 - period));
+    }
+    return saw_tab[theta];
+}
+
 void WcmdqStop(EspeakProcessorContext* epContext)
 {
 	epContext->wcmdq_head = 0;
@@ -787,7 +812,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		if (epContext->cbytes >= 0 && epContext->cbytes < epContext->wavemult_max) {
 			for (pk = wvoice->n_harmonic_peaks+1; pk < N_PEAKS; pk++) {
 				theta = epContext->peak_harmonic[pk] * waveph;
-				total += (long)sin_tab[theta >> 5] * epContext->peak_height[pk];
+				total += (long)fetchSineFromTable(epContext, theta >> 5) * epContext->peak_height[pk];
 			}
 
 			// spread the peaks by multiplying by a window
@@ -798,11 +823,11 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		theta = waveph;
 
 		for (h = 1; h <= h_switch_sign; h++) {
-			total += ((int)sin_tab[theta >> 5] * epContext->harmspect[h]);
+			total += ((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);
 			theta += waveph;
 		}
 		while (h <= maxh) {
-			total -= ((int)sin_tab[theta >> 5] * epContext->harmspect[h]);
+			total -= ((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);
 			theta += waveph;
 			h++;
 		}

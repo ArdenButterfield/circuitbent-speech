@@ -32,6 +32,7 @@ HomerState::HomerState()
     phonemeStickParam = new juce::AudioParameterFloat({"phonemestick", 1}, "phoneme stick", 0, 1, 0);
     clockSpeed = new juce::AudioParameterFloat({"clockspeed", 1}, "clock speed", 0, 22050, 22050);
     amountOfAliasing = new juce::AudioParameterFloat({"aliasingamount", 1}, "aliasing amount", 0, 1, 0);
+    wavetableShape = new juce::AudioParameterFloat({"wavetableshape", 1}, "wavetable shape", 0, 1, 0);
 
     params.push_back(currentVoiceParam);
     params.push_back(singParam);

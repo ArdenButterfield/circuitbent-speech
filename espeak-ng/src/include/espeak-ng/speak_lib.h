@@ -736,6 +736,7 @@ typedef struct esb
     bool debugPrintEverything;
     float bendPitch;
     bool freeze;
+    float wavetableShape;
 } EspeakBends;
 
 typedef struct {

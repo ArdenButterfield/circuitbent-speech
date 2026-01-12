@@ -18,12 +18,15 @@ struct HomerState
     juce::StringArray voiceNames;
 
     juce::AudioParameterChoice* currentVoiceParam;
+
     juce::AudioParameterBool* singParam;
     juce::AudioParameterBool* freezeParam;
+
     juce::AudioParameterFloat* phonemeRotationParam;
     juce::AudioParameterFloat* phonemeStickParam;
     juce::AudioParameterFloat* clockSpeed;
     juce::AudioParameterFloat* amountOfAliasing;
+    juce::AudioParameterFloat* wavetableShape;
 
     std::vector<juce::AudioProcessorParameter*> params;
 

@@ -10,6 +10,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
     bendParameters.push_back (homerState.phonemeRotationParam);
     bendParameters.push_back (homerState.clockSpeed);
     bendParameters.push_back (homerState.amountOfAliasing);
+    bendParameters.push_back (homerState.wavetableShape);
 
     toggleParameters.push_back (homerState.singParam);
     toggleParameters.push_back (homerState.freezeParam);

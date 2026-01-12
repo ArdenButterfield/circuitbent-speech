@@ -261,11 +261,24 @@ sineX = np.array([0, -25, -50, -75, -100, -125, -150, -175,
 squareX = np.zeros(sineX.shape)
 squareX[:1024] = min(sineX)
 squareX[1024:] = max(sineX)
+sawX = np.zeros(sineX.shape)
+smin = min(sineX)
+smax = max(sineX)
+for i in range(len(sawX)):
+    sawX[i] = smin + i * (smax - smin) / len(sawX)
 
-print(max(abs(sineX)))
-print(len(sineX))
+bitcrushed_sine = np.zeros(sineX.shape)
+for i in range(len(sineX)):
+    bitcrushed_sine[i] = (sineX[i] // 1000) * 1000
+
+bitcrushed_sine -= np.mean(bitcrushed_sine)
+
+bitcrushed_sine *= max(abs(sineX)) / max(abs(bitcrushed_sine))
+
 plt.plot(sineX)
 plt.plot(squareX)
+plt.plot(sawX)
+plt.plot(bitcrushed_sine)
 
 def prettyPrint(x):
     for i in range(len(x)):
@@ -273,4 +286,7 @@ def prettyPrint(x):
         if (i + 1) % 8 == 0:
             print()
 plt.show()
-prettyPrint(squareX)
+# prettyPrint(bitcrushed_sine)
+
+print(max(abs(sineX)))
+print(len(sineX))
