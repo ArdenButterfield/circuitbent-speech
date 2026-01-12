@@ -13,6 +13,10 @@ LyricEditor::LyricEditor(HomerState& hs) : homerState(hs)
     addAndMakeVisible (voiceSelect);
     voiceSelect.addListener (this);
     voiceSelect.addItemList (homerState.voiceNames, 1);
+
+    voiceSelect.addListener (this);
+
+    voiceSelect.setSelectedItemIndex (homerState.currentVoiceParam->getIndex());
 }
 
 LyricEditor::~LyricEditor()

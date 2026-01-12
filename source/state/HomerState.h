@@ -21,6 +21,7 @@ struct HomerState
     juce::AudioParameterFloat* phonemeRotationParam;
     juce::AudioParameterFloat* phonemeStickParam;
     juce::AudioParameterFloat* clockSpeed;
+    juce::AudioParameterFloat* amountOfAliasing;
 
     std::vector<juce::AudioProcessorParameter*> params;
 

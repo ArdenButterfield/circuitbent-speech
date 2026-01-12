@@ -9,6 +9,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
     bendParameters.push_back (homerState.phonemeStickParam);
     bendParameters.push_back (homerState.phonemeRotationParam);
     bendParameters.push_back (homerState.clockSpeed);
+    bendParameters.push_back (homerState.amountOfAliasing);
 
     toggleParameters.push_back (homerState.singParam);
 
@@ -19,6 +20,10 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
         slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 100, 40);
         slider->setRange (bendParameter->getNormalisableRange().start, bendParameter->getNormalisableRange().end);
         slider->addListener (this);
+
+        if (slider->getMaximum() > 10000) {
+            slider->setSkewFactorFromMidPoint (std::sqrt(slider->getMaximum()));
+        }
 
         auto label = std::make_unique<juce::Label>();
         addAndMakeVisible (label.get());

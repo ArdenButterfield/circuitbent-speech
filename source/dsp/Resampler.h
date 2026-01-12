@@ -14,10 +14,14 @@ public:
 
     void prepareToPlay(double realSampleRate);
     void setInputSamplerate(float fs);
+    void setAliasingAmount(float amount);
     int getNumSamplesNeeded(int bufferLength) const;
     void resampleIntoBuffer(float* destination, int destinationLength, const float* source, int sourceLength);
     void releaseResources();
 private:
+    float interpolate(float a, float b, float x) const;
+
+    float aliasingAmount;
     float position;
     float increment;
     float inputSampleRate;

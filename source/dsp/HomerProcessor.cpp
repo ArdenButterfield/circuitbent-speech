@@ -26,6 +26,7 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
 {
     jassert (startSample + numSamples <= buffer.getNumSamples());
     resampler.setInputSamplerate (*homerState.clockSpeed);
+    resampler.setAliasingAmount (*homerState.amountOfAliasing);
     auto ptr = buffer.getWritePointer(0) + startSample;
 
     if (startNewNote && espeakThread->isThreadRunning()) {
