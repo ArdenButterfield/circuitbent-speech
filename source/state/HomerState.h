@@ -6,9 +6,10 @@
 #define HOMER_HOMERSTATE_H
 
 #include <vector>
-#include <stack>
 #include <juce_core/juce_core.h>
 #include <juce_audio_processors/juce_audio_processors.h>
+
+#include "RescaleParameters.h"
 
 struct HomerState
 {
@@ -27,6 +28,8 @@ struct HomerState
     juce::AudioParameterFloat* clockSpeed;
     juce::AudioParameterFloat* amountOfAliasing;
     juce::AudioParameterFloat* wavetableShape;
+
+    RescaleParameters formantFrequencyRescaler;
 
     std::vector<juce::AudioProcessorParameter*> params;
 

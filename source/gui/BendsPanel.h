@@ -5,8 +5,9 @@
 #ifndef HOMER_BENDSPANEL_H
 #define HOMER_BENDSPANEL_H
 
-#include "juce_gui_basics/juce_gui_basics.h"
 #include "../state/HomerState.h"
+#include "RescaleEditor.h"
+#include "juce_gui_basics/juce_gui_basics.h"
 #include <vector>
 
 class BendsPanel : public juce::Component, public juce::Slider::Listener, public juce::Timer, public juce::Button::Listener
@@ -33,6 +34,8 @@ private:
     std::vector<std::unique_ptr<juce::ToggleButton>> toggleButtons;
     juce::Rectangle<int> sliderZone;
     juce::Rectangle<int> toggleZone;
+
+    RescaleEditor formantFrequencyEditor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BendsPanel);
 };

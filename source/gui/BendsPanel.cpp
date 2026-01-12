@@ -4,7 +4,7 @@
 
 #include "BendsPanel.h"
 
-BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
+BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor (homerState.formantFrequencyRescaler)
 {
     bendParameters.push_back (homerState.phonemeStickParam);
     bendParameters.push_back (homerState.phonemeRotationParam);
@@ -51,8 +51,11 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs)
         toggleButtons.push_back (std::move(button));
     }
 
+    addAndMakeVisible (formantFrequencyEditor);
+
     startTimerHz (30);
 }
+
 BendsPanel::~BendsPanel()
 {
 }
@@ -97,10 +100,8 @@ void BendsPanel::paint (juce::Graphics& g)
 void BendsPanel::resized()
 {
     auto usableArea = getLocalBounds().withTrimmedTop (5).withTrimmedLeft (5).withTrimmedRight (5).withTrimmedBottom (5);
-    toggleZone = usableArea.withWidth (200);
+    toggleZone = usableArea.withWidth (200).withTrimmedBottom (150);
     sliderZone = usableArea.withLeft (toggleZone.getRight() + 10);
-    auto paramBounds = juce::Rectangle<int>(0,0,getWidth() / 3, getHeight());
-    auto labelHeight = 50;
 
     for (int i = 0; i < bendParameters.size(); i++) {
         auto zone = sliderZone.withWidth (sliderZone.getWidth() / bendParameters.size())
@@ -113,4 +114,6 @@ void BendsPanel::resized()
         auto zone = toggleZone.withHeight (40).withY (toggleZone.getY() + i * 40);
         toggleButtons[i]->setBounds (zone);
     }
+
+    formantFrequencyEditor.setBounds (usableArea.withWidth (toggleZone.getWidth()).withTop (toggleZone.getBottom() + 10));
 }

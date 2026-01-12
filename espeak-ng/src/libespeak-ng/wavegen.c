@@ -200,7 +200,6 @@ short int fetchSineFromTable(EspeakProcessorContext* epContext, int theta)
         float square = theta < (period / 2) ? -amp : amp;
         return (short int)(saw * pos + square * (1 - period));
     }
-    return saw_tab[theta];
 }
 
 void WcmdqStop(EspeakProcessorContext* epContext)

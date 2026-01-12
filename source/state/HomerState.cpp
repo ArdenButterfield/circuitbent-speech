@@ -6,7 +6,7 @@
 
 #include "espeak-ng/speak_lib.h"
 
-HomerState::HomerState()
+HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale")
 {
     EspeakProcessorContext epContext;
 
@@ -41,4 +41,8 @@ HomerState::HomerState()
     params.push_back(phonemeStickParam);
     params.push_back(clockSpeed);
     params.push_back(amountOfAliasing);
+
+    params.push_back(formantFrequencyRescaler.start);
+    params.push_back(formantFrequencyRescaler.end);
+    params.push_back(formantFrequencyRescaler.curve);
 }
