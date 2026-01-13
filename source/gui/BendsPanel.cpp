@@ -11,6 +11,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor
     bendParameters.push_back (homerState.clockSpeed);
     bendParameters.push_back (homerState.amountOfAliasing);
     bendParameters.push_back (homerState.wavetableShape);
+    bendParameters.push_back (homerState.clockCurrentStealing);
 
     toggleParameters.push_back (homerState.singParam);
     toggleParameters.push_back (homerState.freezeParam);

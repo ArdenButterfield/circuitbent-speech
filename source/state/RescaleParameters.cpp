@@ -11,6 +11,6 @@ RescaleParameters::RescaleParameters(const juce::String baseID, const juce::Stri
 }
 float RescaleParameters::rescale (float x) const
 {
-    float sloped = std::pow (x, std::pow(5.f, *curve));
+    float sloped = std::pow (x, std::pow(5.f, -*curve));
     return (*end - *start) * sloped + *start;
 }

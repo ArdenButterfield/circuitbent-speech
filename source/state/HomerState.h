@@ -28,6 +28,7 @@ struct HomerState
     juce::AudioParameterFloat* clockSpeed;
     juce::AudioParameterFloat* amountOfAliasing;
     juce::AudioParameterFloat* wavetableShape;
+    juce::AudioParameterFloat* clockCurrentStealing;
 
     RescaleParameters formantFrequencyRescaler;
 
@@ -36,6 +37,10 @@ struct HomerState
     std::vector<int> currentMidiNotes;
     float keyFrequency = 0;
     bool noteCurrentlyDown = false;
+
+    float peakLevel;
+    float rmsLevel;
+
 };
 
 #endif //HOMER_HOMERSTATE_H

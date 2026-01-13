@@ -25,7 +25,11 @@ void HomerProcessor::setText (const juce::String& text)
 void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int startSample, unsigned int numSamples, bool startNewNote)
 {
     jassert (startSample + numSamples <= buffer.getNumSamples());
-    resampler.setInputSamplerate (*homerState.clockSpeed);
+
+    auto speedDuck = 1 - 4 * homerState.peakLevel * *homerState.clockCurrentStealing;
+    speedDuck = std::max (speedDuck, 0.1f);
+
+    resampler.setInputSamplerate (*homerState.clockSpeed * speedDuck);
     resampler.setAliasingAmount (*homerState.amountOfAliasing);
     auto ptr = buffer.getWritePointer(0) + startSample;
 

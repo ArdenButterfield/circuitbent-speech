@@ -6,7 +6,7 @@
 
 #include "espeak-ng/speak_lib.h"
 
-HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale")
+HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale"), peakLevel (0), rmsLevel (0)
 {
     EspeakProcessorContext epContext;
 
@@ -33,6 +33,7 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     clockSpeed = new juce::AudioParameterFloat({"clockspeed", 1}, "clock speed", 0, 22050, 22050);
     amountOfAliasing = new juce::AudioParameterFloat({"aliasingamount", 1}, "aliasing amount", 0, 1, 0);
     wavetableShape = new juce::AudioParameterFloat({"wavetableshape", 1}, "wavetable shape", 0, 1, 0);
+    clockCurrentStealing = new juce::AudioParameterFloat({"clockcurrentstealing", 1}, "clock current stealing", 0, 1, 0);
 
     params.push_back(currentVoiceParam);
     params.push_back(singParam);
@@ -41,6 +42,7 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     params.push_back(phonemeStickParam);
     params.push_back(clockSpeed);
     params.push_back(amountOfAliasing);
+    params.push_back (clockCurrentStealing);
 
     params.push_back(formantFrequencyRescaler.start);
     params.push_back(formantFrequencyRescaler.end);
