@@ -6,6 +6,8 @@
 
 BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor (homerState.formantFrequencyRescaler)
 {
+    setTitle ("Bends Panel");
+
     bendParameters.push_back (homerState.phonemeStickParam);
     bendParameters.push_back (homerState.phonemeRotationParam);
     bendParameters.push_back (homerState.clockSpeed);
@@ -22,6 +24,12 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor
         slider->setSliderStyle (juce::Slider::SliderStyle::RotaryVerticalDrag);
         slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 100, 40);
         slider->setRange (bendParameter->getNormalisableRange().start, bendParameter->getNormalisableRange().end);
+        slider->setDoubleClickReturnValue (true,
+            bendParameter->convertFrom0to1 (
+                static_cast<juce::AudioProcessorParameterWithID*>(bendParameter)->getDefaultValue()));
+
+        slider->setTitle (bendParameter->getName (100));
+        slider->setWantsKeyboardFocus (true); // needed for screen reader
         slider->addListener (this);
 
         if (slider->getMaximum() > 10000) {
@@ -100,8 +108,8 @@ void BendsPanel::paint (juce::Graphics& g)
 
 void BendsPanel::resized()
 {
-    auto usableArea = getLocalBounds().withTrimmedTop (5).withTrimmedLeft (5).withTrimmedRight (5).withTrimmedBottom (5);
-    toggleZone = usableArea.withWidth (200).withTrimmedBottom (150);
+    auto usableArea = getLocalBounds().reduced (5);
+    toggleZone = usableArea.withWidth (150).withTrimmedBottom (150);
     sliderZone = usableArea.withLeft (toggleZone.getRight() + 10);
 
     for (int i = 0; i < bendParameters.size(); i++) {

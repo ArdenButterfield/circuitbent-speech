@@ -729,6 +729,19 @@ ESPEAK_API const char *espeak_Info(EspeakProcessorContext* epContext, const char
    path_data  returns the path to espeak_data
 */
 
+typedef struct BendRescaler
+{
+    float start;
+    float end;
+    float curve;
+} BendRescaler;
+
+inline float applyBendRescaler(BendRescaler* rescaler, float x)
+{
+    float sloped = powf (x, powf(5.f, -rescaler->curve));
+    return (rescaler->end - rescaler->start) * sloped + rescaler->start;
+}
+
 typedef struct esb
 {
     int rotatePhonemes;
@@ -737,6 +750,8 @@ typedef struct esb
     float bendPitch;
     bool freeze;
     float wavetableShape;
+
+    BendRescaler formantFrequencyRescaler;
 } EspeakBends;
 
 typedef struct {

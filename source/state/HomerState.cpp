@@ -22,8 +22,14 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
         voiceNames.add((const char8_t* const)voices[i]->name);
     }
 
-    // ownership passed to juce in AudioProcessor constructor, which handles deletion
-    currentVoiceParam = new juce::AudioParameterChoice({"curvoice", 1}, "current Voice", voiceNames, 33);
+    lyricSelector = new juce::AudioParameterInt({"lyricsselector", 1}, "Lyric line", 1, numLyricLines, 1);
+
+    for (int i = 0; i < numLyricLines; i++) {
+        languageSelectors[i] = new juce::AudioParameterChoice(
+            {juce::String("language") + juce::String(i)},
+            juce::String("Language for line ") + juce::String(i),
+            voiceNames, 33); // 33: default to american english
+    }
 
     singParam = new juce::AudioParameterBool({"sing", 1}, "speak/sing", false);
     freezeParam = new juce::AudioParameterBool({"freeze", 1}, "freeze", false);
@@ -35,7 +41,10 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     wavetableShape = new juce::AudioParameterFloat({"wavetableshape", 1}, "wavetable shape", 0, 1, 0);
     clockCurrentStealing = new juce::AudioParameterFloat({"clockcurrentstealing", 1}, "clock current stealing", 0, 1, 0);
 
-    params.push_back(currentVoiceParam);
+    params.push_back(lyricSelector);
+    for (int i = 0; i < numLyricLines; i++) {
+        params.push_back(languageSelectors[i]);
+    }
     params.push_back(singParam);
     params.push_back (freezeParam);
     params.push_back(phonemeRotationParam);

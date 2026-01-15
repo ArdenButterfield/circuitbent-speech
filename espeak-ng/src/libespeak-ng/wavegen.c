@@ -151,7 +151,8 @@ static const unsigned char pitch_adjust_tab[MAX_PITCH_VALUE+1] = {
 
 void writeSampleOut(EspeakProcessorContext* epContext, int z)
 {
-    if (!epContext->bends.freeze) {
+    // if (!epContext->bends.freeze) {
+    if (false) {
         *epContext->out_ptr++ = z;
         *epContext->out_ptr++ = z >> 8;
     }
@@ -541,7 +542,7 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 
 	for (ix = 0; ix <= epContext->wvoice->n_harmonic_peaks; ix++) {
 		epContext->peaks[ix].freq1 += epContext->peaks[ix].freq_inc;
-		epContext->peaks[ix].freq = (int)epContext->peaks[ix].freq1;
+		epContext->peaks[ix].freq = (int) min(INT_MAX * 0.9, INT_MAX * applyBendRescaler(&epContext->bends.formantFrequencyRescaler, epContext->peaks[ix].freq1 / (INT_MAX)));
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
 		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
 			epContext->peaks[ix].height = 0;
@@ -688,7 +689,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		if ((epContext->end_wave == 0) && (epContext->samplecount == epContext->nsamples))
 			return 0;
 
-		if ((epContext->samplecount & 0x3f) == 0) {
+		if (!epContext->bends.freeze && (epContext->samplecount & 0x3f) == 0) {
 			// every 64 samples, adjust the parameters
 			if (epContext->samplecount == 0) {
 				epContext->hswitch = 0;
@@ -724,7 +725,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		        }
 		        printf("\n");
 		    }
-		} else if ((epContext->samplecount & 0x07) == 0) {
+		} else if (!epContext->bends.freeze && (epContext->samplecount & 0x07) == 0) {
 			for (h = 1; h < N_LOWHARM && h <= maxh2 && h <= maxh; h++)
 				epContext->harmspect[h] += epContext->harm_inc[h];
 

@@ -6,6 +6,7 @@
 #define HOMER_HOMERSTATE_H
 
 #include <vector>
+#include <array>
 #include <juce_core/juce_core.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -13,12 +14,18 @@
 
 struct HomerState
 {
+    static constexpr int numLyricLines = 8;
+
     HomerState();
 
-    juce::String lyrics;
+    std::array<juce::String, numLyricLines> lyrics;
+    std::array<juce::AudioParameterChoice*, numLyricLines> languageSelectors;
+
+    juce::AudioParameterInt* lyricSelector;
+
     juce::StringArray voiceNames;
 
-    juce::AudioParameterChoice* currentVoiceParam;
+    // juce::AudioParameterChoice* currentVoiceParam;
 
     juce::AudioParameterBool* singParam;
     juce::AudioParameterBool* freezeParam;

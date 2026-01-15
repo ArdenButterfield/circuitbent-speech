@@ -1,13 +1,15 @@
 #include "PluginEditor.h"
 
 PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p), processorRef (p), lyricEditor (processorRef.homerState), bendsPanel (processorRef.homerState)
+    : AudioProcessorEditor (&p), processorRef (p), lyricsEditor (processorRef.homerState), bendsPanel (processorRef.homerState)
 {
     juce::ignoreUnused (processorRef);
 
-    addAndMakeVisible (inspectButton);
-    addAndMakeVisible (lyricEditor);
+    addAndMakeVisible (lyricsEditor);
     addAndMakeVisible (bendsPanel);
+    addAndMakeVisible (titlePanel);
+
+    addAndMakeVisible (inspectButton);
 
     // this chunk of code instantiates and opens the melatonin inspector
     inspectButton.onClick = [&] {
@@ -22,7 +24,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (600, 400);
+    setSize (800, 400);
     setResizable (true, true);
 }
 
@@ -44,11 +46,9 @@ void PluginEditor::paint (juce::Graphics& g)
 
 void PluginEditor::resized()
 {
-    lyricEditor.setBounds (getLocalBounds().withHeight (100));
-    bendsPanel.setBounds (getLocalBounds().withTrimmedTop (100));
-
-    // layout the positions of your child components here
-    // auto area = getLocalBounds();
-    // area.removeFromBottom(50);
-    // inspectButton.setBounds (getLocalBounds().withSizeKeepingCentre(100, 50));
+    auto area = getLocalBounds().reduced (5);
+    titlePanel.setBounds (area.withHeight (100));
+    bendsPanel.setBounds (area.withTrimmedTop (titlePanel.getBottom() + 5).withLeft (std::max(getWidth() / 2, getRight() - 400)));
+    lyricsEditor.setBounds (bendsPanel.getBounds().withLeft (area.getX()).withRight (bendsPanel.getX() - 5));
+    inspectButton.setBounds (titlePanel.getBounds().withWidth (100).reduced (5));
 }

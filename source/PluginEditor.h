@@ -2,8 +2,11 @@
 
 #include "BinaryData.h"
 #include "PluginProcessor.h"
+
 #include "gui/BendsPanel.h"
-#include "gui/LyricEditor.h"
+#include "gui/LyricsEditor.h"
+#include "gui/TitlePanel.h"
+
 #include "melatonin_inspector/melatonin_inspector.h"
 
 //==============================================================================
@@ -20,9 +23,13 @@ public:
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
+
     PluginProcessor& processorRef;
-    LyricEditor lyricEditor;
+
+    LyricsEditor lyricsEditor;
     BendsPanel bendsPanel;
+    TitlePanel titlePanel;
+
     std::unique_ptr<melatonin::Inspector> inspector;
     juce::TextButton inspectButton { "Inspect the UI" };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)

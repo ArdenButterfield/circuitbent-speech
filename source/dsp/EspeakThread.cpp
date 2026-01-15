@@ -48,8 +48,8 @@ int synthCallback(short *wav, int, espeak_EVENT*)
 
 void EspeakThread::run()
 {
-    std::cout << "setting voice to " << homerState.voiceNames[*homerState.currentVoiceParam] << std::endl;
-    auto voiceResult = espeak_SetVoiceByName(&epContext, homerState.voiceNames[*homerState.currentVoiceParam].toRawUTF8());
+    auto language = homerState.voiceNames[*homerState.languageSelectors[*homerState.lyricSelector - 1]];
+    auto voiceResult = espeak_SetVoiceByName(&epContext, language.toRawUTF8());
     jassert (voiceResult == 0);
     std::vector<float> samples;
     samples.clear();
@@ -59,7 +59,9 @@ void EspeakThread::run()
     void* user_data = &samples;
     unsigned int *identifier = nullptr;
 
-    auto lyrics = homerState.lyrics.toStdString();
+    auto lyrics = homerState.lyrics[*homerState.lyricSelector - 1].toStdString();
+
+    // epContext.bends.debugPrintEverything = true;
 
     auto synthError = espeak_Synth(&epContext, lyrics.c_str(), 500, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
     jassert (synthError == 0);
@@ -76,6 +78,10 @@ void EspeakThread::setBendParametersFromState()
     epContext.bends.stickChance = homerState.phonemeStickParam->get();
     epContext.bends.freeze = homerState.freezeParam->get();
     epContext.bends.wavetableShape = homerState.wavetableShape->get();
+
+    epContext.bends.formantFrequencyRescaler.start = *homerState.formantFrequencyRescaler.start;
+    epContext.bends.formantFrequencyRescaler.end = *homerState.formantFrequencyRescaler.end;
+    epContext.bends.formantFrequencyRescaler.curve = *homerState.formantFrequencyRescaler.curve;
 }
 
 void EspeakThread::setOutputBuffer (float* ptr, int numSamples)

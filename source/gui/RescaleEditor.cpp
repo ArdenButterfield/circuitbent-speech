@@ -24,9 +24,11 @@ RescaleEditor::RescaleEditor (RescaleParameters& p) : parameters (p)
 
     startTimerHz (30);
 }
+
 RescaleEditor::~RescaleEditor()
 {
 }
+
 void RescaleEditor::paint (juce::Graphics& g)
 {
     g.fillAll(juce::Colours::black);
