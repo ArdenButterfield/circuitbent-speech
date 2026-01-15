@@ -5,6 +5,7 @@
 #ifndef HOMER_LYRICSEDITOR_H
 #define HOMER_LYRICSEDITOR_H
 
+#include "InvertedLinearVerticalSlider.h"
 #include "LyricLineEditor.h"
 
 class LyricsEditor : public juce::Component, public juce::Timer, public juce::Slider::Listener
@@ -22,7 +23,7 @@ private:
 
     std::array<std::unique_ptr<LyricLineEditor>, HomerState::numLyricLines> lyrics;
 
-    juce::Slider currentLyricSlider;
+    InvertedLinearVerticalSlider currentLyricSlider;
     HomerState& homerState;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LyricsEditor);
 };
