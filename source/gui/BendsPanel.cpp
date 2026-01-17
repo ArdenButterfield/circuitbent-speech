@@ -17,6 +17,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor
 
     toggleParameters.push_back (homerState.singParam);
     toggleParameters.push_back (homerState.freezeParam);
+    toggleParameters.push_back (homerState.killParam);
 
     for (auto& bendParameter : bendParameters) {
         auto slider = std::make_unique<juce::Slider>();

@@ -542,7 +542,7 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 
 	for (ix = 0; ix <= epContext->wvoice->n_harmonic_peaks; ix++) {
 		epContext->peaks[ix].freq1 += epContext->peaks[ix].freq_inc;
-		epContext->peaks[ix].freq = (int) min(INT_MAX * 0.9, INT_MAX * applyBendRescaler(&epContext->bends.formantFrequencyRescaler, epContext->peaks[ix].freq1 / (INT_MAX)));
+		epContext->peaks[ix].freq = (int) min(max(0.0, INT_MAX * applyBendRescaler(&epContext->bends.formantFrequencyRescaler, epContext->peaks[ix].freq1 / (INT_MAX))), INT_MAX * 0.9);
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
 		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
 			epContext->peaks[ix].height = 0;

@@ -33,7 +33,7 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
     resampler.setAliasingAmount (*homerState.amountOfAliasing);
     auto ptr = buffer.getWritePointer(0) + startSample;
 
-    if (startNewNote && espeakThread->isThreadRunning()) {
+    if ((startNewNote || homerState.killParam->get()) && espeakThread->isThreadRunning()) {
         espeakThread->endNote();
     }
 

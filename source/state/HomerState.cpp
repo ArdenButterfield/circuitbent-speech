@@ -33,6 +33,7 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
 
     singParam = new juce::AudioParameterBool({"sing", 1}, "speak/sing", false);
     freezeParam = new juce::AudioParameterBool({"freeze", 1}, "freeze", false);
+    killParam = new juce::AudioParameterBool({"kill", 1}, "kill", false);
 
     phonemeRotationParam = new juce::AudioParameterFloat({"phonemerotation", 1}, "phoneme rotation", 0, 1, 0);
     phonemeStickParam = new juce::AudioParameterFloat({"phonemestick", 1}, "phoneme stick", 0, 1, 0);
@@ -47,6 +48,8 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     }
     params.push_back(singParam);
     params.push_back (freezeParam);
+    params.push_back(killParam);
+
     params.push_back(phonemeRotationParam);
     params.push_back(phonemeStickParam);
     params.push_back(clockSpeed);
