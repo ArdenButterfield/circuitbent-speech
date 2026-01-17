@@ -37,8 +37,10 @@ struct HomerState
     juce::AudioParameterFloat* amountOfAliasing;
     juce::AudioParameterFloat* wavetableShape;
     juce::AudioParameterFloat* clockCurrentStealing;
+    juce::AudioParameterFloat* detuneHarmonics;
 
     RescaleParameters formantFrequencyRescaler;
+    RescaleParameters formantHeightRescaler;
 
     std::vector<juce::AudioProcessorParameter*> params;
 

@@ -542,7 +542,12 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 
 	for (ix = 0; ix <= epContext->wvoice->n_harmonic_peaks; ix++) {
 		epContext->peaks[ix].freq1 += epContext->peaks[ix].freq_inc;
-		epContext->peaks[ix].freq = (int) min(max(0.0, INT_MAX * applyBendRescaler(&epContext->bends.formantFrequencyRescaler, epContext->peaks[ix].freq1 / (INT_MAX))), INT_MAX * 0.9);
+	    epContext->peaks[ix].freq = (int) applyBendRescaler (
+	        &epContext->bends.formantFrequencyRescaler,
+	        epContext->peaks[ix].freq1 / (INT_MAX * 0.8),
+	        0,
+	        INT_MAX * 0.8);
+
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
 		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
 			epContext->peaks[ix].height = 0;
@@ -559,7 +564,11 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 		// formants 6,7,8 don't have a width parameter
 		if (ix < 7) {
 			epContext->peaks[ix].freq1 += epContext->peaks[ix].freq_inc;
-			epContext->peaks[ix].freq = (int)epContext->peaks[ix].freq1;
+		    epContext->peaks[ix].freq = (int) applyBendRescaler (
+                &epContext->bends.formantFrequencyRescaler,
+                epContext->peaks[ix].freq1 / (INT_MAX * 0.8),
+                0,
+                INT_MAX * 0.8);
 		}
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
 		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
@@ -650,6 +659,22 @@ static int ApplyBreath(EspeakProcessorContext* epContext)
 		}
 	}
 	return value;
+}
+
+inline int addWithClipping(int a, int b)
+{
+    int overflow;
+    if ((a^b) < 0) {
+        return a + b;
+    }/* opposite signs can't overflow */
+
+    if (a>0 && (b>INT_MAX-a)) {
+        return INT_MAX;
+    }
+    if (a < 0 && (b<INT_MIN-a)) {
+        return INT_MIN;
+    }
+    return a + b;
 }
 
 static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation, bool resume, frame_t *fr1, frame_t *fr2, voice_t *wvoice)
@@ -823,12 +848,14 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		theta = waveph;
 
 		for (h = 1; h <= h_switch_sign; h++) {
-			total += ((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);
-			theta += waveph;
+		    int toAdd = (int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h];
+			total = addWithClipping (total, toAdd);
+			theta += waveph * (epContext->bends.detuneHarmonics + 1);
 		}
 		while (h <= maxh) {
-			total -= ((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);
-			theta += waveph;
+		    int toAdd = -((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);
+			total = addWithClipping (total, toAdd);
+			theta += waveph * (epContext->bends.detuneHarmonics + 1);
 			h++;
 		}
 
@@ -836,7 +863,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			total = (total >> 6) * epContext->voicing;
 
 		if (wvoice->breath[0])
-			total +=  ApplyBreath(epContext);
+			total = addWithClipping (total,  ApplyBreath(epContext));
 
 		// mix with sampled wave if required
 		z2 = 0;

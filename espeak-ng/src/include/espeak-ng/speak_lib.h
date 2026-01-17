@@ -30,6 +30,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include <espeak-ng/common.h>
 
@@ -736,10 +737,13 @@ typedef struct BendRescaler
     float curve;
 } BendRescaler;
 
-inline float applyBendRescaler(BendRescaler* rescaler, float x)
+inline float applyBendRescaler(BendRescaler* rescaler, float x, float newMin, float newMax)
 {
     float sloped = powf (x, powf(5.f, -rescaler->curve));
-    return (rescaler->end - rescaler->start) * sloped + rescaler->start;
+    float rescaled = (rescaler->end - rescaler->start) * sloped + rescaler->start;
+    rescaled = rescaled < 0 ? 0 : rescaled;
+    rescaled = rescaled > newMax ? newMax : rescaled;
+    return rescaled * (newMax - newMin) + newMin;
 }
 
 typedef struct esb
@@ -750,8 +754,10 @@ typedef struct esb
     float bendPitch;
     bool freeze;
     float wavetableShape;
+    float detuneHarmonics;
 
     BendRescaler formantFrequencyRescaler;
+    BendRescaler formantHeightRescaler;
 } EspeakBends;
 
 typedef struct {

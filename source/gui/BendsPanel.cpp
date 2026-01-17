@@ -4,7 +4,10 @@
 
 #include "BendsPanel.h"
 
-BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor (homerState.formantFrequencyRescaler)
+BendsPanel::BendsPanel(HomerState& hs)
+: homerState (hs),
+formantFrequencyEditor (homerState.formantFrequencyRescaler),
+formantHeightEditor (homerState.formantHeightRescaler)
 {
     setTitle ("Bends Panel");
 
@@ -14,6 +17,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor
     bendParameters.push_back (homerState.amountOfAliasing);
     bendParameters.push_back (homerState.wavetableShape);
     bendParameters.push_back (homerState.clockCurrentStealing);
+    bendParameters.push_back (homerState.detuneHarmonics);
 
     toggleParameters.push_back (homerState.singParam);
     toggleParameters.push_back (homerState.freezeParam);
@@ -62,6 +66,7 @@ BendsPanel::BendsPanel(HomerState& hs) : homerState (hs), formantFrequencyEditor
     }
 
     addAndMakeVisible (formantFrequencyEditor);
+    addAndMakeVisible (formantHeightEditor);
 
     startTimerHz (30);
 }
@@ -125,5 +130,7 @@ void BendsPanel::resized()
         toggleButtons[i]->setBounds (zone);
     }
 
-    formantFrequencyEditor.setBounds (usableArea.withWidth (toggleZone.getWidth()).withTop (toggleZone.getBottom() + 10));
+    auto formantEditorArea = usableArea.withWidth (toggleZone.getWidth()).withTop (toggleZone.getBottom() + 10);
+    formantFrequencyEditor.setBounds (formantEditorArea.withHeight (formantEditorArea.getHeight() / 2));
+    formantHeightEditor.setBounds (formantEditorArea.withTrimmedTop (formantEditorArea.getHeight() / 2));
 }

@@ -36,6 +36,7 @@ private:
     juce::Rectangle<int> toggleZone;
 
     RescaleEditor formantFrequencyEditor;
+    RescaleEditor formantHeightEditor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BendsPanel);
 };

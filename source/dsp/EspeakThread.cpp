@@ -78,10 +78,15 @@ void EspeakThread::setBendParametersFromState()
     epContext.bends.stickChance = homerState.phonemeStickParam->get();
     epContext.bends.freeze = homerState.freezeParam->get();
     epContext.bends.wavetableShape = homerState.wavetableShape->get();
+    epContext.bends.detuneHarmonics = homerState.detuneHarmonics->get();
 
     epContext.bends.formantFrequencyRescaler.start = *homerState.formantFrequencyRescaler.start;
     epContext.bends.formantFrequencyRescaler.end = *homerState.formantFrequencyRescaler.end;
     epContext.bends.formantFrequencyRescaler.curve = *homerState.formantFrequencyRescaler.curve;
+
+    epContext.bends.formantHeightRescaler.start = *homerState.formantHeightRescaler.start;
+    epContext.bends.formantHeightRescaler.end = *homerState.formantHeightRescaler.end;
+    epContext.bends.formantHeightRescaler.curve = *homerState.formantHeightRescaler.curve;
 }
 
 void EspeakThread::setOutputBuffer (float* ptr, int numSamples)

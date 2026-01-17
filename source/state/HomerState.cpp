@@ -6,7 +6,7 @@
 
 #include "espeak-ng/speak_lib.h"
 
-HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale"), peakLevel (0), rmsLevel (0)
+HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale"), formantHeightRescaler("fhrescale", "formant height rescaler"), peakLevel (0), rmsLevel (0)
 {
     EspeakProcessorContext epContext;
 
@@ -41,22 +41,29 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     amountOfAliasing = new juce::AudioParameterFloat({"aliasingamount", 1}, "aliasing amount", 0, 1, 0);
     wavetableShape = new juce::AudioParameterFloat({"wavetableshape", 1}, "wavetable shape", 0, 1, 0);
     clockCurrentStealing = new juce::AudioParameterFloat({"clockcurrentstealing", 1}, "clock current stealing", 0, 1, 0);
+    detuneHarmonics = new juce::AudioParameterFloat({"detuneharmonics", 1}, "detune harmonics", -1, 1, 0);
+
 
     params.push_back(lyricSelector);
     for (int i = 0; i < numLyricLines; i++) {
         params.push_back(languageSelectors[i]);
     }
-    params.push_back(singParam);
+    params.push_back (singParam);
     params.push_back (freezeParam);
-    params.push_back(killParam);
+    params.push_back (killParam);
 
-    params.push_back(phonemeRotationParam);
-    params.push_back(phonemeStickParam);
-    params.push_back(clockSpeed);
-    params.push_back(amountOfAliasing);
+    params.push_back (phonemeRotationParam);
+    params.push_back (phonemeStickParam);
+    params.push_back (clockSpeed);
+    params.push_back (amountOfAliasing);
     params.push_back (clockCurrentStealing);
+    params.push_back (detuneHarmonics);
 
     params.push_back(formantFrequencyRescaler.start);
     params.push_back(formantFrequencyRescaler.end);
     params.push_back(formantFrequencyRescaler.curve);
+
+    params.push_back (formantHeightRescaler.start);
+    params.push_back (formantHeightRescaler.end);
+    params.push_back (formantHeightRescaler.curve);
 }

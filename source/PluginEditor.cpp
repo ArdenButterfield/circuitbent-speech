@@ -48,7 +48,7 @@ void PluginEditor::resized()
 {
     auto area = getLocalBounds().reduced (5);
     titlePanel.setBounds (area.withHeight (100));
-    bendsPanel.setBounds (area.withTrimmedTop (titlePanel.getBottom() + 5).withLeft (std::max(getWidth() / 2, getRight() - 400)));
+    bendsPanel.setBounds (area.withTrimmedTop (titlePanel.getBottom() + 5).withLeft (std::max(getWidth() / 2, getRight() - 600)));
     lyricsEditor.setBounds (bendsPanel.getBounds().withLeft (area.getX()).withRight (bendsPanel.getX() - 5));
     inspectButton.setBounds (titlePanel.getBounds().withWidth (100).reduced (5));
 }
