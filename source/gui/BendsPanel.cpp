@@ -18,6 +18,7 @@ formantHeightEditor (homerState.formantHeightRescaler)
     bendParameters.push_back (homerState.wavetableShape);
     bendParameters.push_back (homerState.clockCurrentStealing);
     bendParameters.push_back (homerState.detuneHarmonics);
+    bendParameters.push_back (homerState.pitchBend);
 
     toggleParameters.push_back (homerState.singParam);
     toggleParameters.push_back (homerState.freezeParam);

@@ -42,7 +42,8 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     wavetableShape = new juce::AudioParameterFloat({"wavetableshape", 1}, "wavetable shape", 0, 1, 0);
     clockCurrentStealing = new juce::AudioParameterFloat({"clockcurrentstealing", 1}, "clock current stealing", 0, 1, 0);
     detuneHarmonics = new juce::AudioParameterFloat({"detuneharmonics", 1}, "detune harmonics", -1, 1, 0);
-
+    pitchBend = new juce::AudioParameterFloat({"pitchbend", 1}, "pitch bend", -1, 1, 0);
+    vibrato = new juce::AudioParameterFloat({"vibrato", 1}, "vibrato", 0, 1, 0);
 
     params.push_back(lyricSelector);
     for (int i = 0; i < numLyricLines; i++) {
@@ -58,6 +59,8 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     params.push_back (amountOfAliasing);
     params.push_back (clockCurrentStealing);
     params.push_back (detuneHarmonics);
+    params.push_back (pitchBend);
+    params.push_back (vibrato);
 
     params.push_back(formantFrequencyRescaler.start);
     params.push_back(formantFrequencyRescaler.end);

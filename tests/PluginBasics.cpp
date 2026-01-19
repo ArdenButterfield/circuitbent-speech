@@ -133,7 +133,7 @@ TEST_CASE("constant pitch", "[constantf0]")
 {
     EspeakProcessorContext epContext;
     auto fs = prepareForEpBendTest(epContext);
-    epContext.bends.bendPitch = 440.0f;
+    epContext.bends.fundamentalFreq = 440.0f;
     carryOut (epContext, fs, juce::String("debugContstantPitch.wav"));
 
 }

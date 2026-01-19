@@ -751,13 +751,17 @@ typedef struct esb
     int rotatePhonemes;
     float stickChance;
     bool debugPrintEverything;
-    float bendPitch;
+    float fundamentalFreq;
     bool freeze;
     float wavetableShape;
     float detuneHarmonics;
 
     BendRescaler formantFrequencyRescaler;
     BendRescaler formantHeightRescaler;
+
+    unsigned short vibratoWavePosition;
+    float vibratoAmount;
+    float pitchbendMultiplier;
 } EspeakBends;
 
 typedef struct {

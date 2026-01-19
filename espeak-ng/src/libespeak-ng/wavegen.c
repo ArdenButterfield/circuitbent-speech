@@ -530,8 +530,8 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 	
 	if(epContext->const_f0)
 		epContext->wdata.pitch = (epContext->const_f0<<12);
-    if (epContext->bends.bendPitch > 0) {
-        epContext->wdata.pitch = (int)(epContext->bends.bendPitch * (1<<12));
+    if (epContext->bends.fundamentalFreq > 0) {
+        epContext->wdata.pitch = (int)(epContext->bends.fundamentalFreq * (1<<12));
     }
 
 	if (epContext->wdata.pitch < 102400)
@@ -549,7 +549,10 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 	        INT_MAX * 0.8);
 
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
-		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
+
+	    epContext->peaks[ix].height = (int) applyBendRescaler (&epContext->bends.formantHeightRescaler, epContext->peaks[ix].height1 / 1500000, 0, 1500000);
+
+		if (epContext->peaks[ix].height < 0)
 			epContext->peaks[ix].height = 0;
 
 		epContext->peaks[ix].left1 += epContext->peaks[ix].left_inc;
@@ -571,8 +574,10 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
                 INT_MAX * 0.8);
 		}
 		epContext->peaks[ix].height1 += epContext->peaks[ix].height_inc;
-		if ((epContext->peaks[ix].height = (int)epContext->peaks[ix].height1) < 0)
-			epContext->peaks[ix].height = 0;
+	    epContext->peaks[ix].height = (int) applyBendRescaler (&epContext->bends.formantHeightRescaler, epContext->peaks[ix].height1 / 1500000, 0, 1500000);
+
+	    if (epContext->peaks[ix].height < 0)
+	        epContext->peaks[ix].height = 0;
 	}
 }
 
@@ -763,7 +768,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 	    }
 
         if (epContext->wavephase > 0) {
-			epContext->wavephase += epContext->phaseinc;
+			epContext->wavephase += epContext->phaseinc * epContext->bends.pitchbendMultiplier;
 			if (epContext->wavephase < 0) {
 				// sign has changed, reached a quiet point in the waveform
 				epContext->cbytes = epContext->wavemult_offset - (epContext->cycle_samples)/2;
@@ -825,7 +830,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 				}
 			}
 		} else
-			epContext->wavephase += epContext->phaseinc;
+			epContext->wavephase += epContext->phaseinc * epContext->bends.pitchbendMultiplier;
 		waveph = (unsigned short)(epContext->wavephase >> 16);
 		total = 0;
 
@@ -850,7 +855,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		for (h = 1; h <= h_switch_sign; h++) {
 		    int toAdd = (int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h];
 			total = addWithClipping (total, toAdd);
-			theta += waveph * (epContext->bends.detuneHarmonics + 1);
+			theta += waveph * (epContext->bends.detuneHarmonics  + 1);
 		}
 		while (h <= maxh) {
 		    int toAdd = -((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);

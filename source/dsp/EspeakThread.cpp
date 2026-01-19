@@ -79,6 +79,8 @@ void EspeakThread::setBendParametersFromState()
     epContext.bends.freeze = homerState.freezeParam->get();
     epContext.bends.wavetableShape = homerState.wavetableShape->get();
     epContext.bends.detuneHarmonics = homerState.detuneHarmonics->get();
+    epContext.bends.pitchbendMultiplier = std::pow(2.0f, *homerState.pitchBend / 12.f);
+    epContext.bends.vibratoAmount = *homerState.vibrato;
 
     epContext.bends.formantFrequencyRescaler.start = *homerState.formantFrequencyRescaler.start;
     epContext.bends.formantFrequencyRescaler.end = *homerState.formantFrequencyRescaler.end;
