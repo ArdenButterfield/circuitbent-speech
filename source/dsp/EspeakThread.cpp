@@ -75,6 +75,7 @@ void EspeakThread::setBendParametersFromState()
         espeak_ng_SetConstF0(&epContext, homerState.keyFrequency);
     }
 
+    epContext.bends.rotatePhonemes = homerState.phonemeRotationParam->get() * 10;
     epContext.bends.stickChance = homerState.phonemeStickParam->get();
     epContext.bends.freeze = homerState.freezeParam->get();
     epContext.bends.wavetableShape = homerState.wavetableShape->get();
@@ -89,6 +90,14 @@ void EspeakThread::setBendParametersFromState()
     epContext.bends.formantHeightRescaler.start = *homerState.formantHeightRescaler.start;
     epContext.bends.formantHeightRescaler.end = *homerState.formantHeightRescaler.end;
     epContext.bends.formantHeightRescaler.curve = *homerState.formantHeightRescaler.curve;
+
+    if (*homerState.consonantVowelBlend > 0) {
+        epContext.bends.vowelLevel = 1;
+        epContext.bends.consonantLevel = 1 - *homerState.consonantVowelBlend;
+    } else {
+        epContext.bends.consonantLevel = 1;
+        epContext.bends.vowelLevel = *homerState.consonantVowelBlend + 1;
+    }
 }
 
 void EspeakThread::setOutputBuffer (float* ptr, int numSamples)

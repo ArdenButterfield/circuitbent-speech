@@ -4,8 +4,14 @@
 
 #include "HomerProcessor.h"
 
-HomerProcessor::HomerProcessor(HomerState& hs) : homerState(hs)
+HomerProcessor::HomerProcessor(HomerState& hs) : samplerate (0), homerState (hs)
 {
+}
+HomerProcessor::~HomerProcessor()
+{
+    if (espeakThread && espeakThread->isThreadRunning()) {
+        espeakThread->endNote();
+    }
 }
 
 void HomerProcessor::prepareToPlay (double fs, int samplesPerBlockExpected)
@@ -66,4 +72,7 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
 
 void HomerProcessor::releaseResources()
 {
+    if (espeakThread && espeakThread->isThreadRunning()) {
+        espeakThread->endNote();
+    }
 }

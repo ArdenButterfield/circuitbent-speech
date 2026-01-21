@@ -762,6 +762,9 @@ typedef struct esb
     unsigned short vibratoWavePosition;
     float vibratoAmount;
     float pitchbendMultiplier;
+
+    float consonantLevel;
+    float vowelLevel;
 } EspeakBends;
 
 typedef struct {

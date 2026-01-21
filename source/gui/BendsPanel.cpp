@@ -19,6 +19,8 @@ formantHeightEditor (homerState.formantHeightRescaler)
     bendParameters.push_back (homerState.clockCurrentStealing);
     bendParameters.push_back (homerState.detuneHarmonics);
     bendParameters.push_back (homerState.pitchBend);
+    bendParameters.push_back (homerState.vibrato);
+    bendParameters.push_back (homerState.consonantVowelBlend);
 
     toggleParameters.push_back (homerState.singParam);
     toggleParameters.push_back (homerState.freezeParam);
@@ -119,9 +121,17 @@ void BendsPanel::resized()
     toggleZone = usableArea.withWidth (150).withTrimmedBottom (150);
     sliderZone = usableArea.withLeft (toggleZone.getRight() + 10);
 
+    int numRows = 2;
+    auto numItemsInRow = bendParameters.size() / numRows + 1;
+
     for (int i = 0; i < bendParameters.size(); i++) {
-        auto zone = sliderZone.withWidth (sliderZone.getWidth() / bendParameters.size())
-            .withX (sliderZone.getX() + sliderZone.getWidth() * i / bendParameters.size());
+        auto row = i / numItemsInRow;
+        auto indexInRow = i - row * numItemsInRow;
+        auto zone = sliderZone
+            .withWidth (sliderZone.getWidth() / numItemsInRow)
+            .withX (sliderZone.getX() + sliderZone.getWidth() * indexInRow / numItemsInRow)
+            .withHeight(getHeight() / numRows)
+            .withY (row * getHeight() / numRows);
         bendSliderLabels[i]->setBounds (zone.withHeight (50));
         bendSliders[i]->setBounds (zone.withTrimmedTop (55));
     }

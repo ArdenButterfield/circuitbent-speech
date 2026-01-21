@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <ctype.h>
+#include <time.h>
 #include <errno.h>
 #include <math.h>
 #include <stdbool.h>
@@ -1143,6 +1144,8 @@ int Generate(EspeakProcessorContext* epContext, PHONEME_LIST *phoneme_list, int 
 		memset(&worddata, 0, sizeof(worddata));
 		DoPause(epContext, 0, 0); // isolate from the previous clause
 	}
+
+    srand (time(NULL) ^ (long long)epContext);
 
 	while ((ix < (*n_ph)) && (ix < N_PHONEME_LIST-2)) {
 		p = &phoneme_list[ix];

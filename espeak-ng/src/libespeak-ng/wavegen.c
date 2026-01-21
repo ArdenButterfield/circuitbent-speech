@@ -149,7 +149,7 @@ static const unsigned char pitch_adjust_tab[MAX_PITCH_VALUE+1] = {
 	242, 246, 249, 252, 254, 255
 };
 
-void writeSampleOut(EspeakProcessorContext* epContext, int z)
+void writeSampleOut(EspeakProcessorContext* epContext, int z, float level)
 {
     // if (!epContext->bends.freeze) {
     if (false) {
@@ -165,7 +165,7 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z)
             WaitOnAddress (&epContext->readyToProcess, &notReady, sizeof(bool), INFINITE);
         }
         float sample = (float)z / (float)(1<<16);
-        epContext->pluginBuffer[epContext->pluginBufferPosition] = sample;
+        epContext->pluginBuffer[epContext->pluginBufferPosition] = sample * level;
 
         epContext->pluginBufferPosition++;
 
@@ -712,6 +712,8 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 	// continue until the output buffer is full, or
 	// the required number of samples have been produced
 
+    int firstTimeSoDontFreeze = 1;
+
 	for (;;) {
 	    if (epContext->noteEndingEarly) {
 	        return 0;
@@ -719,8 +721,9 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		if ((epContext->end_wave == 0) && (epContext->samplecount == epContext->nsamples))
 			return 0;
 
-		if (!epContext->bends.freeze && (epContext->samplecount & 0x3f) == 0) {
+		if ((firstTimeSoDontFreeze || !epContext->bends.freeze) && (epContext->samplecount & 0x3f) == 0) {
 			// every 64 samples, adjust the parameters
+		    firstTimeSoDontFreeze = 0;
 			if (epContext->samplecount == 0) {
 				epContext->hswitch = 0;
 				epContext->harmspect = epContext->hspect[0];
@@ -767,8 +770,12 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
             epContext->samplecount++;
 	    }
 
+        epContext->bends.vibratoWavePosition += 30;
+	    float phaseIncRescale = epContext->bends.pitchbendMultiplier *
+	        (1 + epContext->bends.vibratoAmount * (float)sin_tab[epContext->bends.vibratoWavePosition >> 5] / (10 * 8191.f));
+
         if (epContext->wavephase > 0) {
-			epContext->wavephase += epContext->phaseinc * epContext->bends.pitchbendMultiplier;
+			epContext->wavephase += epContext->phaseinc * phaseIncRescale;
 			if (epContext->wavephase < 0) {
 				// sign has changed, reached a quiet point in the waveform
 				epContext->cbytes = epContext->wavemult_offset - (epContext->cycle_samples)/2;
@@ -830,7 +837,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 				}
 			}
 		} else
-			epContext->wavephase += epContext->phaseinc * epContext->bends.pitchbendMultiplier;
+			epContext->wavephase += epContext->phaseinc * phaseIncRescale;
 		waveph = (unsigned short)(epContext->wavephase >> 16);
 		total = 0;
 
@@ -908,7 +915,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			if (ov < agc) agc = ov;
 			z = (z1 * agc) >> 8;
 		}
-	    writeSampleOut (epContext, z);
+	    writeSampleOut (epContext, z, epContext->bends.vowelLevel);
 
 		if(epContext->output_hooks && epContext->output_hooks->outputVoiced) epContext->output_hooks->outputVoiced(z);
 
@@ -942,7 +949,7 @@ static int PlaySilence(EspeakProcessorContext* epContext, int length, bool resum
 		if (epContext->echo_tail >= N_ECHO_BUF)
 			epContext->echo_tail = 0;
 
-	    writeSampleOut (epContext, value);
+	    writeSampleOut (epContext, value, 1);
 
 		if(epContext->output_hooks && epContext->output_hooks->outputSilence) epContext->output_hooks->outputSilence(value);
 
@@ -995,7 +1002,7 @@ static int PlayWave(EspeakProcessorContext* epContext, int length, bool resume, 
 		if (epContext->echo_tail >= N_ECHO_BUF)
 			epContext->echo_tail = 0;
 
-	    writeSampleOut (epContext, value);
+	    writeSampleOut (epContext, value, epContext->bends.consonantLevel);
 
 		if(epContext->output_hooks && epContext->output_hooks->outputUnvoiced) epContext->output_hooks->outputUnvoiced(value);
 		// epContext->out_ptr += 2;

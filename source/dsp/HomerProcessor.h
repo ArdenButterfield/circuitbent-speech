@@ -14,6 +14,7 @@ class HomerProcessor
 {
 public:
     HomerProcessor(HomerState& homerState);
+    ~HomerProcessor();
     void prepareToPlay(double sampleRate, int samplesPerBlockExpected);
     void setText(const juce::String &text);
     void processBlock(juce::AudioSampleBuffer &buffer, unsigned int startSample, unsigned int numSamples, bool startNewNote);

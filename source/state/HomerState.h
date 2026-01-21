@@ -40,6 +40,7 @@ struct HomerState
     juce::AudioParameterFloat* detuneHarmonics;
     juce::AudioParameterFloat* pitchBend;
     juce::AudioParameterFloat* vibrato;
+    juce::AudioParameterFloat* consonantVowelBlend;
 
     RescaleParameters formantFrequencyRescaler;
     RescaleParameters formantHeightRescaler;

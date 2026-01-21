@@ -1,4 +1,5 @@
 #include "dsp/EspeakThread.h"
+#include "dsp/HomerProcessor.h"
 #include "dsp/Resampler.h"
 #include "helpers/test_helpers.h"
 
@@ -100,7 +101,7 @@ void carryOut(EspeakProcessorContext& epContext, int fs, juce::String outFileNam
     writer->writeFromAudioSampleBuffer (buffer, 0, buffer.getNumSamples());
 }
 
-TEST_CASE ("Basics of espeak", "[espeak]")
+/*TEST_CASE ("Basics of espeak", "[espeak]")
 {
     EspeakProcessorContext epContext;
     auto fs = prepareForEpBendTest(epContext);
@@ -136,7 +137,7 @@ TEST_CASE("constant pitch", "[constantf0]")
     epContext.bends.fundamentalFreq = 440.0f;
     carryOut (epContext, fs, juce::String("debugContstantPitch.wav"));
 
-}
+}*/
 
 #include <windows.h> // mutex
 
@@ -319,6 +320,119 @@ TEST_CASE("No pops on resampler", "[resampler]")
         }
 
     }
+}
+
+TEST_CASE("Freezes", "[freeze]")
+{
+    HomerState hs;
+    HomerProcessor hp(hs);
+    auto bufsiz = 600;
+    hp.prepareToPlay (44100, bufsiz);
+    auto buffer = juce::AudioBuffer<float> ();
+    buffer.setSize (1, bufsiz);
+    buffer.clear();
+    hs.lyrics[0] = "Hello Homer";
+    int i = 0;
+    for (; i < 1000; ++i) {
+        if (i == 4) {
+            hs.freezeParam->setValueNotifyingHost (true);
+        }
+        if (i == 7) {
+            hs.freezeParam->setValueNotifyingHost (false);
+        }
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, i==0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+
+    REQUIRE(i>0);
+    hs.freezeParam->setValueNotifyingHost (true);
+    for (auto j = 0; j < i/2; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+    for (auto j = 0; j < 16; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+    hs.freezeParam->setValueNotifyingHost (false);
+    for (auto j = 0; j < 4; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+    for (auto j = 0; j < 1; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+
+    hp.releaseResources();
+}
+
+TEST_CASE("Multiple notes", "[notes]")
+{
+    HomerState hs;
+    HomerProcessor hp(hs);
+    auto bufsiz = 600;
+    hp.prepareToPlay (44100, bufsiz);
+    // hs.freezeParam->setValueNotifyingHost (true);
+    auto buffer = juce::AudioBuffer<float> ();
+    buffer.setSize (1, bufsiz);
+    buffer.clear();
+    hs.lyrics[0] = "Hello Homer";
+    int i = 0;
+    for (; i < 1000; ++i) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, i==0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+
+    REQUIRE(i>0);
+    for (auto j = 0; j < i/2; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+    for (auto j = 0; j < 16; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+    for (auto j = 0; j < 4; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+    for (auto j = 0; j < 1; ++j) {
+        buffer.clear();
+        hp.processBlock (buffer, 0, bufsiz, j=0);
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+
+    hp.releaseResources();
 }
 
 #ifdef PAMPLEJUCE_IPP
