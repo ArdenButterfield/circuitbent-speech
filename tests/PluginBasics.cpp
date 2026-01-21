@@ -435,6 +435,31 @@ TEST_CASE("Multiple notes", "[notes]")
     hp.releaseResources();
 }
 
+TEST_CASE("Resampler trick", "[resamplertrick]")
+{
+    Resampler r;
+    r.prepareToPlay (44100);
+    r.setAliasingAmount (1);
+    r.setInputSamplerate (22050);
+    auto buffer = juce::AudioBuffer<float> (1,200);
+    for (auto i = 0; i < buffer.getNumSamples(); ++i) {
+        buffer.setSample (0, i, 1);
+    }
+    auto destinationBuffer = juce::AudioBuffer<float>(1, 100);
+    destinationBuffer.clear();
+    auto samplesNeeded = r.getNumSamplesNeeded (destinationBuffer.getNumSamples());
+    REQUIRE(samplesNeeded > 30);
+    REQUIRE (samplesNeeded < 200);
+    r.resampleIntoBuffer (destinationBuffer.getWritePointer (0),
+        destinationBuffer.getNumSamples(),
+        buffer.getReadPointer (0),
+        samplesNeeded);
+    for (auto i = 5; i < destinationBuffer.getNumSamples(); ++i) {
+        REQUIRE (destinationBuffer.getSample (0,i) > 0.9);
+    }
+
+}
+
 #ifdef PAMPLEJUCE_IPP
     #include <ipp.h>
 

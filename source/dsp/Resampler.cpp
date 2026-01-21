@@ -39,13 +39,20 @@ float Resampler::interpolate (float a, float b, float x) const
     jassert (0 <= aliasingAmount);
     jassert (aliasingAmount <= 1);
 
-    if (aliasingAmount < 0.5) {
+    // for high frequencies, we don't want to have exponential decay.
+    // so from input sampling rate = 4000 to input sampling rate = 20000 we will shift to only using the first half of the range of interpolation curves.
+
+    auto shift = std::min(std::max(0.0f, (inputSampleRate - 4000) / (20000 - 4000)), 1.0f);
+    auto scaledAliasingAmount = aliasingAmount / (shift + 1);
+
+    if (scaledAliasingAmount < 0.5) {
         auto lerp = a * (1 - x) + b * x;
-        auto stepAmount = aliasingAmount * 2;
+        auto stepAmount = scaledAliasingAmount * 2;
         auto lerpAmount = 1 - stepAmount;
         return lerp * lerpAmount + a * stepAmount;
     }
-    return a * exp (-x * 10 * (aliasingAmount - 0.5));
+
+    return a * exp (-x * 10 * (scaledAliasingAmount - 0.5));
 }
 
 int Resampler::getNumSamplesNeeded (int bufferLength) const
