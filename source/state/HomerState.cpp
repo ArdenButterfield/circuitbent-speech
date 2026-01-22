@@ -58,6 +58,7 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
     params.push_back (phonemeStickParam);
     params.push_back (clockSpeed);
     params.push_back (amountOfAliasing);
+    params.push_back (wavetableShape);
     params.push_back (clockCurrentStealing);
     params.push_back (detuneHarmonics);
     params.push_back (pitchBend);

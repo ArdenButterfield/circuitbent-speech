@@ -81,7 +81,7 @@ BendsPanel::~BendsPanel()
 void BendsPanel::timerCallback()
 {
     for (int i = 0; i < bendParameters.size(); i++) {
-        bendSliders[i]->setValue (*bendParameters[i]);
+        bendSliders[i]->setValue (*bendParameters[i], juce::dontSendNotification);
     }
 
     for (int i = 0; i < toggleParameters.size(); i++) {
