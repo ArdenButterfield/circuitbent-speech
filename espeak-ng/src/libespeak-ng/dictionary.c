@@ -435,8 +435,6 @@ static const unsigned short ipa1[96] = {
 };
 
 #define N_PHON_OUT  500  // realloc increment
-static char *phon_out_buf = NULL;   // passes the result of GetTranslatedPhonemeString()
-static unsigned int phon_out_size = 0;
 
 char *WritePhMnemonic(EspeakProcessorContext* epContext, char *phon_out, PHONEME_TAB *ph, PHONEME_LIST *plist, int use_ipa, int *flags)
 {
@@ -587,10 +585,10 @@ const char *GetTranslatedPhonemeString(EspeakProcessorContext* epContext, int ph
 
 	static const char stress_chars[] = "==,,''";
 
-	if (phon_out_buf == NULL) {
-		phon_out_size = N_PHON_OUT;
-		if ((phon_out_buf = (char *)malloc(phon_out_size)) == NULL) {
-			phon_out_size = 0;
+	if (epContext->phon_out_buf == NULL) {
+		epContext->phon_out_size = N_PHON_OUT;
+		if ((epContext->phon_out_buf = (char *)malloc(epContext->phon_out_size)) == NULL) {
+			epContext->phon_out_size = 0;
 			return "";
 		}
 	}
@@ -663,28 +661,28 @@ const char *GetTranslatedPhonemeString(EspeakProcessorContext* epContext, int ph
 		}
 
 		len = buf - phon_buf;
-		if ((phon_out_ix + len) >= phon_out_size) {
+		if ((phon_out_ix + len) >= epContext->phon_out_size) {
 			// enlarge the phoneme buffer
-			phon_out_size = phon_out_ix + len + N_PHON_OUT;
-			char *new_phon_out_buf = (char *)realloc(phon_out_buf, phon_out_size);
+			epContext->phon_out_size = phon_out_ix + len + N_PHON_OUT;
+			char *new_phon_out_buf = (char *)realloc(epContext->phon_out_buf, epContext->phon_out_size);
 			if (new_phon_out_buf == NULL) {
-				phon_out_size = 0;
+				epContext->phon_out_size = 0;
 				return "";
 			} else
-				phon_out_buf = new_phon_out_buf;
+				epContext->phon_out_buf = new_phon_out_buf;
 		}
 
 		phon_buf[len] = 0;
-		strcpy(&phon_out_buf[phon_out_ix], phon_buf);
+		strcpy(&epContext->phon_out_buf[phon_out_ix], phon_buf);
 		phon_out_ix += len;
 	}
 
-	if (!phon_out_buf)
+	if (!epContext->phon_out_buf)
 		return "";
 
-	phon_out_buf[phon_out_ix] = 0;
+	epContext->phon_out_buf[phon_out_ix] = 0;
 
-	return phon_out_buf;
+	return epContext->phon_out_buf;
 }
 
 static int LetterGroupNo(char *rule)

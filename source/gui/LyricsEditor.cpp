@@ -40,9 +40,11 @@ void LyricsEditor::resized()
 }
 void LyricsEditor::timerCallback()
 {
-    currentLyricSlider.setValue (*homerState.lyricSelector);
+    currentLyricSlider.setValue (*homerState.lyricSelector, juce::dontSendNotification);
 }
 void LyricsEditor::sliderValueChanged (juce::Slider*)
 {
+    homerState.lyricSelector->beginChangeGesture();
     *homerState.lyricSelector = currentLyricSlider.getValue();
+    homerState.lyricSelector->endChangeGesture();
 }

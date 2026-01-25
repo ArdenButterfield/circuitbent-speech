@@ -654,7 +654,7 @@ static int ApplyBreath(EspeakProcessorContext* epContext)
 	int ix;
 
 	// use two random numbers, for alternate formants
-	noise = espeak_rand(-0x2000, 0x1fff);
+	noise = espeak_rand(epContext, -0x2000, 0x1fff);
 
 	for (ix = 1; ix < N_PEAKS; ix++) {
 		int amp;

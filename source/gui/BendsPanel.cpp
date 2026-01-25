@@ -92,14 +92,18 @@ void BendsPanel::timerCallback()
 void BendsPanel::sliderValueChanged (juce::Slider*)
 {
     for (int i = 0; i < bendParameters.size(); i++) {
+        bendParameters[i]->beginChangeGesture();
         *bendParameters[i] = bendSliders[i]->getValue();
+        bendParameters[i]->endChangeGesture();
     }
 }
 
 void BendsPanel::buttonClicked (juce::Button*)
 {
     for (auto i = 0; i < toggleParameters.size(); i++) {
+        toggleParameters[i]->beginChangeGesture();
         *toggleParameters[i] = toggleButtons[i]->getToggleState();
+        toggleParameters[i]->endChangeGesture();
     }
 }
 

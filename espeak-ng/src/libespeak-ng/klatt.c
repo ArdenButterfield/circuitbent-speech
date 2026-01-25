@@ -42,7 +42,7 @@
 #include "sPlayer.h"
 #endif
 
-#define getrandom(min, max) espeak_rand((min), (max))
+#define getrandom(epcontext, min, max) espeak_rand((epcontext), (min), (max))
 
 // function prototypes for functions private to this file
 
@@ -799,7 +799,7 @@ static double gen_noise(EspeakProcessorContext* epContext, double noise)
 	long temp;
 	static double nlast;
 
-	temp = (long)getrandom(-8191, 8191);
+	temp = (long)getrandom(epContext, -8191, 8191);
 	epContext->kt_globals.nrand = (long)temp;
 
 	noise = epContext->kt_globals.nrand + (0.75 * nlast);
@@ -846,12 +846,6 @@ static double DBtoLIN(long dB)
 	return (double)(amptable[dB]) * 0.001;
 }
 
-static klatt_peaks_t peaks[N_PEAKS];
-static int end_wave;
-static int klattp[N_KLATTP];
-static double klattp1[N_KLATTP];
-static double klattp_inc[N_KLATTP];
-
 int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, frame_t *fr1, frame_t *fr2, WGEN_DATA *wdata, voice_t *wvoice)
 {
 #if USE_SPEECHPLAYER
@@ -877,45 +871,45 @@ int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, fra
 		// but F6 is used for parallel resonator
 		// F0 is used for the nasal zero
 		for (ix = 0; ix < 6; ix++) {
-			epContext->kt_frame.Fhz[ix] = peaks[ix].freq;
+			epContext->kt_frame.Fhz[ix] = epContext->klatt_peaks[ix].freq;
 			if (ix < 4)
-				epContext->kt_frame.Bhz[ix] = peaks[ix].bw;
+				epContext->kt_frame.Bhz[ix] = epContext->klatt_peaks[ix].bw;
 		}
 		for (ix = 1; ix < 7; ix++)
-			epContext->kt_frame.Ap[ix] = peaks[ix].ap;
+			epContext->kt_frame.Ap[ix] = epContext->klatt_peaks[ix].ap;
 
-		epContext->kt_frame.AVdb = klattp[KLATT_AV];
-		epContext->kt_frame.AVpdb = klattp[KLATT_AVp];
-		epContext->kt_frame.AF = klattp[KLATT_Fric];
-		epContext->kt_frame.AB = klattp[KLATT_FricBP];
-		epContext->kt_frame.ASP = klattp[KLATT_Aspr];
-		epContext->kt_frame.Aturb = klattp[KLATT_Turb];
-		epContext->kt_frame.Kskew = klattp[KLATT_Skew];
-		epContext->kt_frame.TLTdb = klattp[KLATT_Tilt];
-		epContext->kt_frame.Kopen = klattp[KLATT_Kopen];
+		epContext->kt_frame.AVdb = epContext->klattp[KLATT_AV];
+		epContext->kt_frame.AVpdb = epContext->klattp[KLATT_AVp];
+		epContext->kt_frame.AF = epContext->klattp[KLATT_Fric];
+		epContext->kt_frame.AB = epContext->klattp[KLATT_FricBP];
+		epContext->kt_frame.ASP = epContext->klattp[KLATT_Aspr];
+		epContext->kt_frame.Aturb = epContext->klattp[KLATT_Turb];
+		epContext->kt_frame.Kskew = epContext->klattp[KLATT_Skew];
+		epContext->kt_frame.TLTdb = epContext->klattp[KLATT_Tilt];
+		epContext->kt_frame.Kopen = epContext->klattp[KLATT_Kopen];
 
 		// advance formants
 		for (pk = 0; pk < N_PEAKS; pk++) {
-			peaks[pk].freq1 += peaks[pk].freq_inc;
-			peaks[pk].freq = (int)peaks[pk].freq1;
-			peaks[pk].bw1 += peaks[pk].bw_inc;
-			peaks[pk].bw = (int)peaks[pk].bw1;
-			peaks[pk].bp1 += peaks[pk].bp_inc;
-			peaks[pk].bp = (int)peaks[pk].bp1;
-			peaks[pk].ap1 += peaks[pk].ap_inc;
-			peaks[pk].ap = (int)peaks[pk].ap1;
+			epContext->klatt_peaks[pk].freq1 += epContext->klatt_peaks[pk].freq_inc;
+			epContext->klatt_peaks[pk].freq = (int)epContext->klatt_peaks[pk].freq1;
+			epContext->klatt_peaks[pk].bw1 += epContext->klatt_peaks[pk].bw_inc;
+			epContext->klatt_peaks[pk].bw = (int)epContext->klatt_peaks[pk].bw1;
+			epContext->klatt_peaks[pk].bp1 += epContext->klatt_peaks[pk].bp_inc;
+			epContext->klatt_peaks[pk].bp = (int)epContext->klatt_peaks[pk].bp1;
+			epContext->klatt_peaks[pk].ap1 += epContext->klatt_peaks[pk].ap_inc;
+			epContext->klatt_peaks[pk].ap = (int)epContext->klatt_peaks[pk].ap1;
 		}
 
 		// advance other parameters
 		for (ix = 0; ix < N_KLATTP; ix++) {
-			klattp1[ix] += klattp_inc[ix];
-			klattp[ix] = (int)klattp1[ix];
+			epContext->klattp1[ix] += epContext->klattp_inc[ix];
+			epContext->klattp[ix] = (int)epContext->klattp1[ix];
 		}
 
 		for (ix = 0; ix <= 6; ix++) {
-			epContext->kt_frame.Fhz_next[ix] = peaks[ix].freq;
+			epContext->kt_frame.Fhz_next[ix] = epContext->klatt_peaks[ix].freq;
 			if (ix < 4)
-				epContext->kt_frame.Bhz_next[ix] = peaks[ix].bw;
+				epContext->kt_frame.Bhz_next[ix] = epContext->klatt_peaks[ix].bw;
 		}
 
 		// advance the pitch
@@ -934,12 +928,12 @@ int Wavegen_Klatt(EspeakProcessorContext* epContext, int length, int resume, fra
 			return 1; // output buffer is full
 	}
 
-	if (end_wave > 0) {
+	if (epContext->klatt_end_wave > 0) {
 		fade = 64; // not followed by formant synthesis
 
 		// fade out to avoid a click
 		epContext->kt_globals.fadeout = fade;
-		end_wave = 0;
+		epContext->klatt_end_wave = 0;
 		epContext->sample_count -= fade;
 		epContext->kt_globals.nspfr = fade;
 		if (parwave(epContext, &epContext->kt_frame, wdata) == 1)
@@ -966,24 +960,24 @@ static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_
 		epContext->kt_globals.f0_flutter = wvoice->flutter/32;
 	}
 
-	end_wave = 0;
+	epContext->klatt_end_wave = 0;
 	if (control & 2)
-		end_wave = 1; // fadeout at the end
+		epContext->klatt_end_wave = 1; // fadeout at the end
 	if (control & 1) {
-		end_wave = 1;
+		epContext->klatt_end_wave = 1;
 		for (qix = epContext->wcmdq_head+1;; qix++) {
 			if (qix >= N_WCMDQ) qix = 0;
 			if (qix == epContext->wcmdq_tail) break;
 
 			cmd = epContext->wcmdq[qix][0];
 			if (cmd == WCMD_KLATT) {
-				end_wave = 0; // next wave generation is from another spectrum
+				epContext->klatt_end_wave = 0; // next wave generation is from another spectrum
 
 				fr3 = (frame_t *)epContext->wcmdq[qix][2];
 				for (ix = 1; ix < 6; ix++) {
 					if (fr3->ffreq[ix] != fr2->ffreq[ix]) {
 						// there is a discontinuity in formants
-						end_wave = 2;
+						epContext->klatt_end_wave = 2;
 						break;
 					}
 				}
@@ -996,7 +990,7 @@ static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_
 		for (ix = 1; ix < 6; ix++) {
 			if (prev_fr.ffreq[ix] != fr1->ffreq[ix]) {
 				// Discontinuity in formants.
-				// end_wave was set in SetSynth_Klatt() to fade out the previous frame
+				// epContext->klatt_end_wave was set in SetSynth_Klatt() to fade out the previous frame
 				KlattReset(epContext, 0);
 				break;
 			}
@@ -1006,59 +1000,59 @@ static void SetSynth_Klatt(EspeakProcessorContext* epContext, int length, frame_
 
 	for (ix = 0; ix < N_KLATTP; ix++) {
 		if ((ix >= 5) || ((fr1->frflags & FRFLAG_KLATT) == 0)) {
-			klattp1[ix] = klattp[ix] = 0;
-			klattp_inc[ix] = 0;
+			epContext->klattp1[ix] = epContext->klattp[ix] = 0;
+			epContext->klattp_inc[ix] = 0;
 		} else {
-			klattp1[ix] = klattp[ix] = fr1->klattp[ix];
-			klattp_inc[ix] = (double)((fr2->klattp[ix] - klattp[ix]) * STEPSIZE)/length;
+			epContext->klattp1[ix] = epContext->klattp[ix] = fr1->klattp[ix];
+			epContext->klattp_inc[ix] = (double)((fr2->klattp[ix] - epContext->klattp[ix]) * STEPSIZE)/length;
 		}
 	}
 
 	epContext->nsamples_klatt = length;
 
 	for (ix = 1; ix < 6; ix++) {
-		peaks[ix].freq1 = (fr1->ffreq[ix] * wvoice->freq[ix] / 256.0) + wvoice->freqadd[ix];
-		peaks[ix].freq = (int)peaks[ix].freq1;
+		epContext->klatt_peaks[ix].freq1 = (fr1->ffreq[ix] * wvoice->freq[ix] / 256.0) + wvoice->freqadd[ix];
+		epContext->klatt_peaks[ix].freq = (int)epContext->klatt_peaks[ix].freq1;
 		next = (fr2->ffreq[ix] * wvoice->freq[ix] / 256.0) + wvoice->freqadd[ix];
-		peaks[ix].freq_inc =  ((next - peaks[ix].freq1) * STEPSIZE) / length;
+		epContext->klatt_peaks[ix].freq_inc =  ((next - epContext->klatt_peaks[ix].freq1) * STEPSIZE) / length;
 
 		if (ix < 4) {
 			// klatt bandwidth for f1, f2, f3 (others are fixed)
-			peaks[ix].bw1 = fr1->bw[ix] * 2  * (wvoice->width[ix] / 256.0);
-			peaks[ix].bw = (int)peaks[ix].bw1;
+			epContext->klatt_peaks[ix].bw1 = fr1->bw[ix] * 2  * (wvoice->width[ix] / 256.0);
+			epContext->klatt_peaks[ix].bw = (int)epContext->klatt_peaks[ix].bw1;
 			next = fr2->bw[ix] * 2;
-			peaks[ix].bw_inc =  ((next - peaks[ix].bw1) * STEPSIZE) / length;
+			epContext->klatt_peaks[ix].bw_inc =  ((next - epContext->klatt_peaks[ix].bw1) * STEPSIZE) / length;
 		}
 	}
 
 	// nasal zero frequency
-	peaks[0].freq1 = fr1->klattp[KLATT_FNZ] * 2;
-	if (peaks[0].freq1 == 0)
-		peaks[0].freq1 = epContext->kt_frame.Fhz[F_NP]; // if no nasal zero, set it to same freq as nasal pole
+	epContext->klatt_peaks[0].freq1 = fr1->klattp[KLATT_FNZ] * 2;
+	if (epContext->klatt_peaks[0].freq1 == 0)
+		epContext->klatt_peaks[0].freq1 = epContext->kt_frame.Fhz[F_NP]; // if no nasal zero, set it to same freq as nasal pole
 
-	peaks[0].freq = (int)peaks[0].freq1;
+	epContext->klatt_peaks[0].freq = (int)epContext->klatt_peaks[0].freq1;
 	next = fr2->klattp[KLATT_FNZ] * 2;
 	if (next == 0)
 		next = epContext->kt_frame.Fhz[F_NP];
 
-	peaks[0].freq_inc = ((next - peaks[0].freq1) * STEPSIZE) / length;
+	epContext->klatt_peaks[0].freq_inc = ((next - epContext->klatt_peaks[0].freq1) * STEPSIZE) / length;
 
-	peaks[0].bw1 = 89;
-	peaks[0].bw = 89;
-	peaks[0].bw_inc = 0;
+	epContext->klatt_peaks[0].bw1 = 89;
+	epContext->klatt_peaks[0].bw = 89;
+	epContext->klatt_peaks[0].bw_inc = 0;
 
 	if (fr1->frflags & FRFLAG_KLATT) {
 		// the frame contains additional parameters for parallel resonators
 		for (ix = 1; ix < 7; ix++) {
-			peaks[ix].bp1 = fr1->klatt_bp[ix] * 4; // parallel bandwidth
-			peaks[ix].bp = (int)peaks[ix].bp1;
+			epContext->klatt_peaks[ix].bp1 = fr1->klatt_bp[ix] * 4; // parallel bandwidth
+			epContext->klatt_peaks[ix].bp = (int)epContext->klatt_peaks[ix].bp1;
 			next = fr2->klatt_bp[ix] * 4;
-			peaks[ix].bp_inc =  ((next - peaks[ix].bp1) * STEPSIZE) / length;
+			epContext->klatt_peaks[ix].bp_inc =  ((next - epContext->klatt_peaks[ix].bp1) * STEPSIZE) / length;
 
-			peaks[ix].ap1 = fr1->klatt_ap[ix]; // parallal amplitude
-			peaks[ix].ap = (int)peaks[ix].ap1;
+			epContext->klatt_peaks[ix].ap1 = fr1->klatt_ap[ix]; // parallal amplitude
+			epContext->klatt_peaks[ix].ap = (int)epContext->klatt_peaks[ix].ap1;
 			next = fr2->klatt_ap[ix];
-			peaks[ix].ap_inc =  ((next - peaks[ix].ap1) * STEPSIZE) / length;
+			epContext->klatt_peaks[ix].ap_inc =  ((next - epContext->klatt_peaks[ix].ap1) * STEPSIZE) / length;
 		}
 	}
 }

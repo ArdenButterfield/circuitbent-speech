@@ -59,20 +59,6 @@ extern "C"
 
 
 
-typedef struct {
-	int freq;     // Hz
-	int bw;   // klatt bandwidth
-	int ap;   // parallel amplitude
-	int bp;   // parallel bandwidth
-	double freq1; // floating point versions of the above
-	double bw1;
-	double ap1;
-	double bp1;
-	double freq_inc;    // increment by this every 64 samples
-	double bw_inc;
-	double ap_inc;
-	double bp_inc;
-}  klatt_peaks_t;
 
 void KlattInit(EspeakProcessorContext* epContext);
 void KlattFini(void);

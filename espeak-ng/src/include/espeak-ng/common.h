@@ -460,6 +460,29 @@ typedef struct {
     int amplitude_fmt; // percentage amplitude adjustment for formant synthesis
 } WGEN_DATA;
 
+typedef struct t_node {
+    void *data;
+    struct t_node *next;
+} node;
+
+#define N_KLATTP   10 // this affects the phoneme data file format
+
+typedef struct {
+    int freq;     // Hz
+    int bw;   // klatt bandwidth
+    int ap;   // parallel amplitude
+    int bp;   // parallel bandwidth
+    double freq1; // floating point versions of the above
+    double bw1;
+    double ap1;
+    double bp1;
+    double freq_inc;    // increment by this every 64 samples
+    double bw_inc;
+    double ap_inc;
+    double bp_inc;
+}  klatt_peaks_t;
+
+
 #define N_WCMDQ   170
 
 // stack for language and voice properties

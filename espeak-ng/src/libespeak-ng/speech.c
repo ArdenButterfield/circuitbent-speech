@@ -377,7 +377,7 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_Initialize(EspeakProcessorContext* epCo
 	epContext->option_phoneme_events = 0;
 
 	// Seed random generator
-	espeak_srand(time(NULL));
+	espeak_srand(epContext, time(NULL));
 
 	return ENS_OK;
 }

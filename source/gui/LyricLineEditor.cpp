@@ -22,19 +22,20 @@ LyricLineEditor::LyricLineEditor(HomerState& hs, int n) : homerState(hs), lineNu
     voiceSelect.addListener (this);
 
     voiceSelect.setSelectedItemIndex (homerState.languageSelectors[lineNumber]->getIndex());
+
+    textEditor.setText (homerState.lyrics[lineNumber]);
 }
 
 LyricLineEditor::~LyricLineEditor()
 {
 }
-void LyricLineEditor::textEditorReturnKeyPressed (juce::TextEditor& text_editor)
+void LyricLineEditor::textEditorReturnKeyPressed (juce::TextEditor&)
 {
-    std::cout << text_editor.getText() << std::endl;
-    homerState.lyrics[lineNumber] = text_editor.getText();
+    homerState.lyrics[lineNumber] = textEditor.getText();
 }
-void LyricLineEditor::textEditorEscapeKeyPressed (juce::TextEditor& text_editor)
+void LyricLineEditor::textEditorEscapeKeyPressed (juce::TextEditor&)
 {
-    text_editor.setText (homerState.lyrics[lineNumber]);
+    textEditor.setText (homerState.lyrics[lineNumber]);
 }
 void LyricLineEditor::comboBoxChanged (juce::ComboBox*)
 {

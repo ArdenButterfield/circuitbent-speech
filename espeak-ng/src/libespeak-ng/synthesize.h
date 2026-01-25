@@ -76,7 +76,6 @@ extern "C"
 
 extern const int embedded_default[N_EMBEDDED_VALUES];
 
-#define N_KLATTP   10 // this affects the phoneme data file format
 #define N_KLATTP2  14 // used in vowel files, with extra parameters for future extensions
 
 #define KLATT_AV      0

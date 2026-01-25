@@ -166,7 +166,7 @@ ESPEAK_NG_API espeak_ng_STATUS
 espeak_ng_SetConstF0(EspeakProcessorContext* epContext, int f0);
 
 ESPEAK_NG_API espeak_ng_STATUS
-espeak_ng_SetRandSeed(long seed);
+espeak_ng_SetRandSeed(EspeakProcessorContext* epContext, long seed);
 
 
 #ifdef __cplusplus

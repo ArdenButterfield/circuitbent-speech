@@ -57,14 +57,6 @@ enum {
 	MAX_ACTIVITY_CHECK = 6
 };
 
-typedef struct t_node {
-	void *data;
-	struct t_node *next;
-} node;
-
-static node *head = NULL;
-static node *tail = NULL;
-static int node_counter = 0;
 static espeak_ng_STATUS push(void *data);
 static void *pop(void);
 static void init(void);

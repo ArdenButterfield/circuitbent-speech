@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include <espeak-ng/common.h>
 
@@ -787,6 +788,10 @@ typedef struct Translator Translator;
 struct epc
 {
     // Buffer and variables for passing data to plugin
+
+    // common.c
+    uint32_t espeak_rand_state; // = 0;
+
     int pluginBufferSize;
     float* pluginBuffer;
     int pluginBufferPosition;
@@ -800,8 +805,17 @@ struct epc
     // dictionary.c
     int dictionary_skipwords;
     char dictionary_name[40];
+    char *phon_out_buf;// = NULL;   // passes the result of GetTranslatedPhonemeString()
+    unsigned int phon_out_size;// = 0;
+
 
     // TODO: come back to event.c questions on thread library
+
+    // event.c
+
+    node *head;// = NULL;
+    node *tail;// = NULL;
+    int node_counter;// = 0;
 
     // intonation.c
     int tone_pitch_env; // used to return pitch envelope
@@ -814,6 +828,12 @@ struct epc
     int no_tonic;
 
     // klatt.c
+    klatt_peaks_t klatt_peaks[N_PEAKS];
+    int klatt_end_wave;
+    int klattp[N_KLATTP];
+    double klattp1[N_KLATTP];
+    double klattp_inc[N_KLATTP];
+
     unsigned char *out_ptr;
     unsigned char *out_end;
     int nsamples_klatt;

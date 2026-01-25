@@ -457,10 +457,145 @@ TEST_CASE("Resampler trick", "[resamplertrick]")
     for (auto i = 5; i < destinationBuffer.getNumSamples(); ++i) {
         REQUIRE (destinationBuffer.getSample (0,i) > 0.9);
     }
+}
+
+TEST_CASE ("Can Homers Agree on anything?", "[tworuns]")
+{
+    std::vector<std::unique_ptr<HomerState>> hs;
+    std::vector<std::unique_ptr<HomerProcessor>> hps;
+    std::vector<std::vector<float>> outBuffers;
+
+    auto bufsiz = 600;
+
+    for (auto i = 0; i < 2; ++i) {
+        hs.emplace_back (std::make_unique<HomerState> ());
+        hps.emplace_back(std::make_unique<HomerProcessor> (*hs.back()));
+        outBuffers.emplace_back ();
+    }
+
+
+    hs[0]->lyrics[0] = "I am purple homer!";
+    hs[1]->lyrics[0] = "I am purple homer!";
+
+    auto buffer = juce::AudioBuffer<float> ();
+    buffer.setSize (1, bufsiz);
+
+    auto iter = 0;
+    hps[0]->prepareToPlay (44100, bufsiz);
+
+
+    for (; iter < 100; ++iter) {
+        buffer.clear();
+        hps[0]->processBlock (buffer, 0, bufsiz, iter==0);
+        for (int samp = 0; samp < buffer.getNumSamples(); ++samp) {
+            outBuffers[0].push_back (buffer.getSample (0, samp));
+        }
+    }
+
+    hps[1]->prepareToPlay (44100, bufsiz);
+    for (iter = 0; iter < 100; ++iter) {
+        buffer.clear();
+        hps[1]->processBlock (buffer, 0, bufsiz, iter==0);
+        for (int samp = 0; samp < buffer.getNumSamples(); ++samp) {
+            outBuffers[1].push_back (buffer.getSample (0, samp));
+        }
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+
+    for (int i = 0; i < outBuffers.size(); ++i) {
+        auto buf = juce::AudioBuffer<float> ();
+        buf.setSize (1, outBuffers[i].size());
+        for (auto j = 0; j < outBuffers[i].size(); ++j) {
+            buf.setSample (0, j, outBuffers[i][j]);
+        }
+    }
+}
+
+
+TEST_CASE ("Three homers at once", "[three homers at once]")
+{
+    std::vector<std::unique_ptr<HomerState>> hs;
+    std::vector<std::unique_ptr<HomerProcessor>> hps;
+    std::vector<std::vector<float>> outBuffers;
+
+    auto bufsiz = 600;
+
+    for (auto i = 0; i < 3; ++i) {
+        hs.emplace_back (std::make_unique<HomerState> ());
+        hps.emplace_back(std::make_unique<HomerProcessor> (*hs.back()));
+        outBuffers.emplace_back ();
+        hps.back()->prepareToPlay (44100, bufsiz);
+    }
+
+    for (auto& states : hs) {
+        states->lyrics[0] = "I am purple homer!";
+    }
+
+    auto buffer = juce::AudioBuffer<float> ();
+    buffer.setSize (1, bufsiz);
+
+    for (int iter = 0; iter < 1000; ++iter) {
+        for (int p = 0; p < hs.size (); ++p) {
+            buffer.clear();
+            hps[p]->processBlock (buffer, 0, bufsiz, iter==0);
+            for (int samp = 0; samp < buffer.getNumSamples(); ++samp) {
+                outBuffers[p].push_back (buffer.getSample (0, samp));
+            }
+        }
+        if (buffer.getRMSLevel (0,0,bufsiz) == 0) {
+            break;
+        }
+    }
+}
+
+TEST_CASE ("Homer but there's another homer at the same time saying something else", "[distracted homer]")
+{
+    std::vector<std::unique_ptr<HomerState>> hs;
+    std::vector<std::unique_ptr<HomerProcessor>> hps;
+    std::vector<std::vector<float>> outBuffers;
+
+    auto bufsiz = 600;
+
+    for (auto i = 0; i < 3; ++i) {
+        hs.emplace_back (std::make_unique<HomerState> ());
+        hps.emplace_back(std::make_unique<HomerProcessor> (*hs.back()));
+        outBuffers.emplace_back ();
+        hps.back()->prepareToPlay (44100, bufsiz);
+    }
+
+
+    hs[0]->lyrics[0] = "I am purple homer!";
+    hs[1]->lyrics[0] = "yellow homer is my name.";
+    hs[2]->lyrics[0] = "I am purple homer!";
+
+    auto buffer = juce::AudioBuffer<float> ();
+    buffer.setSize (1, bufsiz);
+
+    auto iter = 0;
+    for (; iter < 100; ++iter) {
+        buffer.clear();
+        hps[0]->processBlock (buffer, 0, bufsiz, iter==0);
+        for (int samp = 0; samp < buffer.getNumSamples(); ++samp) {
+            outBuffers[0].push_back (buffer.getSample (0, samp));
+        }
+    }
+
+    for (iter = 0; iter < 100; ++iter) {
+        for (int p = 1; p < hs.size (); ++p) {
+            buffer.clear();
+            hps[p]->processBlock (buffer, 0, bufsiz, iter==0);
+            for (int samp = 0; samp < buffer.getNumSamples(); ++samp) {
+                outBuffers[p].push_back (buffer.getSample (0, samp));
+            }
+        }
+    }
 
 }
 
 #ifdef PAMPLEJUCE_IPP
+
     #include <ipp.h>
 
 TEST_CASE ("IPP version", "[ipp]")
