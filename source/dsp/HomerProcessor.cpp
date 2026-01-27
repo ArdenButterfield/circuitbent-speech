@@ -9,9 +9,7 @@ HomerProcessor::HomerProcessor(HomerState& hs) : samplerate (0), homerState (hs)
 }
 HomerProcessor::~HomerProcessor()
 {
-    if (espeakThread && espeakThread->isThreadRunning()) {
-        espeakThread->endNote();
-    }
+    releaseResources();
 }
 
 void HomerProcessor::prepareToPlay (double fs, int samplesPerBlockExpected)
@@ -20,7 +18,9 @@ void HomerProcessor::prepareToPlay (double fs, int samplesPerBlockExpected)
     resampler.setInputSamplerate (22050);
 
     samplerate = static_cast<int>(fs);
-    espeakThread = std::make_unique<EspeakThread> (homerState);
+    nextEspeakThread = std::make_unique<EspeakThread> (homerState);
+    setUpNextEspeakThread();
+    currentEspeakThread.reset ();
     inputBuffer.setSize (1, samplesPerBlockExpected * 2);
 }
 
@@ -39,28 +39,33 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
     resampler.setAliasingAmount (*homerState.amountOfAliasing);
     auto ptr = buffer.getWritePointer(0) + startSample;
 
-    if ((startNewNote || homerState.killParam->get()) && espeakThread->isThreadRunning()) {
-        espeakThread->endNote();
+    if ((startNewNote || homerState.killParam->get()) && currentEspeakThread && currentEspeakThread->isThreadRunning()) {
+        currentEspeakThread->endNote();
     }
 
     if (startNewNote) {
-        espeakThread->resetEspeakContext(samplerate);
-        auto started = espeakThread->startThread();
-        jassert (started && espeakThread->isThreadRunning());
+        currentEspeakThread = std::move(nextEspeakThread);
+        setUpNextEspeakThread();
+        jassert (currentEspeakThread);
+        jassert (currentEspeakThread->isThreadRunning());
+
+        while (!currentEspeakThread->readyToGo) {
+            currentEspeakThread->notify();
+        }
     }
 
-    if (espeakThread->isThreadRunning()) {
+    if (currentEspeakThread && currentEspeakThread->isThreadRunning()) {
         inputBuffer.clear();
         auto numInputSamples = resampler.getNumSamplesNeeded (numSamples);
         if (numInputSamples > inputBuffer.getNumSamples()) {
             inputBuffer.setSize (1, numInputSamples);
         }
 
-        espeakThread->setOutputBuffer (inputBuffer.getWritePointer (0), numInputSamples);
+        currentEspeakThread->setOutputBuffer (inputBuffer.getWritePointer (0), numInputSamples);
 
-        espeakThread->setBendParametersFromState();
+        currentEspeakThread->setBendParametersFromState();
 
-        espeakThread->process();
+        currentEspeakThread->process();
 
         resampler.resampleIntoBuffer (ptr, numSamples, inputBuffer.getReadPointer (0), numInputSamples);
 
@@ -72,7 +77,23 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
 
 void HomerProcessor::releaseResources()
 {
-    if (espeakThread && espeakThread->isThreadRunning()) {
-        espeakThread->endNote();
+    while (currentEspeakThread && currentEspeakThread->isThreadRunning()) {
+        currentEspeakThread->endNote();
     }
+    while (nextEspeakThread && nextEspeakThread->isThreadRunning()) {
+        nextEspeakThread->endNote();
+    }
+    currentEspeakThread.reset();
+    nextEspeakThread.reset();
+}
+void HomerProcessor::setUpNextEspeakThread()
+{
+    while (nextEspeakThread && nextEspeakThread->isThreadRunning()) {
+        // std::cout << "ending note in espeak thread" << std::endl;
+        nextEspeakThread->endNote();
+    }
+    nextEspeakThread = std::make_unique<EspeakThread> (homerState);
+    // std::cout << "starting new thread" << std::endl;
+    auto threadStarted = nextEspeakThread->startThread();
+    jassert (threadStarted);
 }

@@ -15,7 +15,7 @@ class EspeakThread : public juce::Thread
 public:
     EspeakThread(HomerState& homer_state);
     ~EspeakThread() override;
-    void resetEspeakContext(int fs);
+    void resetEspeakContext();
 
     void endNote();
 
@@ -26,6 +26,8 @@ public:
     void process();
     EspeakProcessorContext epContext;
     HomerState& homerState;
+
+    bool readyToGo;
 };
 
 #endif //HOMER_ESPEAKTHREAD_H

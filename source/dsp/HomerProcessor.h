@@ -20,8 +20,11 @@ public:
     void processBlock(juce::AudioSampleBuffer &buffer, unsigned int startSample, unsigned int numSamples, bool startNewNote);
     void releaseResources();
 private:
+    void setUpNextEspeakThread();
+
     juce::AudioBuffer<float> inputBuffer;
-    std::unique_ptr<EspeakThread> espeakThread;
+    std::unique_ptr<EspeakThread> currentEspeakThread;
+    std::unique_ptr<EspeakThread> nextEspeakThread;
     int samplerate;
     Resampler resampler;
     HomerState& homerState;

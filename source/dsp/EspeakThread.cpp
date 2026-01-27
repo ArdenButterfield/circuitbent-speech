@@ -6,16 +6,14 @@
 #include "espeak-ng/espeak_ng.h"
 #include "windows.h"
 
-EspeakThread::EspeakThread(HomerState& hs) : Thread("EspeakThread"), homerState(hs)
+EspeakThread::EspeakThread(HomerState& hs) : Thread ("EspeakThread"), epContext(), homerState (hs), readyToGo(false)
 {
-    resetEspeakContext(22050);
 }
 
 EspeakThread::~EspeakThread()
-{
-}
+= default;
 
-void EspeakThread::resetEspeakContext(int fs)
+void EspeakThread::resetEspeakContext()
 {
     const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
@@ -25,14 +23,16 @@ void EspeakThread::resetEspeakContext(int fs)
 
     initEspeakContext(&epContext);
 
-    espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
-    // epContext.samplerate = fs;
+    espeak_Initialize (&epContext, output, buflength, path, options);
+
 }
 
 void EspeakThread::endNote()
 {
+    jassert (getThreadId() != getCurrentThreadId() || getCurrentThreadId() == ThreadID());
     epContext.noteEndingEarly = true;
     epContext.readyToProcess = true;
+    notify();
     WakeByAddressSingle(&epContext.readyToProcess);
     stopThread (1);
 }
@@ -48,6 +48,8 @@ int synthCallback(short *wav, int, espeak_EVENT*)
 
 void EspeakThread::run()
 {
+    resetEspeakContext();
+
     auto language = homerState.voiceNames[*homerState.languageSelectors[*homerState.lyricSelector - 1]];
     auto voiceResult = espeak_SetVoiceByName(&epContext, language.toRawUTF8());
     jassert (voiceResult == 0);
@@ -61,8 +63,19 @@ void EspeakThread::run()
 
     auto lyrics = homerState.lyrics[*homerState.lyricSelector - 1].toStdString();
 
-    // epContext.bends.debugPrintEverything = true;
+    auto waitResult = wait (-1);
+    readyToGo = true;
 
+    jassert (waitResult == true);
+    // std::cout << "waking up thread" << std::endl;
+
+    if (epContext.noteEndingEarly) {
+        // std::cout << "aborting thread before processing\n" << std::endl;
+        return;
+    }
+
+    // epContext.bends.debugPrintEverything = true;
+    setBendParametersFromState();
     auto synthError = espeak_Synth(&epContext, lyrics.c_str(), 500, 0, POS_CHARACTER, 0, espeakCHARS_AUTO, identifier, user_data);
     jassert (synthError == 0);
     epContext.allDone = true;

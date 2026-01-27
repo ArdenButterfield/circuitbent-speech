@@ -199,7 +199,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     juce::XmlElement xml("state");
     auto params = xml.createNewChildElement ("parameters");
     for (auto& p : getParameters()) {
-        params->setAttribute (juce::String(p->getParameterIndex()), p->getValue());
+        params->setAttribute (juce::String("param-") + juce::String(p->getParameterIndex()), p->getValue());
     }
     auto lyrics = xml.createNewChildElement ("lyrics");
     // You should use this method to store your parameters in the memory block.
