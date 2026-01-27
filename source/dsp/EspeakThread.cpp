@@ -6,7 +6,7 @@
 #include "espeak-ng/espeak_ng.h"
 #include "windows.h"
 
-EspeakThread::EspeakThread(HomerState& hs) : Thread ("EspeakThread"), epContext(), homerState (hs), readyToGo(false)
+EspeakThread::EspeakThread(HomerState& hs) : Thread ("EspeakThread"), epContext(), homerState (hs), readyToGo(false), readyToWait (false)
 {
 }
 
@@ -50,7 +50,7 @@ void EspeakThread::run()
 {
     resetEspeakContext();
 
-    auto language = homerState.voiceNames[*homerState.languageSelectors[*homerState.lyricSelector - 1]];
+    language = homerState.voiceNames[*homerState.languageSelectors[*homerState.lyricSelector - 1]];
     auto voiceResult = espeak_SetVoiceByName(&epContext, language.toRawUTF8());
     jassert (voiceResult == 0);
     std::vector<float> samples;
@@ -61,16 +61,15 @@ void EspeakThread::run()
     void* user_data = &samples;
     unsigned int *identifier = nullptr;
 
-    auto lyrics = homerState.lyrics[*homerState.lyricSelector - 1].toStdString();
+    lyrics = homerState.lyrics[*homerState.lyricSelector - 1].toStdString();
 
+    readyToWait = true;
     auto waitResult = wait (-1);
     readyToGo = true;
 
     jassert (waitResult == true);
-    // std::cout << "waking up thread" << std::endl;
 
     if (epContext.noteEndingEarly) {
-        // std::cout << "aborting thread before processing\n" << std::endl;
         return;
     }
 

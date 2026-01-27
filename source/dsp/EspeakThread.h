@@ -28,6 +28,10 @@ public:
     HomerState& homerState;
 
     bool readyToGo;
+    bool readyToWait;
+
+    juce::String language;
+    std::string lyrics;
 };
 
 #endif //HOMER_ESPEAKTHREAD_H

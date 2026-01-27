@@ -30,6 +30,8 @@ void HomerProcessor::setText (const juce::String& text)
 
 void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int startSample, unsigned int numSamples, bool startNewNote)
 {
+    resetNextEspeakThreadIfNeeded();
+
     jassert (startSample + numSamples <= buffer.getNumSamples());
 
     auto speedDuck = 1 - 4 * homerState.peakLevel * *homerState.clockCurrentStealing;
@@ -89,11 +91,18 @@ void HomerProcessor::releaseResources()
 void HomerProcessor::setUpNextEspeakThread()
 {
     while (nextEspeakThread && nextEspeakThread->isThreadRunning()) {
-        // std::cout << "ending note in espeak thread" << std::endl;
         nextEspeakThread->endNote();
     }
     nextEspeakThread = std::make_unique<EspeakThread> (homerState);
-    // std::cout << "starting new thread" << std::endl;
     auto threadStarted = nextEspeakThread->startThread();
     jassert (threadStarted);
+}
+
+void HomerProcessor::resetNextEspeakThreadIfNeeded()
+{
+    if (nextEspeakThread && nextEspeakThread->isThreadRunning() && nextEspeakThread->readyToWait &&
+        (nextEspeakThread->language != homerState.voiceNames[*homerState.languageSelectors[*homerState.lyricSelector - 1]] ||
+        nextEspeakThread->lyrics != homerState.lyrics[*homerState.lyricSelector - 1].toStdString())) {
+        setUpNextEspeakThread();
+    }
 }

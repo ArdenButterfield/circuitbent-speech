@@ -21,7 +21,7 @@ public:
     void releaseResources();
 private:
     void setUpNextEspeakThread();
-
+    void resetNextEspeakThreadIfNeeded();
     juce::AudioBuffer<float> inputBuffer;
     std::unique_ptr<EspeakThread> currentEspeakThread;
     std::unique_ptr<EspeakThread> nextEspeakThread;
