@@ -1034,6 +1034,8 @@ struct epc
     voice_t *voice;
 
     // wavegen.c
+    const unsigned char *pk_shape;
+
     voice_t *wvoice;// = NULL;
 
     int option_harmonic1;// = 10;

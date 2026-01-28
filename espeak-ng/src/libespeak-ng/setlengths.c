@@ -189,8 +189,8 @@ void SetSpeed(EspeakProcessorContext* epContext, int control)
 	}
 
 	#else
-	if (voice->speed_percent > 0)
-		wpm = (wpm * voice->speed_percent)/100;
+	if (epContext->voice->speed_percent > 0)
+		wpm = (wpm * epContext->voice->speed_percent)/100;
 	#endif
 
 	SetSpeedMultiplier(&x, &wpm);

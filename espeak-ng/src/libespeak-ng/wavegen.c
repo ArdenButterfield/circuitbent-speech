@@ -289,8 +289,6 @@ static const unsigned char pk_shape2[PEAKSHAPEW+1] = {
 	  0
 };
 
-static const unsigned char *pk_shape;
-
 void WavegenInit(EspeakProcessorContext* epContext, int rate, int wavemult_fact)
 {
 	int ix;
@@ -329,7 +327,7 @@ void WavegenInit(EspeakProcessorContext* epContext, int rate, int wavemult_fact)
 		}
 	}
 
-	pk_shape = pk_shape2;
+	epContext->pk_shape = pk_shape2;
 
 #if USE_KLATT
 	KlattInit(epContext);
@@ -445,9 +443,9 @@ int PeaksToHarmspect(EspeakProcessorContext* epContext, wavegen_peaks_t *peaks, 
 		if (h <= 0) h = 1;
 
 		for (f = pitch*h; f < fp; f += pitch)
-			htab[h++] += pk_shape[(fp-f)/(p->left>>8)] * p->height;
+			htab[h++] += epContext->pk_shape[(fp-f)/(p->left>>8)] * p->height;
 		for (; f < fhi; f += pitch)
-			htab[h++] += pk_shape[(f-fp)/(p->right>>8)] * p->height;
+			htab[h++] += epContext->pk_shape[(f-fp)/(p->right>>8)] * p->height;
 	}
 
 	int y;
@@ -1099,9 +1097,9 @@ void WavegenSetVoice(EspeakProcessorContext* epContext, voice_t *v)
 	epContext->wvoice = &v2;
 
 	if (v->peak_shape == 0)
-		pk_shape = pk_shape1;
+		epContext->pk_shape = pk_shape1;
 	else
-		pk_shape = pk_shape2;
+		epContext->pk_shape = pk_shape2;
 
 	epContext->consonant_amp = (v->consonant_amp * 26) /100;
 	if (epContext->samplerate <= 11000) {
