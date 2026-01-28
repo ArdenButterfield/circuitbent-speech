@@ -61,7 +61,7 @@ static void *say_thread(void *);
 
 static espeak_ng_STATUS push(t_espeak_command *the_command);
 static t_espeak_command *pop(void);
-static void init(int process_parameters);
+static void init(EspeakProcessorContext* epContext, int process_parameters);
 static int node_counter = 0;
 static bool thread_inited = false;
 
@@ -71,11 +71,11 @@ enum {
 	MAX_INACTIVITY_CHECK = 2
 };
 
-void fifo_init(void)
+void fifo_init(EspeakProcessorContext* epContext)
 {
 	// security
 	pthread_mutex_init(&my_mutex, (const pthread_mutexattr_t *)NULL);
-	init(0);
+	init(epContext, 0);
 
 	int a_status;
 	a_status = pthread_cond_init(&my_cond_command_is_running, NULL);
@@ -294,7 +294,7 @@ static espeak_ng_STATUS close_stream(void)
 
 static void *say_thread(void *p)
 {
-	(void)p; // unused
+	EspeakProcessorContext* epContext = (EspeakProcessorContext*)p; // unused
 
 	int a_status;
 
@@ -352,7 +352,7 @@ static void *say_thread(void *p)
 				a_status = pthread_mutex_unlock(&my_mutex);
 
 				if (my_command_is_running)
-					process_espeak_command(a_command);
+					process_espeak_command(epContext, a_command);
 				delete_espeak_command(a_command);
 			}
 		}
@@ -360,7 +360,7 @@ static void *say_thread(void *p)
 		if (my_stop_is_required || my_terminate_is_required) {
 			// no mutex required since the stop command is synchronous
 			// and waiting for my_cond_stop_is_acknowledged
-			init(1);
+			init(epContext, 1);
 
 			a_status = pthread_mutex_lock(&my_mutex);
 			assert(-1 != a_status);
@@ -384,11 +384,6 @@ int fifo_is_command_enabled(void)
 {
 	return 0 == my_stop_is_required;
 }
-
-typedef struct t_node {
-	t_espeak_command *data;
-	struct t_node *next;
-} node;
 
 static node *head = NULL;
 static node *tail = NULL;
@@ -445,20 +440,20 @@ static t_espeak_command *pop(void)
 	return the_command;
 }
 
-static void init(int process_parameters)
+static void init(EspeakProcessorContext* epContext, int process_parameters)
 {
 	t_espeak_command *c = NULL;
 	c = pop();
 	while (c != NULL) {
 		if (process_parameters && (c->type == ET_PARAMETER || c->type == ET_VOICE_NAME || c->type == ET_VOICE_SPEC))
-			process_espeak_command(c);
+			process_espeak_command(epContext, c);
 		delete_espeak_command(c);
 		c = pop();
 	}
 	node_counter = 0;
 }
 
-void fifo_terminate(void)
+void fifo_terminate(EspeakProcessorContext* epContext)
 {
 	if (!thread_inited) return;
 
@@ -474,7 +469,7 @@ void fifo_terminate(void)
 	pthread_cond_destroy(&my_cond_start_is_required);
 	pthread_cond_destroy(&my_cond_stop_is_acknowledged);
 
-	init(0); // purge fifo
+	init(epContext, 0); // purge fifo
 }
 
 #endif

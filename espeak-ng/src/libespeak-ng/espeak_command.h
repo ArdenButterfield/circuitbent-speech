@@ -124,7 +124,7 @@ t_espeak_command *create_espeak_voice_name(const char *name);
 
 t_espeak_command *create_espeak_voice_spec(espeak_VOICE *voice_spec);
 
-void process_espeak_command(t_espeak_command *the_command);
+void process_espeak_command(EspeakProcessorContext* epContext, t_espeak_command *the_command);
 
 int delete_espeak_command(t_espeak_command *the_command);
 

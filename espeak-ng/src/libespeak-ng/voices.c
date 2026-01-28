@@ -1226,8 +1226,8 @@ static void GetVoices(EspeakProcessorContext* epContext, const char *path, int l
 		return;
 
 	while ((ent = readdir(dir)) != NULL) {
-		if (n_voices_list >= (N_VOICES_LIST-2)) {
-			fprintf(stderr, "Warning: maximum number %d of (N_VOICES_LIST = %d - 1) reached\n", n_voices_list + 1, N_VOICES_LIST);
+		if (epContext->n_voices_list >= (N_VOICES_LIST-2)) {
+			fprintf(stderr, "Warning: maximum number %d of (N_VOICES_LIST = %d - 1) reached\n", epContext->n_voices_list + 1, N_VOICES_LIST);
 			break; // voices list is full
 		}
 
@@ -1235,7 +1235,7 @@ static void GetVoices(EspeakProcessorContext* epContext, const char *path, int l
 			continue;
 
 			 sprintf(fname, "%s%c%s", path, PATHSEP, ent->d_name);
-			if (AddToVoicesList(fname, len_path_voices, is_language_file) != 0) {
+			if (AddToVoicesList(epContext, fname, len_path_voices, is_language_file) != 0) {
 				continue;
 			}
 

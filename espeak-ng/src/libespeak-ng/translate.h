@@ -541,7 +541,7 @@ void InitText(EspeakProcessorContext* epContext, int flags);
 void InitText2(EspeakProcessorContext* epContext);
 const ALPHABET *AlphabetFromChar(int c);
 
-Translator *SelectTranslator(EspeakProcessorContext* epContextconst, char *name);
+Translator *SelectTranslator(EspeakProcessorContext* epContextconst, const char *name);
 int SetTranslator2(EspeakProcessorContext* epContext, const char *name);
 int SetTranslator3(EspeakProcessorContext* epContext, const char *name);
 void DeleteTranslator(Translator *tr);

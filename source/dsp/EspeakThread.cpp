@@ -4,7 +4,11 @@
 
 #include "EspeakThread.h"
 #include "espeak-ng/espeak_ng.h"
+
+#if defined(_WIN32) || defined(_WIN64)
 #include "windows.h"
+#else
+#endif
 
 EspeakThread::EspeakThread(HomerState& hs) : Thread ("EspeakThread"), epContext(), homerState (hs), readyToGo(false), readyToWait (false)
 {
@@ -33,7 +37,10 @@ void EspeakThread::endNote()
     epContext.noteEndingEarly = true;
     epContext.readyToProcess = true;
     notify();
+    #if defined(_WIN32) || defined(_WIN64)
     WakeByAddressSingle(&epContext.readyToProcess);
+    #else
+    #endif
     stopThread (1);
 }
 
@@ -79,7 +86,11 @@ void EspeakThread::run()
     jassert (synthError == 0);
     epContext.allDone = true;
     epContext.doneProcessing = true;
+    #if defined(_WIN32) || defined(_WIN64)
     WakeByAddressSingle(&epContext.doneProcessing);
+    #else
+    #endif
+
 }
 void EspeakThread::setBendParametersFromState()
 {
@@ -127,10 +138,17 @@ void EspeakThread::process()
 
     bool stillProcessing = false;
 
+    #if defined(_WIN32) || defined(_WIN64)
     WakeByAddressSingle(&epContext.readyToProcess);
+    #else
+    #endif
+
 
     while (epContext.doneProcessing == stillProcessing)
     {
+        #if defined(_WIN32) || defined(_WIN64)
         WaitOnAddress(&epContext.doneProcessing, &stillProcessing, sizeof(bool), INFINITE);
+        #else
+        #endif
     }
 }

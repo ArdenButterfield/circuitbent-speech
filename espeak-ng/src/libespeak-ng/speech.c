@@ -113,7 +113,7 @@ static int dispatch_audio(EspeakProcessorContext* epContext, short *outbuf, int 
 				epContext->out_samplerate = epContext->voice_samplerate;
 #if USE_ASYNC
 				if ((epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0)
-					event_init();
+					event_init(epContext);
 #endif
 			}
 		}
@@ -148,7 +148,7 @@ static int dispatch_audio(EspeakProcessorContext* epContext, short *outbuf, int 
 			if ((event->type == espeakEVENT_WORD) && (event->length == 0))
 				break;
 			if ((epContext->my_mode & ENOUTPUT_MODE_SYNCHRONOUS) == 0) {
-				epContext->err = event_declare(event);
+				epContext->err = event_declare(epContext, event);
 				if (epContext->err != ENS_EVENT_BUFFER_FULL)
 					break;
 				usleep(10000);
@@ -305,10 +305,10 @@ ESPEAK_NG_API void espeak_ng_InitializePath(EspeakProcessorContext* epContext, c
 	if (check_data_path(epContext, buf, 1))
 		return;
 #elif !defined(PLATFORM_DOS)
-	if (check_data_path(getenv("ESPEAK_DATA_PATH"), 1))
+	if (check_data_path(epContext, getenv("ESPEAK_DATA_PATH"), 1))
 		return;
 
-	if (check_data_path(getenv("HOME"), 0))
+	if (check_data_path(epContext, getenv("HOME"), 0))
 		return;
 #endif
 

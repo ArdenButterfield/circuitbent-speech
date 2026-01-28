@@ -50,18 +50,18 @@ extern "C"
 // First function to be called.
 // the callback will be called when the event actually occurs.
 // The callback is detailed in speak_lib.h .
-void event_init(void);
+void event_init(EspeakProcessorContext* epContext);
 void event_set_callback(t_espeak_callback *cb);
 
 // Clear any pending event.
-espeak_ng_STATUS event_clear_all(void);
+espeak_ng_STATUS event_clear_all(EspeakProcessorContext* epContext);
 
 // Declare a future event
-espeak_ng_STATUS event_declare(espeak_EVENT *event);
+espeak_ng_STATUS event_declare(EspeakProcessorContext* epContext, espeak_EVENT *event);
 
 // Terminate the event component.
 // Last function to be called.
-void event_terminate(void);
+void event_terminate(EspeakProcessorContext* epContext);
 
 // general functions
 struct timespec;

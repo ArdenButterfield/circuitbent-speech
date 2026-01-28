@@ -57,9 +57,9 @@ enum {
 	MAX_ACTIVITY_CHECK = 6
 };
 
-static espeak_ng_STATUS push(void *data);
-static void *pop(void);
-static void init(void);
+static espeak_ng_STATUS push(EspeakProcessorContext* epContext, void *data);
+static void *pop(EspeakProcessorContext* epContext);
+static void init(EspeakProcessorContext* epContext);
 static void *polling_thread(void *);
 
 void event_set_callback(t_espeak_callback *SynthCallback)
@@ -67,13 +67,13 @@ void event_set_callback(t_espeak_callback *SynthCallback)
 	my_callback = SynthCallback;
 }
 
-void event_init(void)
+void event_init(EspeakProcessorContext* epContext)
 {
 	my_event_is_running = false;
 
 	// security
 	pthread_mutex_init(&my_mutex, (const pthread_mutexattr_t *)NULL);
-	init();
+	init(epContext);
 
 	int a_status;
 
@@ -195,7 +195,7 @@ static int event_delete(espeak_EVENT *event)
 	return 1;
 }
 
-espeak_ng_STATUS event_declare(espeak_EVENT *event)
+espeak_ng_STATUS event_declare(EspeakProcessorContext* epContext, espeak_EVENT *event)
 {
 	if (!event)
 		return EINVAL;
@@ -207,7 +207,7 @@ espeak_ng_STATUS event_declare(espeak_EVENT *event)
 	}
 
 	espeak_EVENT *a_event = event_copy(event);
-	if ((status = push(a_event)) != ENS_OK) {
+	if ((status = push(epContext, a_event)) != ENS_OK) {
 		event_delete(a_event);
 		pthread_mutex_unlock(&my_mutex);
 	} else {
@@ -220,7 +220,7 @@ espeak_ng_STATUS event_declare(espeak_EVENT *event)
 	return status;
 }
 
-espeak_ng_STATUS event_clear_all(void)
+espeak_ng_STATUS event_clear_all(EspeakProcessorContext* epContext)
 {
 	espeak_ng_STATUS status;
 	if ((status = pthread_mutex_lock(&my_mutex)) != ENS_OK)
@@ -232,7 +232,7 @@ espeak_ng_STATUS event_clear_all(void)
 		pthread_cond_signal(&my_cond_stop_is_required);
 		a_event_is_running = 1;
 	} else
-		init(); // clear pending events
+		init(epContext); // clear pending events
 
 	if (a_event_is_running) {
 		while (my_stop_is_acknowledged == false) {
@@ -249,7 +249,7 @@ espeak_ng_STATUS event_clear_all(void)
 
 static void *polling_thread(void *p)
 {
-	(void)p; // unused
+	EspeakProcessorContext* epContext = (EspeakProcessorContext*) p;
 
 	while (!my_terminate_is_required) {
 		bool a_stop_is_required = false;
@@ -269,8 +269,8 @@ static void *polling_thread(void *p)
 		pthread_mutex_unlock(&my_mutex);
 
 		// In this loop, my_event_is_running = true
-		while (head && (a_stop_is_required == false) && (my_terminate_is_required == false)) {
-			espeak_EVENT *event = (espeak_EVENT *)(head->data);
+		while (epContext->head && (a_stop_is_required == false) && (my_terminate_is_required == false)) {
+			espeak_EVENT *event = (espeak_EVENT *)(epContext->head->data);
 			assert(event);
 
 			if (my_callback) {
@@ -282,7 +282,7 @@ static void *polling_thread(void *p)
 			}
 
 			(void)pthread_mutex_lock(&my_mutex);
-			event_delete((espeak_EVENT *)pop());
+			event_delete((espeak_EVENT *)pop(epContext));
 			a_stop_is_required = my_stop_is_required;
 			if (a_stop_is_required == true)
 				my_stop_is_required = false;
@@ -305,7 +305,7 @@ static void *polling_thread(void *p)
 		if (a_stop_is_required == true || my_terminate_is_required == true) {
 			// no mutex required since the stop command is synchronous
 			// and waiting for my_cond_stop_is_acknowledged
-			init();
+			init(epContext);
 
 			// acknowledge the stop request
 			(void)pthread_mutex_lock(&my_mutex);
@@ -320,66 +320,66 @@ static void *polling_thread(void *p)
 
 enum { MAX_NODE_COUNTER = 1000 };
 
-static espeak_ng_STATUS push(void *the_data)
+static espeak_ng_STATUS push(EspeakProcessorContext* epContext, void *the_data)
 {
-	assert((!head && !tail) || (head && tail));
+	assert((!epContext->head && !epContext->tail) || (epContext->head && epContext->tail));
 
 	if (the_data == NULL)
 		return EINVAL;
 
-	if (node_counter >= MAX_NODE_COUNTER)
+	if (epContext->node_counter >= MAX_NODE_COUNTER)
 		return ENS_EVENT_BUFFER_FULL;
 
 	node *n = (node *)malloc(sizeof(node));
 	if (n == NULL)
 		return ENOMEM;
 
-	if (head == NULL) {
-		head = n;
-		tail = n;
+	if (epContext->head == NULL) {
+		epContext->head = n;
+		epContext->tail = n;
 	} else {
-		tail->next = n;
-		tail = n;
+		epContext->tail->next = n;
+		epContext->tail = n;
 	}
 
-	tail->next = NULL;
-	tail->data = the_data;
+	epContext->tail->next = NULL;
+	epContext->tail->data = the_data;
 
-	node_counter++;
+	epContext->node_counter++;
 
 	return ENS_OK;
 }
 
-static void *pop(void)
+static void *pop(EspeakProcessorContext* epContext)
 {
 	void *the_data = NULL;
 
-	assert((!head && !tail) || (head && tail));
+	assert((!epContext->head && !epContext->tail) || (epContext->head && epContext->tail));
 
-	if (head != NULL) {
-		node *n = head;
+	if (epContext->head != NULL) {
+		node *n = epContext->head;
 		the_data = n->data;
-		head = n->next;
+		epContext->head = n->next;
 		free(n);
-		node_counter--;
+		epContext->node_counter--;
 	}
 
-	if (head == NULL)
-		tail = NULL;
+	if (epContext->head == NULL)
+		epContext->tail = NULL;
 
 	return the_data;
 }
 
 
-static void init(void)
+static void init(EspeakProcessorContext* epContext)
 {
-	while (event_delete((espeak_EVENT *)pop()))
+	while (event_delete((espeak_EVENT *)pop(epContext)))
 		;
 
-	node_counter = 0;
+	epContext->node_counter = 0;
 }
 
-void event_terminate(void)
+void event_terminate(EspeakProcessorContext* epContext)
 {
 	if (thread_inited) {
 		my_terminate_is_required = true;
@@ -392,7 +392,7 @@ void event_terminate(void)
 		pthread_cond_destroy(&my_cond_start_is_required);
 		pthread_cond_destroy(&my_cond_stop_is_required);
 		pthread_cond_destroy(&my_cond_stop_is_acknowledged);
-		init(); // purge event
+		init(epContext); // purge event
 		thread_inited = 0;
 	}
 }

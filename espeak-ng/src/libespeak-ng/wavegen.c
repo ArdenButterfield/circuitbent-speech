@@ -48,10 +48,15 @@
 #include "sintab.h"
 #include "speech.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+
 #include <corecrt_io.h>
 
 #include <windows.h>
 #include <synchapi.h>
+#else
+#include <limits.h>
+#endif
 
 static void SetSynth(EspeakProcessorContext* epContext, int length, int modn, frame_t *fr1, frame_t *fr2, voice_t *v);
 
@@ -162,7 +167,11 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z, float level)
         bool notReady = false;
         while (epContext->readyToProcess == notReady)
         {
+            #if defined(_WIN32) || defined(_WIN64)
             WaitOnAddress (&epContext->readyToProcess, &notReady, sizeof(bool), INFINITE);
+            #else
+            #endif defined(_WIN32) || defined(_WIN64)
+
         }
         float sample = (float)z / (float)(1<<16);
         epContext->pluginBuffer[epContext->pluginBufferPosition] = sample * level;
@@ -174,7 +183,10 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z, float level)
             epContext->readyToProcess = false;
             epContext->pluginBufferPosition = 0;
             epContext->doneProcessing = true;
+            #if defined(_WIN32) || defined(_WIN64)
             WakeByAddressSingle(&epContext->doneProcessing);
+            #else
+            #endif
         }
     }
 }

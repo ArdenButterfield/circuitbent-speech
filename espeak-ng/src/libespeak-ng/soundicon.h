@@ -27,7 +27,7 @@ extern "C"
 #endif
 
 int LookupSoundicon(EspeakProcessorContext* epContext, int c);
-int LoadSoundFile2(EspeakProcessorContext* epContext, char *fname);
+int LoadSoundFile2(EspeakProcessorContext* epContext, const char *fname);
 
 #ifdef __cplusplus
 }

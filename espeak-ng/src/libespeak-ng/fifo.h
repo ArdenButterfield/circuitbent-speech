@@ -32,7 +32,7 @@ extern "C"
 
 // Initialize the fifo component.
 // First function to be called.
-void fifo_init(void);
+void fifo_init(EspeakProcessorContext* epContext);
 
 // Add an espeak command.
 //
@@ -55,7 +55,7 @@ int fifo_is_busy(void);
 
 // Terminate the fifo component.
 // Last function to be called.
-void fifo_terminate(void);
+void fifo_terminate(EspeakProcessorContext* epContext);
 
 // Indicates if the running command is still enabled.
 //
