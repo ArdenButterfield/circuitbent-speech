@@ -56,6 +56,7 @@
 #include <synchapi.h>
 #else
 #include <limits.h>
+#include <pthread.h>
 #endif
 
 static void SetSynth(EspeakProcessorContext* epContext, int length, int modn, frame_t *fr1, frame_t *fr2, voice_t *v);
@@ -170,6 +171,9 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z, float level)
             #if defined(_WIN32) || defined(_WIN64)
             WaitOnAddress (&epContext->readyToProcess, &notReady, sizeof(bool), INFINITE);
             #else
+            pthread_mutex_lock(&epContext->espeak_wait_lock);
+            pthread_cond_wait(&epContext->espeak_wait_condition, &epContext->espeak_wait_lock);
+            pthread_mutex_unlock (&epContext->espeak_wait_lock);
             #endif defined(_WIN32) || defined(_WIN64)
 
         }
@@ -186,6 +190,9 @@ void writeSampleOut(EspeakProcessorContext* epContext, int z, float level)
             #if defined(_WIN32) || defined(_WIN64)
             WakeByAddressSingle(&epContext->doneProcessing);
             #else
+            pthread_mutex_lock(&epContext->processor_wait_lock);
+            pthread_cond_signal(&epContext->processor_wait_condition);
+            pthread_mutex_unlock (&epContext->processor_wait_lock);
             #endif
         }
     }

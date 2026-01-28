@@ -787,6 +787,34 @@ typedef struct Translator Translator;
 
 struct epc
 {
+    int pluginBufferSize;
+    float* pluginBuffer;
+    int pluginBufferPosition;
+    bool readyToProcess;
+    bool doneProcessing;
+    bool allDone;
+    bool noteEndingEarly;
+
+    #if defined(_WIN32) || defined(_WIN64)
+    // no mutexes needed
+    #else
+
+    pthread_cond_t espeak_wait_condition;
+    pthread_mutex_t espeak_wait_lock;
+
+    pthread_cond_t processor_wait_condition;
+    pthread_mutex_t processor_wait_lock;
+
+    #endif
+
+    EspeakBends bends;
+
+
+
+
+
+    // Static variables rescued from the various files
+
     // wavegen.c static variables in functions;
     int Flutter_ix;// = 0;
     int maxh, maxh2;
@@ -809,15 +837,6 @@ struct epc
     // common.c
     uint32_t espeak_rand_state; // = 0;
 
-    int pluginBufferSize;
-    float* pluginBuffer;
-    int pluginBufferPosition;
-    bool readyToProcess;
-    bool doneProcessing;
-    bool allDone;
-    bool noteEndingEarly;
-
-    EspeakBends bends;
 
     // dictionary.c
     int dictionary_skipwords;

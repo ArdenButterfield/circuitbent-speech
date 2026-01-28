@@ -8,6 +8,7 @@
 #if defined(_WIN32) || defined(_WIN64)
 #include "windows.h"
 #else
+#include <pthread.h>
 #endif
 
 EspeakThread::EspeakThread(HomerState& hs) : Thread ("EspeakThread"), epContext(), homerState (hs), readyToGo(false), readyToWait (false)
@@ -41,6 +42,9 @@ void EspeakThread::endNote()
     #if defined(_WIN32) || defined(_WIN64)
     WakeByAddressSingle(&epContext.readyToProcess);
     #else
+    pthread_mutex_lock(&epContext.espeak_wait_lock);
+    pthread_cond_signal(&epContext.espeak_wait_condition);
+    pthread_mutex_unlock (&epContext.espeak_wait_lock);
     #endif
     stopThread (1);
 }
@@ -142,6 +146,9 @@ void EspeakThread::process()
     #if defined(_WIN32) || defined(_WIN64)
     WakeByAddressSingle(&epContext.readyToProcess);
     #else
+    pthread_mutex_lock(&epContext.espeak_wait_lock);
+    pthread_cond_signal(&epContext.espeak_wait_condition);
+    pthread_mutex_unlock (&epContext.espeak_wait_lock);
     #endif
 
 
@@ -150,6 +157,10 @@ void EspeakThread::process()
         #if defined(_WIN32) || defined(_WIN64)
         WaitOnAddress(&epContext.doneProcessing, &stillProcessing, sizeof(bool), INFINITE);
         #else
+        pthread_mutex_lock(&epContext.processor_wait_lock);
+        pthread_cond_wait(&epContext.processor_wait_condition, &epContext.processor_wait_lock);
+        pthread_mutex_unlock (&epContext.processor_wait_lock);
+
         #endif
     }
 }
