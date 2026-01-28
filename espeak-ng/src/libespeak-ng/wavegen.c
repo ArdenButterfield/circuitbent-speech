@@ -675,7 +675,7 @@ static int ApplyBreath(EspeakProcessorContext* epContext)
 	return value;
 }
 
-inline int addWithClipping(int a, int b)
+static inline int addWithClipping(int a, int b)
 {
     int overflow;
     if ((a^b) < 0) {

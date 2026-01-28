@@ -738,7 +738,7 @@ typedef struct BendRescaler
     float curve;
 } BendRescaler;
 
-inline float applyBendRescaler(BendRescaler* rescaler, float x, float newMin, float newMax)
+static inline float applyBendRescaler(BendRescaler* rescaler, float x, float newMin, float newMax)
 {
     float sloped = powf (x, powf(5.f, -rescaler->curve));
     float rescaled = (rescaler->end - rescaler->start) * sloped + rescaler->start;
