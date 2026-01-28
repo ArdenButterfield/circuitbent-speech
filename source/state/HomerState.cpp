@@ -10,7 +10,8 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
 {
     EspeakProcessorContext epContext;
 
-    const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
+    // const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
+    const char* path = R"(/home/arden/projects/circuitbent-speech/espeak-ng/espeak-ng-data)";
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
     int buflength = 500, options = 0;
     memset(&epContext, 0, sizeof(EspeakProcessorContext));

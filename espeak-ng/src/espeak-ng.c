@@ -1,4 +1,4 @@
-/*
+    /*
  * Copyright (C) 2006 to 2013 by Jonathan Duddington
  * email: jonsd@users.sourceforge.net
  * Copyright (C) 2015-2016 Reece H. Dunn
@@ -135,7 +135,7 @@ FILE *f_wavfile = NULL;
 char filetype[5];
 char wavefile[200];
 
-static void DisplayVoices(FILE *f_out, char *language)
+static void DisplayVoices(EspeakProcessorContext* epContext, FILE *f_out, char *language)
 {
 	int ix;
 	const char *p;
@@ -158,9 +158,9 @@ static void DisplayVoices(FILE *f_out, char *language)
 		voice_select.age = 0;
 		voice_select.gender = 0;
 		voice_select.name = NULL;
-		voices = espeak_ListVoices(&voice_select);
+		voices = espeak_ListVoices(epContext, &voice_select);
 	} else
-		voices = espeak_ListVoices(NULL);
+		voices = espeak_ListVoices(epContext, NULL);
 
 	fprintf(f_out, "Pty Language       Age/Gender VoiceName          File                 Other Languages\n");
 
@@ -300,12 +300,12 @@ static int SynthCallback(short *wav, int numsamples, espeak_EVENT *events)
 	return 0;
 }
 
-static void PrintVersion()
+static void PrintVersion(EspeakProcessorContext* epContext)
 {
 	const char *version;
 	const char *path_data;
-	espeak_Initialize(AUDIO_OUTPUT_SYNCHRONOUS, 0, NULL, espeakINITIALIZE_DONT_EXIT);
-	version = espeak_Info(&path_data);
+	espeak_Initialize(epContext, AUDIO_OUTPUT_SYNCHRONOUS, 0, NULL, espeakINITIALIZE_DONT_EXIT);
+	version = espeak_Info(epContext, &path_data);
 	printf("eSpeak NG text-to-speech: %s  Data at: %s\n", version, path_data);
 }
 
@@ -379,6 +379,8 @@ int main(int argc, char **argv)
 	devicename[0] = 0;
 	option_punctlist[0] = 0;
 
+    EspeakProcessorContext epContext;
+
 	while (true) {
 		c = getopt_long(argc, argv, "a:b:Dd:f:g:hk:l:mp:P:qs:v:w:xXz",
 		                long_options, &option_index);
@@ -405,7 +407,7 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			printf("\n");
-			PrintVersion();
+			PrintVersion(&epContext);
 			printf("%s", help_text);
 			return 0;
 		case 'k':
@@ -482,8 +484,8 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 0x104: // --voices
-			espeak_Initialize(AUDIO_OUTPUT_SYNCHRONOUS, 0, data_path, 0);
-			DisplayVoices(stdout, optarg2);
+			espeak_Initialize(&epContext, AUDIO_OUTPUT_SYNCHRONOUS, 0, data_path, 0);
+			DisplayVoices(&epContext, stdout, optarg2);
 			exit(0);
 		case 0x106: // -- split
 			if (optarg2 == NULL)
@@ -523,7 +525,7 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 0x10b: // --version
-			PrintVersion();
+			PrintVersion(&epContext);
 			exit(0);
 		case 0x10c: // --sep
 			phoneme_options |= espeakPHONEMES_SHOW;
@@ -559,9 +561,9 @@ int main(int argc, char **argv)
 #endif
 		case 0x10f: // --compile-intonations
 		{
-			espeak_ng_InitializePath(data_path);
+			espeak_ng_InitializePath(&epContext, data_path);
 			espeak_ng_ERROR_CONTEXT context = NULL;
-			espeak_ng_STATUS result = espeak_ng_CompileIntonation(stdout, &context);
+			espeak_ng_STATUS result = espeak_ng_CompileIntonation(&epContext, stdout, &context);
 			if (result != ENS_OK) {
 				espeak_ng_PrintStatusCodeMessage(result, stderr, context);
 				espeak_ng_ClearErrorContext(&context);
@@ -571,13 +573,13 @@ int main(int argc, char **argv)
 		}
 		case 0x110: // --compile-phonemes
 		{
-			espeak_ng_InitializePath(data_path);
+			espeak_ng_InitializePath(&epContext, data_path);
 			espeak_ng_ERROR_CONTEXT context = NULL;
 			espeak_ng_STATUS result;
 			if (optarg2) {
-				result = espeak_ng_CompilePhonemeDataPath(22050, optarg2, NULL, stdout, &context);
+				result = espeak_ng_CompilePhonemeDataPath(&epContext, 22050, optarg2, NULL, stdout, &context);
 			} else {
-				result = espeak_ng_CompilePhonemeData(22050, stdout, &context);
+				result = espeak_ng_CompilePhonemeData(&epContext, 22050, stdout, &context);
 			}
 			if (result != ENS_OK) {
 				espeak_ng_PrintStatusCodeMessage(result, stderr, context);
@@ -597,9 +599,9 @@ int main(int argc, char **argv)
 		}
 	}
 
-	espeak_ng_InitializePath(data_path);
+	espeak_ng_InitializePath(&epContext, data_path);
 	espeak_ng_ERROR_CONTEXT context = NULL;
-	espeak_ng_STATUS result = espeak_ng_Initialize(&context);
+	espeak_ng_STATUS result = espeak_ng_Initialize(&epContext, &context);
 	if (result != ENS_OK) {
 		espeak_ng_PrintStatusCodeMessage(result, stderr, context);
 		espeak_ng_ClearErrorContext(&context);
@@ -608,16 +610,16 @@ int main(int argc, char **argv)
 
 	if (deterministic) {
 		// Set random generator state to well-known
-		espeak_ng_SetRandSeed(1);
+		espeak_ng_SetRandSeed(&epContext, 1);
 	}
 
 	if (option_waveout || quiet) {
 		// writing to a file (or no output), we can use synchronous mode
-		result = espeak_ng_InitializeOutput(ENOUTPUT_MODE_SYNCHRONOUS, 0, devicename[0] ? devicename : NULL);
-		samplerate = espeak_ng_GetSampleRate();
+		result = espeak_ng_InitializeOutput(&epContext, ENOUTPUT_MODE_SYNCHRONOUS, 0, devicename[0] ? devicename : NULL);
+		samplerate = espeak_ng_GetSampleRate(&epContext);
 		samples_split = samplerate * samples_split_seconds;
 
-		espeak_SetSynthCallback(SynthCallback);
+		espeak_SetSynthCallback(&epContext, SynthCallback);
 		if (samples_split) {
 			char *extn;
 			extn = strrchr(wavefile, '.');
@@ -628,8 +630,8 @@ int main(int argc, char **argv)
 		}
 	} else {
 		// play the sound output
-		result = espeak_ng_InitializeOutput(PLAYBACK_MODE, 0, devicename[0] ? devicename : NULL);
-		samplerate = espeak_ng_GetSampleRate();
+		result = espeak_ng_InitializeOutput(&epContext, PLAYBACK_MODE, 0, devicename[0] ? devicename : NULL);
+		samplerate = espeak_ng_GetSampleRate(&epContext);
 	}
 
 	if (result != ENS_OK) {
@@ -641,13 +643,13 @@ int main(int argc, char **argv)
 		strcpy(voicename, ESPEAKNG_DEFAULT_VOICE);
 
 	if(flag_load)
-		result = espeak_ng_SetVoiceByFile(voicename);
+		result = espeak_ng_SetVoiceByFile(&epContext, voicename);
 	else
-		result = espeak_ng_SetVoiceByName(voicename);
+		result = espeak_ng_SetVoiceByName(&epContext, voicename);
 	if (result != ENS_OK) {
 		memset(&voice_select, 0, sizeof(voice_select));
 		voice_select.languages = voicename;
-		result = espeak_ng_SetVoiceByProperties(&voice_select);
+		result = espeak_ng_SetVoiceByProperties(&epContext, &voice_select);
 		if (result != ENS_OK) {
 			espeak_ng_PrintStatusCodeMessage(result, stderr, NULL);
 			exit(EXIT_FAILURE);
@@ -657,7 +659,7 @@ int main(int argc, char **argv)
 	if (flag_compile) {
 		// This must be done after the voice is set
 		espeak_ng_ERROR_CONTEXT context = NULL;
-		espeak_ng_STATUS result = espeak_ng_CompileDictionary("", NULL, stderr, flag_compile & 0x1, &context);
+		espeak_ng_STATUS result = espeak_ng_CompileDictionary(&epContext, "", NULL, stderr, flag_compile & 0x1, &context);
 		if (result != ENS_OK) {
 			espeak_ng_PrintStatusCodeMessage(result, stderr, context);
 			espeak_ng_ClearErrorContext(&context);
@@ -668,27 +670,27 @@ int main(int argc, char **argv)
 
 	// set any non-default values of parameters. This must be done after espeak_Initialize()
 	if (speed > 0)
-		espeak_SetParameter(espeakRATE, speed, 0);
+		espeak_SetParameter(&epContext, espeakRATE, speed, 0);
 	if (volume >= 0)
-		espeak_SetParameter(espeakVOLUME, volume, 0);
+		espeak_SetParameter(&epContext, espeakVOLUME, volume, 0);
 	if (pitch >= 0)
-		espeak_SetParameter(espeakPITCH, pitch, 0);
+		espeak_SetParameter(&epContext, espeakPITCH, pitch, 0);
 	if (pitch_range >= 0)
-		espeak_SetParameter(espeakRANGE, pitch_range, 0);
+		espeak_SetParameter(&epContext, espeakRANGE, pitch_range, 0);
 	if (option_capitals >= 0)
-		espeak_SetParameter(espeakCAPITALS, option_capitals, 0);
+		espeak_SetParameter(&epContext, espeakCAPITALS, option_capitals, 0);
 	if (option_punctuation >= 0)
-		espeak_SetParameter(espeakPUNCTUATION, option_punctuation, 0);
+		espeak_SetParameter(&epContext, espeakPUNCTUATION, option_punctuation, 0);
 	if (wordgap >= 0)
-		espeak_SetParameter(espeakWORDGAP, wordgap, 0);
+		espeak_SetParameter(&epContext, espeakWORDGAP, wordgap, 0);
 	if (option_linelength > 0)
-		espeak_SetParameter(espeakLINELENGTH, option_linelength, 0);
+		espeak_SetParameter(&epContext, espeakLINELENGTH, option_linelength, 0);
 	if (ssml_break > 0)
-		espeak_SetParameter(espeakSSML_BREAK_MUL, ssml_break, 0);
+		espeak_SetParameter(&epContext, espeakSSML_BREAK_MUL, ssml_break, 0);
 	if (option_punctuation == 2)
-		espeak_SetPunctuationList(option_punctlist);
+		espeak_SetPunctuationList(&epContext, option_punctlist);
 
-	espeak_SetPhonemeTrace(phoneme_options | (phonemes_separator << 8), f_phonemes_out);
+	espeak_SetPhonemeTrace(&epContext, phoneme_options | (phonemes_separator << 8), f_phonemes_out);
 
 	if (filename[0] == 0) {
 		if ((optind < argc) && (flag_stdin == 0)) {
@@ -720,7 +722,7 @@ int main(int argc, char **argv)
 	if (p_text != NULL) {
 		int size;
 		size = strlen(p_text);
-		espeak_Synth(p_text, size+1, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
+		espeak_Synth(&epContext, p_text, size+1, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
 	} else if (flag_stdin) {
 		size_t max = 1000;
 		if ((p_text = (char *)malloc(max)) == NULL) {
@@ -732,7 +734,7 @@ int main(int argc, char **argv)
 			// line by line input on stdin or from FIFO
 			while (fgets(p_text, max, f_text) != NULL) {
 				p_text[max-1] = 0;
-				espeak_Synth(p_text, max, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
+				espeak_Synth(&epContext, p_text, max, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
 				// Allow subprocesses to use the audio data through pipes.
 				fflush(stdout);
 			}
@@ -762,7 +764,7 @@ int main(int argc, char **argv)
 			}
 			if (ix > 0) {
 				p_text[ix] = 0;
-				espeak_Synth(p_text, ix, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
+				espeak_Synth(&epContext, p_text, ix, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
 			}
 		}
 
@@ -775,13 +777,13 @@ int main(int argc, char **argv)
 
 		fread(p_text, 1, filesize, f_text);
 		p_text[filesize] = 0;
-		espeak_Synth(p_text, filesize+1, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
+		espeak_Synth(&epContext, p_text, filesize+1, 0, POS_CHARACTER, 0, synth_flags, NULL, NULL);
 		fclose(f_text);
 
 		free(p_text);
 	}
 
-	result = espeak_ng_Synchronize();
+	result = espeak_ng_Synchronize(&epContext);
 	if (result != ENS_OK) {
 		espeak_ng_PrintStatusCodeMessage(result, stderr, NULL);
 		exit(EXIT_FAILURE);
@@ -791,6 +793,6 @@ int main(int argc, char **argv)
 		fclose(f_phonemes_out);
 
 	CloseWavFile();
-	espeak_ng_Terminate();
+	espeak_ng_Terminate(&epContext);
 	return 0;
 }
