@@ -85,6 +85,8 @@ ESPEAK_API int espeak_Initialize(EspeakProcessorContext* epContext, espeak_AUDIO
 ESPEAK_NG_API void
 initEspeakContext(EspeakProcessorContext* epContext)
 {
+    epContext->agc = 256;
+
     epContext->namedata_ix = 0;
     epContext->n_namedata = 0;
     epContext->namedata = NULL;

@@ -787,6 +787,23 @@ typedef struct Translator Translator;
 
 struct epc
 {
+    // wavegen.c static variables in functions;
+    int Flutter_ix;// = 0;
+    int maxh, maxh2;
+    int agc;// = 256;
+    int h_switch_sign;// = 0;
+    int cycle_count;// = 0;
+    int amplitude2;// = 0; // adjusted for pitch
+
+    int silence_n_samples;
+
+    int wave_n_samples;
+    int wave_ix;// = 0;
+    voice_t v2;
+
+    bool resume;// = false;
+    int echo_complete;// = 0;
+
     // Buffer and variables for passing data to plugin
 
     // common.c
@@ -1113,7 +1130,6 @@ struct epc
     // the presets are for 22050 Hz sample rate.
     // A different rate will need to recalculate the presets in WavegenInit()
     unsigned char wavemult[N_WAVEMULT];
-
 
 };
 

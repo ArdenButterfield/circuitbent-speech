@@ -509,7 +509,6 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 
 	int x = 0;
 	int ix;
-	static int Flutter_ix = 0;
 
 	// advance the pitch
 	epContext->wdata.pitch_ix += epContext->wdata.pitch_inc;
@@ -520,10 +519,10 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 	epContext->amp_ix += epContext->amp_inc;
 
 	/* add pitch flutter */
-	if (Flutter_ix >= (N_FLUTTER*64))
-		Flutter_ix = 0;
-	x = ((int)(Flutter_tab[Flutter_ix >> 6])-0x80) * epContext->flutter_amp;
-	Flutter_ix += epContext->Flutter_inc;
+	if (epContext->Flutter_ix >= (N_FLUTTER*64))
+		epContext->Flutter_ix = 0;
+	x = ((int)(Flutter_tab[epContext->Flutter_ix >> 6])-0x80) * epContext->flutter_amp;
+	epContext->Flutter_ix += epContext->Flutter_inc;
 	epContext->wdata.pitch += x;
 	
 	if(epContext->const_f0)
@@ -696,16 +695,16 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 	int z, z1, z2;
 	int echo;
 	int ov;
-	static int maxh, maxh2;
+	// static int maxh, maxh2;
 	int pk;
 	signed char c;
 	int sample;
 	int amp;
 	int modn_amp = 1, modn_period;
-	static int agc = 256;
-	static int h_switch_sign = 0;
-	static int cycle_count = 0;
-	static int amplitude2 = 0; // adjusted for pitch
+	// static int agc = 256;
+	// static int h_switch_sign = 0;
+	// static int cycle_count = 0;
+	// static int amplitude2 = 0; // adjusted for pitch
 
 	// continue until the output buffer is full, or
 	// the required number of samples have been produced
@@ -725,13 +724,13 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			if (epContext->samplecount == 0) {
 				epContext->hswitch = 0;
 				epContext->harmspect = epContext->hspect[0];
-				maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[0], 0);
+				epContext->maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[0], 0);
 
 				// adjust amplitude to compensate for fewer harmonics at higher pitch
-				amplitude2 = (epContext->wdata.amplitude * (epContext->wdata.pitch >> 8) * epContext->wdata.amplitude_fmt)/(10000 << 3);
+				epContext->amplitude2 = (epContext->wdata.amplitude * (epContext->wdata.pitch >> 8) * epContext->wdata.amplitude_fmt)/(10000 << 3);
 
 				// switch sign of harmonics above about 900Hz, to reduce max peak amplitude
-				h_switch_sign = 890 / (epContext->wdata.pitch >> 12);
+				epContext->h_switch_sign = 890 / (epContext->wdata.pitch >> 12);
 			} else
 				AdvanceParameters(epContext);
 
@@ -740,10 +739,10 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 			epContext->cycle_samples = epContext->samplerate/(epContext->wdata.pitch >> 12); // sr/(pitch*2)
 			epContext->hf_factor = epContext->wdata.pitch >> 11;
 
-			maxh = maxh2;
+			epContext->maxh = epContext->maxh2;
 			epContext->harmspect = epContext->hspect[epContext->hswitch];
 			epContext->hswitch ^= 1;
-			maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[epContext->hswitch], 1);
+			epContext->maxh2 = PeaksToHarmspect(epContext, epContext->peaks, epContext->wdata.pitch<<4, epContext->hspect[epContext->hswitch], 1);
 
 			SetBreath(epContext);
 		    if (epContext->bends.debugPrintEverything)
@@ -757,11 +756,11 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		        printf("\n");
 		    }
 		} else if (!epContext->bends.freeze && (epContext->samplecount & 0x07) == 0) {
-			for (h = 1; h < N_LOWHARM && h <= maxh2 && h <= maxh; h++)
+			for (h = 1; h < N_LOWHARM && h <= epContext->maxh2 && h <= epContext->maxh; h++)
 				epContext->harmspect[h] += epContext->harm_inc[h];
 
 			// bring automatic gain control back towards unity
-			if (agc < 256) agc++;
+			if (epContext->agc < 256) epContext->agc++;
 		}
 
         if (!epContext->bends.freeze) {
@@ -780,7 +779,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 				if (epContext->samplecount > epContext->nsamples)
 					return 0;
 
-				cycle_count++;
+				epContext->cycle_count++;
 
 				for (pk = wvoice->n_harmonic_peaks+1; pk < N_PEAKS; pk++) {
 					// find the nearest harmonic for HF peaks where we don't use shape
@@ -788,7 +787,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 				}
 
 				// adjust amplitude to compensate for fewer harmonics at higher pitch
-				amplitude2 = (epContext->wdata.amplitude * (epContext->wdata.pitch >> 8) * epContext->wdata.amplitude_fmt)/(10000 << 3);
+				epContext->amplitude2 = (epContext->wdata.amplitude * (epContext->wdata.pitch >> 8) * epContext->wdata.amplitude_fmt)/(10000 << 3);
 
 				if (epContext->glottal_flag > 0) {
 					if (epContext->glottal_flag == 3) {
@@ -796,13 +795,13 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 							// Vowel before glottal-stop.
 							// This is the start of the penultimate cycle, reduce its amplitude
 							epContext->glottal_flag = 2;
-							amplitude2 = (amplitude2 *  epContext->glottal_reduce)/256;
+							epContext->amplitude2 = (epContext->amplitude2 *  epContext->glottal_reduce)/256;
 						}
 					} else if (epContext->glottal_flag == 4) {
 						// Vowel following a glottal-stop.
 						// This is the start of the second cycle, reduce its amplitude
 						epContext->glottal_flag = 2;
-						amplitude2 = (amplitude2 * epContext->glottal_reduce)/256;
+						epContext->amplitude2 = (epContext->amplitude2 * epContext->glottal_reduce)/256;
 					} else
 						epContext->glottal_flag--;
 				}
@@ -811,7 +810,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 					// amplitude envelope is only used for creaky voice effect on certain vowels/tones
 					if ((ix = epContext->amp_ix>>8) > 127) ix = 127;
 					amp = epContext->amplitude_env[ix];
-					amplitude2 = (amplitude2 * amp)/128;
+					epContext->amplitude2 = (epContext->amplitude2 * amp)/128;
 				}
 
 				// introduce roughness into the sound by reducing the amplitude of
@@ -825,12 +824,12 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 				if (modn_period != 0) {
 					if (modn_period == 0xf) {
 						// just once */
-						amplitude2 = (amplitude2 * modn_amp)/16;
+						epContext->amplitude2 = (epContext->amplitude2 * modn_amp)/16;
 						epContext->modulation_type = 0;
 					} else {
 						// reduce amplitude every [modn_period} cycles
-						if ((cycle_count % modn_period) == 0)
-							amplitude2 = (amplitude2 * modn_amp)/16;
+						if ((epContext->cycle_count % modn_period) == 0)
+							epContext->amplitude2 = (epContext->amplitude2 * modn_amp)/16;
 					}
 				}
 			}
@@ -857,12 +856,12 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 		// apply main peaks, formants 0 to 5
 		theta = waveph;
 
-		for (h = 1; h <= h_switch_sign; h++) {
+		for (h = 1; h <= epContext->h_switch_sign; h++) {
 		    int toAdd = (int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h];
 			total = addWithClipping (total, toAdd);
 			theta += waveph * (epContext->bends.detuneHarmonics  + 1);
 		}
-		while (h <= maxh) {
+		while (h <= epContext->maxh) {
 		    int toAdd = -((int)fetchSineFromTable(epContext, theta >> 5) * epContext->harmspect[h]);
 			total = addWithClipping (total, toAdd);
 			theta += waveph * (epContext->bends.detuneHarmonics + 1);
@@ -894,24 +893,24 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 				epContext->wdata.mix_wavefile_offset -= (epContext->wdata.mix_wavefile_max*3)/4;
 		}
 
-		z1 = z2 + (((total>>8) * amplitude2) >> 13);
+		z1 = z2 + (((total>>8) * epContext->amplitude2) >> 13);
 
 		echo = (epContext->echo_buf[epContext->echo_tail++] * epContext->echo_amp);
 		z1 += echo >> 8;
 		if (epContext->echo_tail >= N_ECHO_BUF)
 			epContext->echo_tail = 0;
 
-		z = (z1 * agc) >> 8;
+		z = (z1 * epContext->agc) >> 8;
 
 		// check for overflow, 16bit signed samples
 		if (z >= 32768) {
 			ov = 8388608/z1 - 1;      // 8388608 is 2^23, i.e. max value * 256
-			if (ov < agc) agc = ov;    // set agc to number of 1/256ths to multiply the sample by
-			z = (z1 * agc) >> 8;      // reduce sample by agc value to prevent overflow
+			if (ov < epContext->agc) epContext->agc = ov;    // set agc to number of 1/256ths to multiply the sample by
+			z = (z1 * epContext->agc) >> 8;      // reduce sample by agc value to prevent overflow
 		} else if (z <= -32768) {
 			ov = -8388608/z1 - 1;
-			if (ov < agc) agc = ov;
-			z = (z1 * agc) >> 8;
+			if (ov < epContext->agc) epContext->agc = ov;
+			z = (z1 * epContext->agc) >> 8;
 		}
 	    writeSampleOut (epContext, z, epContext->bends.vowelLevel);
 
@@ -928,7 +927,7 @@ static int Wavegen(EspeakProcessorContext* epContext, int length, int modulation
 
 static int PlaySilence(EspeakProcessorContext* epContext, int length, bool resume)
 {
-	static int n_samples;
+	// static int n_samples;
 
 	epContext->nsamples = 0;
 	epContext->samplecount = 0;
@@ -938,10 +937,10 @@ static int PlaySilence(EspeakProcessorContext* epContext, int length, bool resum
 		return 0;
 
 	if (resume == false)
-		n_samples = length;
+		epContext->silence_n_samples = length;
 
 	int value = 0;
-	while ((n_samples-- > 0) && (epContext->noteEndingEarly == false)) {
+	while ((epContext->silence_n_samples-- > 0) && (epContext->noteEndingEarly == false)) {
 		value = (epContext->echo_buf[epContext->echo_tail++] * epContext->echo_amp) >> 8;
 
 		if (epContext->echo_tail >= N_ECHO_BUF)
@@ -963,28 +962,28 @@ static int PlaySilence(EspeakProcessorContext* epContext, int length, bool resum
 
 static int PlayWave(EspeakProcessorContext* epContext, int length, bool resume, unsigned char *data, int scale, int amp)
 {
-	static int n_samples;
-	static int ix = 0;
+	// static int n_samples;
+	// static int ix = 0;
 	int value;
 	signed char c;
 
 	if (resume == false) {
-		n_samples = length;
-		ix = 0;
+		epContext->wave_n_samples = length;
+		epContext->wave_ix = 0;
 	}
 
 	epContext->nsamples = 0;
 	epContext->samplecount = 0;
 
-	while ((n_samples-- > 0) && (epContext->noteEndingEarly == false)) {
+	while ((epContext->wave_n_samples-- > 0) && (epContext->noteEndingEarly == false)) {
 		if (scale == 0) {
 			// 16 bits data
-			c = data[ix+1];
-			value = data[ix] + (c * 256);
-			ix += 2;
+			c = data[epContext->wave_ix+1];
+			value = data[epContext->wave_ix] + (c * 256);
+			epContext->wave_ix += 2;
 		} else {
 			// 8 bit data, shift by the specified scale factor
-			value = (signed char)data[ix++] * scale;
+			value = (signed char)data[epContext->wave_ix++] * scale;
 		}
 		value *= (epContext->consonant_amp * epContext->general_amplitude); // reduce strength of consonant
 		value = value >> 10;
@@ -1091,10 +1090,10 @@ void SetEmbedded(EspeakProcessorContext* epContext, int control, int value)
 
 void WavegenSetVoice(EspeakProcessorContext* epContext, voice_t *v)
 {
-	static voice_t v2;
+	// static voice_t v2;
 
-	memcpy(&v2, v, sizeof(v2));
-	epContext->wvoice = &v2;
+	memcpy(&epContext->v2, v, sizeof(epContext->v2));
+	epContext->wvoice = &epContext->v2;
 
 	if (v->peak_shape == 0)
 		epContext->pk_shape = pk_shape1;
@@ -1285,18 +1284,18 @@ static int WavegenFill2(EspeakProcessorContext* epContext)
 	int length;
 	int result;
 	int marker_type;
-	static bool resume = false;
-	static int echo_complete = 0;
+	// static bool resume = false;
+	// static int echo_complete = 0;
 
 	if (epContext->wdata.pitch < 102400)
 		epContext->wdata.pitch = 102400; // min pitch, 25 Hz  (25 << 12)
 
 	while (epContext->out_ptr < epContext->out_end) {
 		if (WcmdqUsed(epContext) <= 0) {
-			if (echo_complete > 0) {
+			if (epContext->echo_complete > 0) {
 				// continue to play silence until echo is completed
-				resume = PlaySilence(epContext, echo_complete, resume);
-				if (resume == true)
+				epContext->resume = PlaySilence(epContext, epContext->echo_complete, epContext->resume);
+				if (epContext->resume == true)
 					return 0; // not yet finished
 			}
 			return 1; // queue empty, close sound channel
@@ -1319,22 +1318,22 @@ static int WavegenFill2(EspeakProcessorContext* epContext)
 		}
 			break;
 		case WCMD_PAUSE:
-			if (resume == false)
-				echo_complete -= length;
+			if (epContext->resume == false)
+				epContext->echo_complete -= length;
 			epContext->wdata.n_mix_wavefile = 0;
 			epContext->wdata.amplitude_fmt = 100;
 #if USE_KLATT
 			KlattReset(epContext, 1);
 #endif
-			result = PlaySilence(epContext, length, resume);
+			result = PlaySilence(epContext, length, epContext->resume);
 			break;
 		case WCMD_WAVE:
-			echo_complete = epContext->echo_length;
+			epContext->echo_complete = epContext->echo_length;
 			epContext->wdata.n_mix_wavefile = 0;
 #if USE_KLATT
 			KlattReset(epContext, 1);
 #endif
-			result = PlayWave(epContext, length, resume, (unsigned char *)q[2], q[3] & 0xff, q[3] >> 8);
+			result = PlayWave(epContext, length, epContext->resume, (unsigned char *)q[2], q[3] & 0xff, q[3] >> 8);
 			break;
 		case WCMD_WAVE2:
 			// wave file to be played at the same time as synthesis
@@ -1353,15 +1352,15 @@ static int WavegenFill2(EspeakProcessorContext* epContext)
 		case WCMD_SPECT2: // as WCMD_SPECT but stop any concurrent wave file
 			epContext->wdata.n_mix_wavefile = 0; // ... and drop through to WCMD_SPECT case
 		case WCMD_SPECT:
-			echo_complete = epContext->echo_length;
-			result = Wavegen(epContext, length & 0xffff, q[1] >> 16, resume, (frame_t *)q[2], (frame_t *)q[3], epContext->wvoice);
+			epContext->echo_complete = epContext->echo_length;
+			result = Wavegen(epContext, length & 0xffff, q[1] >> 16, epContext->resume, (frame_t *)q[2], (frame_t *)q[3], epContext->wvoice);
 			break;
 #if USE_KLATT
 		case WCMD_KLATT2: // as WCMD_SPECT but stop any concurrent wave file
 			epContext->wdata.n_mix_wavefile = 0; // ... and drop through to WCMD_SPECT case
 		case WCMD_KLATT:
-			echo_complete = epContext->echo_length;
-			result = Wavegen_Klatt(epContext, length & 0xffff, resume, (frame_t *)q[2], (frame_t *)q[3], &epContext->wdata, epContext->wvoice);
+			epContext->echo_complete = epContext->echo_length;
+			result = Wavegen_Klatt(epContext, length & 0xffff, epContext->resume, (frame_t *)q[2], (frame_t *)q[3], &epContext->wdata, epContext->wvoice);
 			break;
 #endif
 		case WCMD_MARKER:
@@ -1413,9 +1412,9 @@ static int WavegenFill2(EspeakProcessorContext* epContext)
 
 		if (result == 0) {
 			WcmdqIncHead(epContext);
-			resume = false;
+			epContext->resume = false;
 		} else {
-		    resume = true;
+		    epContext->resume = true;
 		}
 	    if (epContext->noteEndingEarly) {
 	        return 1;
