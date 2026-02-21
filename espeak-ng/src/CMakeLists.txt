@@ -1,7 +1,11 @@
 add_library(espeak-include INTERFACE)
 target_include_directories(espeak-include INTERFACE include include/compat)
-target_link_libraries(espeak-include INTERFACE ucd)
-#target_link_libraries(espeak-include INTERFACE ucd synchronization.lib)
+
+if (WIN32)
+  target_link_libraries(espeak-include INTERFACE ucd synchronization.lib)
+else()
+  target_link_libraries(espeak-include INTERFACE ucd)
+endif()
 
 add_subdirectory(ucd-tools)
 add_subdirectory(speechPlayer)
