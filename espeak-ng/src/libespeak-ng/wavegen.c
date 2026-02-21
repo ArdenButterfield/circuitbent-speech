@@ -205,20 +205,24 @@ short int fetchSineFromTable(EspeakProcessorContext* epContext, int theta)
 
     float wtShape = epContext->bends.wavetableShape;
     if (wtShape < 0.5) {
-        // progressive bitcrush from sine to square
         float pos = wtShape * 2;
         short int step = (short int)(pos * (float)amp);
         if (step < 1) {
             return sin_tab[theta];
         }
-        return (sin_tab[theta] / step) * step;
-
+        short stab = sin_tab[theta];
+        // progressive bitcrush from sine to square
+        if (stab > 0) {
+            return amp - ((amp - stab) / step) * step;
+        } else {
+            return -amp + ((stab + amp) / step) * step;
+        }
     } else {
         // morph from square to saw
         float pos = (wtShape - 0.5f) * 2;
         float saw = (theta * 2 * amp) / period - amp;
         float square = theta < (period / 2) ? -amp : amp;
-        return (short int)(saw * pos + square * (1 - period));
+        return (short int)(saw * pos + square * (1 - pos));
     }
 }
 
@@ -595,6 +599,15 @@ static void AdvanceParameters(EspeakProcessorContext* epContext)
 	    if (epContext->peaks[ix].height < 0)
 	        epContext->peaks[ix].height = 0;
 	}
+
+    // printf("sintab = [");
+    // for (int theta = 0; theta < 2024; theta += 16) {
+    //     printf("%i,", fetchSineFromTable(epContext, theta));
+    //     if (theta % 128 == 0) {
+    //         printf("\n");
+    //     }
+    // }
+    // printf("];\n");
 }
 
 static double resonator(RESONATOR *r, double input)
