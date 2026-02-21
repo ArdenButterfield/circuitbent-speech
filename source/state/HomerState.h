@@ -22,7 +22,7 @@ struct HomerState
 #elif JUCE_LINUX
     R"(~/.config/Homer)";
 #elif JUCE_MAC
-    R"(/Library/Application Support/Homer)";
+    R"(~/Library/Application Support/Homer)";
 #endif
 
 
