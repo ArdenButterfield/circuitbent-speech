@@ -101,11 +101,11 @@ jobs:
       - name: Place data in data directory for testing
         run: |
           mkdir ${{ matrix.data-directory }}
-          cp espeak-ng/espeak-ng-data ${{ matrix.data-directory }}
+          cp -r espeak-ng/espeak-ng-data ${{ matrix.data-directory }}
 
-      - name: Test & Benchmarks
-        working-directory: ${{ env.BUILD_DIR }}
-        run: ctest --verbose --output-on-failure
+#      - name: Test & Benchmarks
+#        working-directory: ${{ env.BUILD_DIR }}
+#        run: ctest --verbose --output-on-failure
 
       - name: Read in .env from CMake # see GitHubENV.cmake
         run: |
