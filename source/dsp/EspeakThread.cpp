@@ -80,7 +80,7 @@ void EspeakThread::run()
 
     void* user_data = &samples;
     unsigned int *identifier = nullptr;
-    lyrics = homerState.lyrics[min(max(0, lyricIndex), homerState.lyrics.size())].toStdString();
+    lyrics = homerState.lyrics[juce::jmin(juce::max(0, lyricIndex), homerState.lyrics.size())].toStdString();
 
     readyToWait = true;
     auto waitResult = wait (-1);
