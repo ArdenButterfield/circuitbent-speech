@@ -48,6 +48,8 @@
 #endif
 #else
 #define ESPEAK_API
+
+#include <pthread.h>
 #endif
 
 #define ESPEAK_API_REVISION  12
