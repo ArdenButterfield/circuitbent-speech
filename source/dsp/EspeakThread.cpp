@@ -20,11 +20,13 @@ EspeakThread::~EspeakThread()
 
 void EspeakThread::resetEspeakContext()
 {
-#if JUCE_WINDOWS
-    const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
-#else
-    const char* path = R"(/home/arden/projects/circuitbent-speech/espeak-ng/espeak-ng-data)";
-#endif
+    juce::String espeakDataPath = homerState.defaultDataDirectory + "/espeak-ng-data";
+
+    auto f = juce::File(espeakDataPath);
+    if (!f.exists()) {
+        std::cerr << "Cannot find default espeak data directory:" << espeakDataPath << std::endl;
+    }
+
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
     int buflength = 500, options = 0;
 
@@ -32,8 +34,7 @@ void EspeakThread::resetEspeakContext()
 
     initEspeakContext(&epContext);
 
-    espeak_Initialize (&epContext, output, buflength, path, options);
-
+    espeak_Initialize (&epContext, output, buflength, espeakDataPath.toRawUTF8(), options);
 }
 
 void EspeakThread::endNote()

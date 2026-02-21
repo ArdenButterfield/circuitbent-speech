@@ -16,6 +16,16 @@ struct HomerState
 {
     static constexpr int numLyricLines = 8;
 
+    const juce::String defaultDataDirectory =
+#if JUCE_WINDOWS
+     R"(C:/ProgramData/Homer)";
+#elif JUCE_LINUX
+    R"(~/.config/Homer)";
+#elif JUCE_MAC
+    R"(/Library/Application Support/Homer)";
+#endif
+
+
     HomerState();
 
     std::array<juce::String, numLyricLines> lyrics;

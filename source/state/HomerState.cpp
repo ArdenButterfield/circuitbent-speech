@@ -10,16 +10,18 @@ HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequ
 {
     EspeakProcessorContext epContext;
 
-#if JUCE_WINDOWS
-    const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
-#else
-    const char* path = R"(/home/arden/projects/circuitbent-speech/espeak-ng/espeak-ng-data)";
-#endif
+    juce::String espeakDataPath = defaultDataDirectory + "/espeak-ng-data";
+
+    auto f = juce::File(espeakDataPath);
+    if (!f.exists()) {
+        std::cerr << "Cannot find default espeak data directory:" << espeakDataPath << std::endl;
+    }
+
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
     int buflength = 500, options = 0;
     memset(&epContext, 0, sizeof(EspeakProcessorContext));
     initEspeakContext(&epContext);
-    espeak_Initialize (&epContext, output, buflength, path, options); // 22050 is default
+    espeak_Initialize (&epContext, output, buflength, espeakDataPath.toRawUTF8(), options); // 22050 is default
 
     auto voices = espeak_ListVoices(&epContext, nullptr);
     for (int i = 0; voices[i] != nullptr; i++) {
