@@ -20,8 +20,11 @@ EspeakThread::~EspeakThread()
 
 void EspeakThread::resetEspeakContext()
 {
-    // const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
+#if JUCE_WINDOWS
+    const char* path = R"(D:\projects\circuitbent-speech\espeak-ng\espeak-ng-data)";
+#else
     const char* path = R"(/home/arden/projects/circuitbent-speech/espeak-ng/espeak-ng-data)";
+#endif
     espeak_AUDIO_OUTPUT output = AUDIO_OUTPUT_SYNCHRONOUS;
     int buflength = 500, options = 0;
 
