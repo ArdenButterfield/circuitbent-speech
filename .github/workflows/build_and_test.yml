@@ -43,7 +43,7 @@ jobs:
           - name: macOS
             os: macos-14
             pluginval-binary: pluginval.app/Contents/MacOS/pluginval
-            data-directory: "/Library/Application Support/Homer"
+            data-directory: /Library/Application\ Support/Homer
             extra-flags: -G Ninja -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           - name: Windows
             os: windows-latest
