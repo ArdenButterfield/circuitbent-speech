@@ -28,6 +28,48 @@ struct HomerState
 
     HomerState();
 
+    void exportToXml(juce::XmlElement* parent) const
+    {
+        auto paramsElement = parent->createNewChildElement ("params");
+
+        for (int i = 0; i < params.size(); ++i) {
+            paramsElement->setAttribute (juce::String("param-") + juce::String(i), params[i]->getValue());
+        }
+
+        auto lyricsElement = parent->createNewChildElement ("lyrics");
+
+        for (int i = 0; i < lyrics.size(); ++i) {
+            auto lElement = lyricsElement->createNewChildElement ("line-" + std::to_string(i));
+            lElement->addTextElement (lyrics[i]);
+        }
+
+    }
+
+    void importFromXml(juce::XmlElement* parent)
+    {
+        for (auto& child : parent->getChildIterator()) {
+            if (child->getTagName() == "params") {
+                for (int i = 0; i < params.size(); ++i) {
+                    auto pValue = child->getDoubleAttribute (juce::String("param-") + juce::String(i), -1);
+                    if (pValue >= 0 && pValue <= 1) {
+                        params[i]->beginChangeGesture();
+                        params[i]->setValueNotifyingHost (pValue);
+                        params[i]->endChangeGesture();
+                    }
+                }
+            } else if (child->getTagName() == "lyrics") {
+                for (int lyricI = 0; lyricI < lyrics.size(); ++lyricI) {
+                    auto lyricChild = child->getChildByName ("line-" + std::to_string(lyricI));
+                    if (lyricChild) {
+                        lyrics[lyricI] = lyricChild->getAllSubText();
+                    }
+                }
+            } else {
+                jassertfalse;
+            }
+        }
+    }
+
     std::array<juce::String, numLyricLines> lyrics;
     std::array<juce::AudioParameterChoice*, numLyricLines> languageSelectors;
 

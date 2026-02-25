@@ -10,6 +10,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (titlePanel);
 
     addAndMakeVisible (inspectButton);
+    addAndMakeVisible (copyState);
+    addAndMakeVisible (pasteState);
 
     // this chunk of code instantiates and opens the melatonin inspector
     inspectButton.onClick = [&] {
@@ -20,6 +22,17 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         }
 
         inspector->setVisible (true);
+    };
+
+    copyState.onClick = [&] {
+        auto xml = juce::XmlElement("HomerState");
+        processorRef.homerState.exportToXml (&xml);
+        juce::SystemClipboard::copyTextToClipboard (xml.toString ());
+    };
+
+    pasteState.onClick = [&] {
+        auto xml = juce::XmlDocument(juce::SystemClipboard::getTextFromClipboard()).getDocumentElement ();
+        processorRef.homerState.importFromXml (xml.get());
     };
 
     // Make sure that before the constructor has finished, you've set the
@@ -51,4 +64,6 @@ void PluginEditor::resized()
     bendsPanel.setBounds (area.withTrimmedTop (titlePanel.getBottom() + 5).withLeft (std::max(getWidth() / 2, getRight() - 600)));
     lyricsEditor.setBounds (bendsPanel.getBounds().withLeft (area.getX()).withRight (bendsPanel.getX() - 5));
     inspectButton.setBounds (titlePanel.getBounds().withWidth (100).reduced (5));
+    copyState.setBounds (inspectButton.getBounds().withX (inspectButton.getRight() + 5));
+    pasteState.setBounds (copyState.getBounds().withX (copyState.getRight() + 5));
 }
