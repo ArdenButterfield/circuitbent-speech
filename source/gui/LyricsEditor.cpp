@@ -18,13 +18,15 @@ LyricsEditor::LyricsEditor (HomerState& hs) : homerState (hs)
         lyrics[i] = std::make_unique<LyricLineEditor> (homerState, i);
         addAndMakeVisible (lyrics[i].get());
     }
+
+    startTimerHz (30);
 }
 LyricsEditor::~LyricsEditor()
-{
-}
+= default;
+
 void LyricsEditor::paint (juce::Graphics& g)
 {
-    Component::paint (g);
+
 }
 void LyricsEditor::resized()
 {

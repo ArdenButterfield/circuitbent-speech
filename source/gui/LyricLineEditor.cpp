@@ -24,19 +24,24 @@ LyricLineEditor::LyricLineEditor(HomerState& hs, int n) : homerState(hs), lineNu
     voiceSelect.setSelectedItemIndex (homerState.languageSelectors[lineNumber]->getIndex());
 
     textEditor.setText (homerState.lyrics[lineNumber]);
+    homerState.addLyricsListener (this);
 }
 
 LyricLineEditor::~LyricLineEditor()
 {
+    homerState.removeLyricsListener (this);
 }
+
 void LyricLineEditor::textEditorReturnKeyPressed (juce::TextEditor&)
 {
     homerState.lyrics[lineNumber] = textEditor.getText();
 }
+
 void LyricLineEditor::textEditorEscapeKeyPressed (juce::TextEditor&)
 {
     textEditor.setText (homerState.lyrics[lineNumber]);
 }
+
 void LyricLineEditor::comboBoxChanged (juce::ComboBox*)
 {
     auto id = voiceSelect.getSelectedItemIndex();

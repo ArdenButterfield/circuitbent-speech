@@ -8,11 +8,11 @@
 #include "../state/HomerState.h"
 #include "juce_gui_basics/juce_gui_basics.h"
 
-class LyricLineEditor : public juce::Component, public juce::TextEditor::Listener, public juce::ComboBox::Listener
+class LyricLineEditor : public juce::Component, public juce::TextEditor::Listener, public juce::ComboBox::Listener, public HomerState::LyricsListener
 {
 public:
     LyricLineEditor(HomerState& homerState, int lineNumber);
-    ~LyricLineEditor();
+    ~LyricLineEditor() override;
 private:
     void textEditorReturnKeyPressed(juce::TextEditor&) override;
     void textEditorEscapeKeyPressed(juce::TextEditor&) override;
@@ -28,6 +28,10 @@ private:
     HomerState& homerState;
 
     const int lineNumber;
+
+    void lyricsChangeCallback() override {
+        textEditor.setText (homerState.lyrics[lineNumber]);
+    }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LyricLineEditor);
 };

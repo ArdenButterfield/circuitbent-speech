@@ -14,6 +14,14 @@
 
 struct HomerState
 {
+    class LyricsListener
+    {
+    public:
+        virtual ~LyricsListener() = default;
+        virtual void lyricsChangeCallback() {}
+    };
+
+
     static constexpr int numLyricLines = 8;
 
     const juce::String defaultDataDirectory =
@@ -64,10 +72,26 @@ struct HomerState
                         lyrics[lyricI] = lyricChild->getAllSubText();
                     }
                 }
+                for (auto& listener : lyricsListeners) {
+                    listener->lyricsChangeCallback();
+                }
             } else {
                 jassertfalse;
             }
         }
+    }
+
+    void addLyricsListener(LyricsListener* listener)
+    {
+        lyricsListeners.push_back(listener);
+    }
+
+    void removeLyricsListener(LyricsListener* listener)
+    {
+        auto it = std::find(lyricsListeners.begin(), lyricsListeners.end(), listener);
+
+        if (it != lyricsListeners.end())
+            lyricsListeners.erase(it);
     }
 
     std::array<juce::String, numLyricLines> lyrics;
@@ -106,6 +130,7 @@ struct HomerState
     float peakLevel;
     float rmsLevel;
 
+    std::vector<LyricsListener*> lyricsListeners;
 };
 
 #endif //HOMER_HOMERSTATE_H
