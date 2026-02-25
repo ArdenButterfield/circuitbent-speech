@@ -6,7 +6,7 @@
 
 #include "espeak-ng/speak_lib.h"
 
-HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale"), formantHeightRescaler("fhrescale", "formant height rescaler"), peakLevel (0), rmsLevel (0)
+HomerState::HomerState() : formantFrequencyRescaler ("ffrescale", "formant frequency rescale"), formantHeightRescaler("fhrescale", "formant height rescaler"),  rmsLevel (0)
 {
     EspeakProcessorContext epContext;
 

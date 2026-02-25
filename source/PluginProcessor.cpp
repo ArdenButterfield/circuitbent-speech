@@ -95,6 +95,15 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     std::cout << "prepareToPlay" << std::endl;
     homerProcessor = std::make_unique<HomerProcessor> (homerState);
     homerProcessor->prepareToPlay (sampleRate, samplesPerBlock);
+
+    homerState.inputTracker.reset();
+    homerState.inputTracker.setLevelCalculationType (juce::dsp::BallisticsFilter<float>::LevelCalculationType::RMS);
+    homerState.inputTracker.prepare ({
+        sampleRate,
+        static_cast<unsigned>(samplesPerBlock),
+        1});
+    homerState.inputTracker.setAttackTime (20);
+    homerState.inputTracker.setReleaseTime (70);
 }
 
 void PluginProcessor::releaseResources()
@@ -177,9 +186,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         homerProcessor->processBlock (buffer, 0, buffer.getNumSamples(), false);
     }
-
-    homerState.peakLevel = buffer.getMagnitude (0,0,buffer.getNumSamples());
-    homerState.rmsLevel = buffer.getRMSLevel (0,0,buffer.getNumSamples());
+    for (int i = 0; i < buffer.getNumSamples(); ++i) {
+        homerState.rmsLevel = homerState.inputTracker.processSample(0, buffer.getSample (0, i));
+    }
 }
 
 //==============================================================================

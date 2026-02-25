@@ -5,10 +5,10 @@
 #ifndef HOMER_HOMERPROCESSOR_H
 #define HOMER_HOMERPROCESSOR_H
 
-#include "juce_audio_basics/juce_audio_basics.h"
 #include "../state/HomerState.h"
 #include "EspeakThread.h"
 #include "Resampler.h"
+#include "juce_audio_basics/juce_audio_basics.h"
 
 class HomerProcessor
 {

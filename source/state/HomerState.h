@@ -11,7 +11,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "RescaleParameters.h"
-
+#include "juce_dsp/juce_dsp.h"
 struct HomerState
 {
     class LyricsListener
@@ -127,8 +127,8 @@ struct HomerState
     float keyFrequency = 0;
     bool noteCurrentlyDown = false;
 
-    float peakLevel;
     float rmsLevel;
+    juce::dsp::BallisticsFilter<float> inputTracker;
 
     std::vector<LyricsListener*> lyricsListeners;
 };

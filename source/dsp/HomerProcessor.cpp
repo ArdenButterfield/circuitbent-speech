@@ -3,6 +3,7 @@
 //
 
 #include "HomerProcessor.h"
+#include "juce_dsp/juce_dsp.h"
 
 HomerProcessor::HomerProcessor(HomerState& hs) : samplerate (0), homerState (hs)
 {
@@ -34,7 +35,7 @@ void HomerProcessor::processBlock (juce::AudioSampleBuffer& buffer, unsigned int
 
     jassert (startSample + numSamples <= buffer.getNumSamples());
 
-    auto speedDuck = 1 - 4 * homerState.peakLevel * *homerState.clockCurrentStealing;
+    auto speedDuck = 1 - 4 * homerState.rmsLevel * *homerState.clockCurrentStealing;
     speedDuck = std::max (speedDuck, 0.1f);
 
     resampler.setInputSamplerate (*homerState.clockSpeed * speedDuck);
